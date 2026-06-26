@@ -1,5 +1,17 @@
-"""Runtime control plane: load → project → operate → validate → route →
-commit → audit. See PILOT_SPEC.md §15.
+"""Runtime control plane. See PILOT_SPEC.md §15."""
 
-Implementation lands in Phase 3.
-"""
+from .clock import Clock, FixedClock, WallClock
+from .commit import CommitError, commit_patch
+from .loop import RunResult, Runtime, StepOutcome, bootstrap_state
+
+__all__ = [
+    "Clock",
+    "CommitError",
+    "FixedClock",
+    "RunResult",
+    "Runtime",
+    "StepOutcome",
+    "WallClock",
+    "bootstrap_state",
+    "commit_patch",
+]

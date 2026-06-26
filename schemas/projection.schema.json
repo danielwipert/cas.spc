@@ -72,8 +72,9 @@
       "type": "object"
     },
     "Perspective": {
-      "description": "See PILOT_SPEC.md \u00a714.2.",
+      "description": "See PILOT_SPEC.md \u00a714.2.\n\n`EXTRACT` is not in the spec's listed set; it is added here because the\nExtract operator runs against an empty/initial state where the other\nperspectives don't yet make sense.",
       "enum": [
+        "extract",
         "planner",
         "critic",
         "retriever",

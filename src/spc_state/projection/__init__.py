@@ -2,3 +2,7 @@
 
 Phase 3 ships a passthrough stub; Phase 5 ships real perspectives.
 """
+
+from .stub import passthrough
+
+__all__ = ["passthrough"]

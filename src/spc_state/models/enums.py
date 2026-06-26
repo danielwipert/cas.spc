@@ -127,8 +127,14 @@ class RouterDecision(str, Enum):
 
 
 class Perspective(str, Enum):
-    """See PILOT_SPEC.md §14.2."""
+    """See PILOT_SPEC.md §14.2.
 
+    `EXTRACT` is not in the spec's listed set; it is added here because the
+    Extract operator runs against an empty/initial state where the other
+    perspectives don't yet make sense.
+    """
+
+    EXTRACT = "extract"
     PLANNER = "planner"
     CRITIC = "critic"
     RETRIEVER = "retriever"
