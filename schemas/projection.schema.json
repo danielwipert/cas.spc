@@ -1,0 +1,165 @@
+{
+  "$defs": {
+    "IncludedObjects": {
+      "additionalProperties": false,
+      "description": "Object IDs included in this projection, grouped by type.",
+      "properties": {
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "claims": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "contradictions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Contradictions",
+          "type": "array"
+        },
+        "entities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "hypotheses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Hypotheses",
+          "type": "array"
+        },
+        "inferences": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inferences",
+          "type": "array"
+        },
+        "questions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Questions",
+          "type": "array"
+        },
+        "relations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Relations",
+          "type": "array"
+        }
+      },
+      "title": "IncludedObjects",
+      "type": "object"
+    },
+    "Perspective": {
+      "description": "See PILOT_SPEC.md \u00a714.2.",
+      "enum": [
+        "planner",
+        "critic",
+        "retriever",
+        "verifier",
+        "writer",
+        "executive"
+      ],
+      "title": "Perspective",
+      "type": "string"
+    },
+    "ProjectionPolicy": {
+      "additionalProperties": false,
+      "description": "Switches that govern what the projection includes. See spec \u00a714.3.",
+      "properties": {
+        "include_archived": {
+          "default": false,
+          "title": "Include Archived",
+          "type": "boolean"
+        },
+        "include_contradictions": {
+          "default": true,
+          "title": "Include Contradictions",
+          "type": "boolean"
+        },
+        "include_dependency_edges": {
+          "default": true,
+          "title": "Include Dependency Edges",
+          "type": "boolean"
+        },
+        "include_evidence_spans": {
+          "default": true,
+          "title": "Include Evidence Spans",
+          "type": "boolean"
+        },
+        "include_low_confidence_claims": {
+          "default": true,
+          "title": "Include Low Confidence Claims",
+          "type": "boolean"
+        },
+        "include_writer_notes": {
+          "default": false,
+          "title": "Include Writer Notes",
+          "type": "boolean"
+        }
+      },
+      "title": "ProjectionPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A perspective-specific projection of a state version. See spec \u00a714.3.",
+  "properties": {
+    "base_state_id": {
+      "title": "Base State Id",
+      "type": "string"
+    },
+    "base_state_version": {
+      "minimum": 0,
+      "title": "Base State Version",
+      "type": "integer"
+    },
+    "goal": {
+      "title": "Goal",
+      "type": "string"
+    },
+    "included_objects": {
+      "$ref": "#/$defs/IncludedObjects"
+    },
+    "perspective": {
+      "$ref": "#/$defs/Perspective"
+    },
+    "projection_id": {
+      "title": "Projection Id",
+      "type": "string"
+    },
+    "projection_policy": {
+      "$ref": "#/$defs/ProjectionPolicy"
+    }
+  },
+  "required": [
+    "projection_id",
+    "base_state_id",
+    "base_state_version",
+    "perspective",
+    "goal"
+  ],
+  "title": "Projection",
+  "type": "object"
+}

@@ -1,0 +1,214 @@
+{
+  "$defs": {
+    "ConfidenceChange": {
+      "additionalProperties": false,
+      "description": "A logged confidence delta on a single object.",
+      "properties": {
+        "from": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "From",
+          "type": "number"
+        },
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "to": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "To",
+          "type": "number"
+        }
+      },
+      "required": [
+        "object_id",
+        "from",
+        "to"
+      ],
+      "title": "ConfidenceChange",
+      "type": "object"
+    },
+    "ModelFingerprint": {
+      "additionalProperties": false,
+      "description": "Identifies the LLM that produced a patch (Phase 7+).",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "sampling": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "title": "Sampling",
+          "type": "object"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "title": "ModelFingerprint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A durable record of an operator invocation. See spec \u00a710.6.",
+  "properties": {
+    "confidence_changes": {
+      "items": {
+        "$ref": "#/$defs/ConfidenceChange"
+      },
+      "title": "Confidence Changes",
+      "type": "array"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "input_state_version": {
+      "minimum": 0,
+      "title": "Input State Version",
+      "type": "integer"
+    },
+    "model_fingerprint": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModelFingerprint"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
+    "operator": {
+      "title": "Operator",
+      "type": "string"
+    },
+    "operator_version": {
+      "title": "Operator Version",
+      "type": "string"
+    },
+    "output_state_version": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output State Version"
+    },
+    "read_set": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Read Set",
+      "type": "array"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Started At"
+    },
+    "transform_type": {
+      "title": "Transform Type",
+      "type": "string"
+    },
+    "write_set": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Write Set",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "transform_type",
+    "operator",
+    "operator_version",
+    "input_state_version"
+  ],
+  "title": "TransformRecord",
+  "type": "object"
+}

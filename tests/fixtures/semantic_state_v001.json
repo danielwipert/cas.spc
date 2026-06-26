@@ -1,0 +1,84 @@
+{
+  "state_id": "sr_001",
+  "schema_version": "0.1.0",
+  "project_id": "spc_pilot_001",
+  "name": "AI Coding Assistant Adoption Analysis",
+  "state_version": 1,
+  "previous_state_version": null,
+  "status": "active",
+  "created_at": "2026-06-26T00:00:00Z",
+  "updated_at": "2026-06-26T00:05:00Z",
+
+  "entities": {},
+
+  "claims": {
+    "claim_001": {
+      "id": "claim_001",
+      "object_type": "claim",
+      "text": "AI coding assistants may improve routine engineering task speed.",
+      "claim_type": "analytical_claim",
+      "epistemic_status": "inferred",
+      "confidence": 0.74,
+      "status": "active",
+      "supporting_evidence": ["ev_001"],
+      "assumptions": ["assumption_001"],
+      "contradicted_by": [],
+      "derived_from": [],
+      "extracted_by": "transform_extract_001"
+    }
+  },
+
+  "evidence": {
+    "ev_001": {
+      "id": "ev_001",
+      "object_type": "evidence",
+      "source_type": "input_document",
+      "source_id": "doc_001",
+      "quote_or_span": "Prior benchmark studies suggest coding assistants can accelerate routine tasks.",
+      "reliability": "medium",
+      "status": "active",
+      "extracted_by": "transform_extract_001"
+    }
+  },
+
+  "assumptions": {
+    "assumption_001": {
+      "id": "assumption_001",
+      "object_type": "assumption",
+      "text": "Benchmark improvements will partially transfer to this company's engineering workflow.",
+      "confidence": 0.58,
+      "impact": "high",
+      "if_false_effect": "The productivity justification weakens materially.",
+      "status": "active",
+      "extracted_by": "transform_extract_001"
+    }
+  },
+
+  "inferences": {},
+  "hypotheses": {},
+  "questions": {},
+  "contradictions": {},
+  "relations": [],
+
+  "transform_log": [
+    {
+      "id": "transform_extract_001",
+      "transform_type": "extract",
+      "operator": "extract_transform",
+      "operator_version": "extract_transform@0.1.0",
+      "input_state_version": 0,
+      "output_state_version": 1,
+      "read_set": [],
+      "write_set": ["claim_001", "ev_001", "assumption_001"],
+      "confidence_changes": [],
+      "started_at": "2026-06-26T00:00:00Z",
+      "finished_at": "2026-06-26T00:05:00Z"
+    }
+  ],
+
+  "audit": {
+    "committed_patches": ["patch_001"],
+    "pending_patches": [],
+    "rejected_patches": []
+  }
+}

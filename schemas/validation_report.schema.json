@@ -1,0 +1,139 @@
+{
+  "$defs": {
+    "RouterDecision": {
+      "description": "See PILOT_SPEC.md \u00a715.2.",
+      "enum": [
+        "COMMIT",
+        "REVIEW",
+        "REJECT",
+        "RETRY",
+        "FAIL"
+      ],
+      "title": "RouterDecision",
+      "type": "string"
+    },
+    "ValidationIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "layer": {
+          "$ref": "#/$defs/ValidationLayer"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "object_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Object Id"
+        },
+        "severity": {
+          "$ref": "#/$defs/ValidationSeverity"
+        }
+      },
+      "required": [
+        "layer",
+        "severity",
+        "code",
+        "message"
+      ],
+      "title": "ValidationIssue",
+      "type": "object"
+    },
+    "ValidationLayer": {
+      "description": "See PILOT_SPEC.md \u00a716.",
+      "enum": [
+        "L1_schema",
+        "L2_referential",
+        "L3_model",
+        "L4_heuristic"
+      ],
+      "title": "ValidationLayer",
+      "type": "string"
+    },
+    "ValidationSeverity": {
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ],
+      "title": "ValidationSeverity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "base_state_id": {
+      "title": "Base State Id",
+      "type": "string"
+    },
+    "base_state_version": {
+      "minimum": 0,
+      "title": "Base State Version",
+      "type": "integer"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/ValidationIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "layers_run": {
+      "items": {
+        "$ref": "#/$defs/ValidationLayer"
+      },
+      "title": "Layers Run",
+      "type": "array"
+    },
+    "patch_id": {
+      "title": "Patch Id",
+      "type": "string"
+    },
+    "report_id": {
+      "title": "Report Id",
+      "type": "string"
+    },
+    "suggested_decision": {
+      "$ref": "#/$defs/RouterDecision"
+    }
+  },
+  "required": [
+    "report_id",
+    "patch_id",
+    "base_state_id",
+    "base_state_version",
+    "generated_at",
+    "suggested_decision"
+  ],
+  "title": "ValidationReport",
+  "type": "object"
+}

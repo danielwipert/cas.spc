@@ -1,0 +1,160 @@
+{
+  "$defs": {
+    "ConfidenceMap": {
+      "additionalProperties": false,
+      "properties": {
+        "assumption_sensitive_claims": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumption Sensitive Claims",
+          "type": "array"
+        },
+        "strongest_claims": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Strongest Claims",
+          "type": "array"
+        },
+        "weakest_claims": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Weakest Claims",
+          "type": "array"
+        }
+      },
+      "title": "ConfidenceMap",
+      "type": "object"
+    },
+    "ReceiptAudit": {
+      "additionalProperties": false,
+      "properties": {
+        "committed_patches": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Committed Patches",
+          "type": "array"
+        },
+        "rejected_patches": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Rejected Patches",
+          "type": "array"
+        },
+        "reviewed_patches": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reviewed Patches",
+          "type": "array"
+        }
+      },
+      "title": "ReceiptAudit",
+      "type": "object"
+    },
+    "ReceiptSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "answer"
+      ],
+      "title": "ReceiptSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "audit": {
+      "$ref": "#/$defs/ReceiptAudit"
+    },
+    "claims_produced": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Claims Produced",
+      "type": "array"
+    },
+    "confidence_map": {
+      "$ref": "#/$defs/ConfidenceMap"
+    },
+    "contradictions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Contradictions",
+      "type": "array"
+    },
+    "evidence_used": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Used",
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "open_questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Open Questions",
+      "type": "array"
+    },
+    "receipt_id": {
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "state_id": {
+      "title": "State Id",
+      "type": "string"
+    },
+    "state_version": {
+      "minimum": 0,
+      "title": "State Version",
+      "type": "integer"
+    },
+    "summary": {
+      "$ref": "#/$defs/ReceiptSummary"
+    },
+    "transform_history": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Transform History",
+      "type": "array"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "state_id",
+    "state_version",
+    "generated_at",
+    "summary"
+  ],
+  "title": "ReasoningReceipt",
+  "type": "object"
+}

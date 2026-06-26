@@ -1,0 +1,89 @@
+{
+  "patch_id": "patch_003",
+  "patch_version": "0.1.0",
+  "base_state_id": "sr_001",
+  "base_state_version": 2,
+  "proposed_by": "critic_transform@0.1.0",
+  "created_at": "2026-06-26T00:12:00Z",
+
+  "read_set": ["claim_001", "claim_002", "assumption_001"],
+
+  "add_objects": {
+    "contradictions": [
+      {
+        "id": "contradiction_001",
+        "object_type": "contradiction",
+        "claim_a": "claim_002",
+        "claim_b": "claim_003",
+        "contradiction_type": "tension",
+        "severity": "medium",
+        "status": "unresolved",
+        "resolution_options": [
+          "retrieve_more_evidence",
+          "split_claim_by_task_type",
+          "route_to_human_review"
+        ],
+        "detected_by": "critic_transform@0.1.0"
+      }
+    ],
+    "questions": [
+      {
+        "id": "q_001",
+        "object_type": "question",
+        "text": "Does the productivity evidence transfer to complex architecture work?",
+        "status": "open",
+        "priority": "high",
+        "linked_objects": ["claim_001", "assumption_001"],
+        "asked_by": "critic_transform@0.1.0"
+      }
+    ]
+  },
+
+  "update_objects": [
+    {
+      "object_id": "claim_001",
+      "field": "confidence",
+      "from": 0.74,
+      "to": 0.62,
+      "reason": "Evidence supports routine task speed but not complex architecture work."
+    }
+  ],
+
+  "add_relations": [
+    {
+      "id": "rel_004",
+      "object_type": "relation",
+      "source": "q_001",
+      "predicate": "questions",
+      "target": "claim_001",
+      "confidence": 1.0,
+      "created_by": "critic_transform@0.1.0",
+      "status": "active"
+    }
+  ],
+
+  "archive_objects": [],
+
+  "transform_record": {
+    "id": "transform_critic_001",
+    "transform_type": "critique",
+    "operator": "critic_transform",
+    "operator_version": "critic_transform@0.1.0",
+    "input_state_version": 2,
+    "output_state_version": null,
+    "read_set": ["claim_001", "claim_002"],
+    "write_set": ["contradiction_001", "q_001"],
+    "confidence_changes": [
+      {
+        "object_id": "claim_001",
+        "from": 0.74,
+        "to": 0.62,
+        "reason": "Evidence supports routine task speed but not complex architecture work."
+      }
+    ],
+    "started_at": "2026-06-26T00:11:50Z",
+    "finished_at": "2026-06-26T00:12:00Z"
+  },
+
+  "status": "proposed"
+}

@@ -1,0 +1,1166 @@
+{
+  "$defs": {
+    "AddObjects": {
+      "additionalProperties": false,
+      "description": "New objects proposed by the patch, grouped by type.\n\nThe runtime concatenates each list into the corresponding\n`SemanticState` dict on commit.",
+      "properties": {
+        "assumptions": {
+          "items": {
+            "$ref": "#/$defs/Assumption"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/Claim"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "contradictions": {
+          "items": {
+            "$ref": "#/$defs/Contradiction"
+          },
+          "title": "Contradictions",
+          "type": "array"
+        },
+        "entities": {
+          "items": {
+            "$ref": "#/$defs/Entity"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "hypotheses": {
+          "items": {
+            "$ref": "#/$defs/Hypothesis"
+          },
+          "title": "Hypotheses",
+          "type": "array"
+        },
+        "inferences": {
+          "items": {
+            "$ref": "#/$defs/Inference"
+          },
+          "title": "Inferences",
+          "type": "array"
+        },
+        "questions": {
+          "items": {
+            "$ref": "#/$defs/Question"
+          },
+          "title": "Questions",
+          "type": "array"
+        }
+      },
+      "title": "AddObjects",
+      "type": "object"
+    },
+    "ArchiveObject": {
+      "additionalProperties": false,
+      "description": "Archive (soft-delete) an object. The object remains in state with\n`status='archived'` so audit history stays intact.",
+      "properties": {
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "object_id",
+        "reason"
+      ],
+      "title": "ArchiveObject",
+      "type": "object"
+    },
+    "Assumption": {
+      "additionalProperties": false,
+      "description": "A premise the analysis depends on but has not proven. See spec \u00a711.4.",
+      "properties": {
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "extracted_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extracted By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "if_false_effect": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "If False Effect"
+        },
+        "impact": {
+          "$ref": "#/$defs/Impact",
+          "default": "medium"
+        },
+        "object_type": {
+          "const": "assumption",
+          "default": "assumption",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ObjectStatus",
+          "default": "active"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "confidence"
+      ],
+      "title": "Assumption",
+      "type": "object"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "description": "A proposition the system asserts, infers, or assumes. See spec \u00a711.2.",
+      "properties": {
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "claim_type": {
+          "$ref": "#/$defs/ClaimType",
+          "default": "analytical_claim"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "contradicted_by": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Contradicted By",
+          "type": "array"
+        },
+        "derived_from": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Derived From",
+          "type": "array"
+        },
+        "epistemic_status": {
+          "$ref": "#/$defs/EpistemicStatus"
+        },
+        "extracted_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extracted By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "object_type": {
+          "const": "claim",
+          "default": "claim",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ObjectStatus",
+          "default": "active"
+        },
+        "supporting_evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Evidence",
+          "type": "array"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "epistemic_status",
+        "confidence"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "ClaimType": {
+      "enum": [
+        "factual_claim",
+        "analytical_claim",
+        "predictive_claim",
+        "normative_claim"
+      ],
+      "title": "ClaimType",
+      "type": "string"
+    },
+    "ConfidenceChange": {
+      "additionalProperties": false,
+      "description": "A logged confidence delta on a single object.",
+      "properties": {
+        "from": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "From",
+          "type": "number"
+        },
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "to": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "To",
+          "type": "number"
+        }
+      },
+      "required": [
+        "object_id",
+        "from",
+        "to"
+      ],
+      "title": "ConfidenceChange",
+      "type": "object"
+    },
+    "Contradiction": {
+      "additionalProperties": false,
+      "description": "A first-class conflict between two claims. See spec \u00a711.5.\n\nContradictions are preserved as objects rather than flattened into a\nsingle consensus claim; premature consensus is a failure mode (\u00a725.7).",
+      "properties": {
+        "claim_a": {
+          "title": "Claim A",
+          "type": "string"
+        },
+        "claim_b": {
+          "title": "Claim B",
+          "type": "string"
+        },
+        "contradiction_type": {
+          "$ref": "#/$defs/ContradictionType",
+          "default": "tension"
+        },
+        "detected_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detected By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "object_type": {
+          "const": "contradiction",
+          "default": "contradiction",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "resolution_options": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Resolution Options",
+          "type": "array"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity",
+          "default": "medium"
+        },
+        "status": {
+          "$ref": "#/$defs/ContradictionStatus",
+          "default": "unresolved"
+        }
+      },
+      "required": [
+        "id",
+        "claim_a",
+        "claim_b"
+      ],
+      "title": "Contradiction",
+      "type": "object"
+    },
+    "ContradictionStatus": {
+      "enum": [
+        "unresolved",
+        "resolved",
+        "dismissed"
+      ],
+      "title": "ContradictionStatus",
+      "type": "string"
+    },
+    "ContradictionType": {
+      "description": "See PILOT_SPEC.md \u00a711.5.",
+      "enum": [
+        "factual_conflict",
+        "tension",
+        "scope_mismatch",
+        "temporal_conflict"
+      ],
+      "title": "ContradictionType",
+      "type": "string"
+    },
+    "Entity": {
+      "additionalProperties": false,
+      "description": "A thing in the world (organization, person, product, model, paper).",
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Attributes",
+          "type": "object"
+        },
+        "confidence": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "entity_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity Type"
+        },
+        "extracted_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extracted By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "object_type": {
+          "const": "entity",
+          "default": "entity",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ObjectStatus",
+          "default": "active"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
+    "EpistemicStatus": {
+      "enum": [
+        "observed",
+        "inferred",
+        "assumed",
+        "speculative",
+        "verified",
+        "contradicted"
+      ],
+      "title": "EpistemicStatus",
+      "type": "string"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "description": "An observed source span. See spec \u00a711.3.\n\nEvidence must not be collapsed into claims. The runtime enforces that\nhigh-confidence claims either cite at least one `Evidence` or carry an\nexplicit `epistemic_status` of `assumed` or `speculative`.",
+      "properties": {
+        "extracted_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extracted By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "location": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "title": "Location",
+          "type": "object"
+        },
+        "object_type": {
+          "const": "evidence",
+          "default": "evidence",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "quote_or_span": {
+          "title": "Quote Or Span",
+          "type": "string"
+        },
+        "reliability": {
+          "$ref": "#/$defs/Reliability",
+          "default": "medium"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_type": {
+          "title": "Source Type",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ObjectStatus",
+          "default": "active"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        }
+      },
+      "required": [
+        "id",
+        "source_type",
+        "source_id",
+        "quote_or_span"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Hypothesis": {
+      "additionalProperties": false,
+      "description": "A live candidate interpretation or plan. See brainstorm \u00a77.10.",
+      "properties": {
+        "confidence": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "generated_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "object_type": {
+          "const": "hypothesis",
+          "default": "hypothesis",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "rival_hypotheses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Rival Hypotheses",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/HypothesisStatus",
+          "default": "active"
+        },
+        "supporting_claims": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Claims",
+          "type": "array"
+        },
+        "tests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tests",
+          "type": "array"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "Hypothesis",
+      "type": "object"
+    },
+    "HypothesisStatus": {
+      "enum": [
+        "active",
+        "rejected",
+        "accepted",
+        "superseded"
+      ],
+      "title": "HypothesisStatus",
+      "type": "string"
+    },
+    "Impact": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Impact",
+      "type": "string"
+    },
+    "Inference": {
+      "additionalProperties": false,
+      "description": "A recorded reasoning step. See spec \u00a711.6.\n\nInference objects are how the engine remembers that A and B were used to\nderive C, separately from the claim/evidence graph.",
+      "properties": {
+        "conclusion": {
+          "title": "Conclusion",
+          "type": "string"
+        },
+        "confidence_delta": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": -1.0,
+          "title": "Confidence Delta",
+          "type": "number"
+        },
+        "generated_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "inference_type": {
+          "$ref": "#/$defs/InferenceType"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "object_type": {
+          "const": "inference",
+          "default": "inference",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "premises": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Premises",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/ObjectStatus",
+          "default": "active"
+        }
+      },
+      "required": [
+        "id",
+        "inference_type",
+        "premises",
+        "conclusion"
+      ],
+      "title": "Inference",
+      "type": "object"
+    },
+    "InferenceType": {
+      "enum": [
+        "deductive",
+        "inductive",
+        "abductive"
+      ],
+      "title": "InferenceType",
+      "type": "string"
+    },
+    "ModelFingerprint": {
+      "additionalProperties": false,
+      "description": "Identifies the LLM that produced a patch (Phase 7+).",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "sampling": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "title": "Sampling",
+          "type": "object"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "title": "ModelFingerprint",
+      "type": "object"
+    },
+    "ObjectStatus": {
+      "enum": [
+        "active",
+        "archived",
+        "superseded"
+      ],
+      "title": "ObjectStatus",
+      "type": "string"
+    },
+    "PatchStatus": {
+      "description": "See PILOT_SPEC.md \u00a712.4.",
+      "enum": [
+        "proposed",
+        "validated",
+        "committed",
+        "rejected",
+        "pending_review",
+        "superseded",
+        "failed_validation"
+      ],
+      "title": "PatchStatus",
+      "type": "string"
+    },
+    "Priority": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Priority",
+      "type": "string"
+    },
+    "Question": {
+      "additionalProperties": false,
+      "description": "An unresolved information need. See spec \u00a711.7.",
+      "properties": {
+        "asked_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asked By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "linked_objects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Linked Objects",
+          "type": "array"
+        },
+        "object_type": {
+          "const": "question",
+          "default": "question",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority",
+          "default": "medium"
+        },
+        "status": {
+          "$ref": "#/$defs/QuestionStatus",
+          "default": "open"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "Question",
+      "type": "object"
+    },
+    "QuestionStatus": {
+      "enum": [
+        "open",
+        "in_progress",
+        "answered",
+        "closed"
+      ],
+      "title": "QuestionStatus",
+      "type": "string"
+    },
+    "Relation": {
+      "additionalProperties": false,
+      "description": "A typed edge between two semantic objects. See brainstorm \u00a77.5.",
+      "properties": {
+        "confidence": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "created_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created By"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "object_type": {
+          "const": "relation",
+          "default": "relation",
+          "title": "Object Type",
+          "type": "string"
+        },
+        "predicate": {
+          "title": "Predicate",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ObjectStatus",
+          "default": "active"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "predicate",
+        "target"
+      ],
+      "title": "Relation",
+      "type": "object"
+    },
+    "Reliability": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Reliability",
+      "type": "string"
+    },
+    "Severity": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "TransformRecord": {
+      "additionalProperties": false,
+      "description": "A durable record of an operator invocation. See spec \u00a710.6.",
+      "properties": {
+        "confidence_changes": {
+          "items": {
+            "$ref": "#/$defs/ConfidenceChange"
+          },
+          "title": "Confidence Changes",
+          "type": "array"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "input_state_version": {
+          "minimum": 0,
+          "title": "Input State Version",
+          "type": "integer"
+        },
+        "model_fingerprint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelFingerprint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "operator": {
+          "title": "Operator",
+          "type": "string"
+        },
+        "operator_version": {
+          "title": "Operator Version",
+          "type": "string"
+        },
+        "output_state_version": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output State Version"
+        },
+        "read_set": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Read Set",
+          "type": "array"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "transform_type": {
+          "title": "Transform Type",
+          "type": "string"
+        },
+        "write_set": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Write Set",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "transform_type",
+        "operator",
+        "operator_version",
+        "input_state_version"
+      ],
+      "title": "TransformRecord",
+      "type": "object"
+    },
+    "UpdateObject": {
+      "additionalProperties": false,
+      "description": "A typed field update on an existing object. See spec \u00a712.2.",
+      "properties": {
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "from": {
+          "title": "From"
+        },
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "to": {
+          "title": "To"
+        }
+      },
+      "required": [
+        "object_id",
+        "field",
+        "from",
+        "to",
+        "reason"
+      ],
+      "title": "UpdateObject",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A proposed mutation to `SemanticState`. See spec \u00a712.",
+  "properties": {
+    "add_objects": {
+      "$ref": "#/$defs/AddObjects"
+    },
+    "add_relations": {
+      "items": {
+        "$ref": "#/$defs/Relation"
+      },
+      "title": "Add Relations",
+      "type": "array"
+    },
+    "archive_objects": {
+      "items": {
+        "$ref": "#/$defs/ArchiveObject"
+      },
+      "title": "Archive Objects",
+      "type": "array"
+    },
+    "base_state_id": {
+      "title": "Base State Id",
+      "type": "string"
+    },
+    "base_state_version": {
+      "minimum": 0,
+      "title": "Base State Version",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "patch_id": {
+      "title": "Patch Id",
+      "type": "string"
+    },
+    "patch_version": {
+      "default": "0.1.0",
+      "title": "Patch Version",
+      "type": "string"
+    },
+    "proposed_by": {
+      "title": "Proposed By",
+      "type": "string"
+    },
+    "read_set": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Read Set",
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/PatchStatus",
+      "default": "proposed"
+    },
+    "transform_record": {
+      "$ref": "#/$defs/TransformRecord"
+    },
+    "update_objects": {
+      "items": {
+        "$ref": "#/$defs/UpdateObject"
+      },
+      "title": "Update Objects",
+      "type": "array"
+    }
+  },
+  "required": [
+    "patch_id",
+    "base_state_id",
+    "base_state_version",
+    "proposed_by",
+    "created_at",
+    "transform_record"
+  ],
+  "title": "SemanticPatch",
+  "type": "object"
+}
