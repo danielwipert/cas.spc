@@ -16,6 +16,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
+from ..diff import StateDiff
 from ..models import SemanticPatch, SemanticState, ValidationReport
 from .paths import RunPaths
 
@@ -83,4 +84,44 @@ class ValidationStore:
         return _read_model(self.paths.validation_file(ordinal), ValidationReport)
 
 
-__all__ = ["PatchStore", "StateStore", "ValidationStore"]
+class DiffStore:
+    """Reads and writes StateDiff artifacts for one run."""
+
+    def __init__(self, paths: RunPaths) -> None:
+        self.paths = paths
+
+    def write(self, diff: StateDiff) -> Path:
+        return _write_model(
+            self.paths.diff_file(diff.from_version, diff.to_version), diff
+        )
+
+    def read(self, version_a: int, version_b: int) -> StateDiff:
+        return _read_model(self.paths.diff_file(version_a, version_b), StateDiff)
+
+
+class ReceiptStore:
+    """Writes the rendered Markdown Reasoning Receipt for one run."""
+
+    def __init__(self, paths: RunPaths) -> None:
+        self.paths = paths
+
+    def write(self, state_version: int, markdown: str) -> Path:
+        path = self.paths.receipt_file(state_version)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Render already ends without a trailing newline; add exactly one so
+        # the file is POSIX-clean and byte-reproducible.
+        text = markdown if markdown.endswith("\n") else markdown + "\n"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def read(self, state_version: int) -> str:
+        return self.paths.receipt_file(state_version).read_text(encoding="utf-8")
+
+
+__all__ = [
+    "DiffStore",
+    "PatchStore",
+    "ReceiptStore",
+    "StateStore",
+    "ValidationStore",
+]

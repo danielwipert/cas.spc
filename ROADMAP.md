@@ -63,21 +63,31 @@ and is byte-for-byte reproducible across runs.
 
 ---
 
-## Phase 4 — Diff and Reasoning Receipt
+## Phase 4 — Diff and Reasoning Receipt ✅
 
-- `diff` module comparing two state versions by object type.
+- `diff` module comparing two state versions by object type
+  (`spc_state.diff.diff_states` → `StateDiff`, added/removed/changed with
+  field-level before/after, serialized to `runs/<id>/diffs/`).
 - Markdown `ReasoningReceipt` generator projecting summary, claims,
   evidence, assumptions, contradictions, open questions, transform history,
-  confidence map, and audit from state history.
-- Snapshot tests for the receipt.
-- Programmatic answers to the spec §8.4 follow-ups:
-  - "What did the critic add?" → reads `transform_log` + patches.
+  confidence map, and audit from state history
+  (`spc_state.receipt.project_receipt` + `render_markdown`, written to
+  `runs/<id>/receipts/`). The summary answer is read from the leading
+  hypothesis, not re-prompted (§18.3).
+- Snapshot test for the receipt (`tests/fixtures/reasoning_receipt_demo.md`).
+- Programmatic answers to the spec §8.4 follow-ups via
+  `spc_state.receipt.FollowUps`, surfaced by `spc-demo followups`:
+  - "What did the critic add?" → reads `transform_log` write-sets + deltas.
   - "Which claims are weakest?" → sorts by confidence + evidence count.
   - "What changed between state v1 and v3?" → diff.
+  - …plus assumptions-affecting-conclusion, source-supports-claim,
+    unresolved-questions, recommendation-dependency, and
+    inferred-vs-observed.
 
 **Exit gate:** system answers §8.4 follow-ups from state, not by re-prompting.
+✅ Met — every answer is a read over committed state; no operator is re-run.
 
-> 🎯 **Milestone 1 — End-to-end deterministic demo complete.**
+> 🎯 **Milestone 1 — End-to-end deterministic demo complete.** ✅
 
 ---
 

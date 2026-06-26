@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,11 +43,17 @@ def test_subpackages_importable() -> None:
 
 def test_cli_help_runs() -> None:
     """`python -m spc_state.cli --help` exits 0 and mentions the demo runner."""
+    # The CLI banner contains non-ASCII (em dash, §, box drawing). Force UTF-8
+    # on both ends so the capture does not fail under a Windows code page.
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     result = subprocess.run(
         [sys.executable, "-m", "spc_state.cli", "--help"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=15,
+        env=env,
     )
     assert result.returncode == 0, result.stderr
     assert "spc-demo" in result.stdout.lower() or "semantic" in result.stdout.lower()
