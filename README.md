@@ -1,0 +1,92 @@
+# cas.spc — SPC Shared Semantic State Engine
+
+> **Working name:** SPC Reasoning Receipt Engine
+> **Status:** Pilot v0.1 — pre-alpha, under construction.
+
+This repository implements the **Shared Semantic State Pilot** for the Semantic
+Processing Computer (SPC). It is a small, file-based engine that tests one
+architectural claim:
+
+> Compound AI systems should not communicate by passing summaries between LLM
+> stages. They should operate over **persistent semantic state**, transformed
+> through validated semantic patches.
+
+For the full rationale, hypotheses, scope, and acceptance criteria, see
+[`PILOT_SPEC.md`](./PILOT_SPEC.md).
+For the architectural invariants that govern every contribution (human or
+agent), see [`AGENTS.md`](./AGENTS.md).
+For the build sequence, see [`ROADMAP.md`](./ROADMAP.md).
+
+## What this engine does
+
+```text
+Input document
+      ↓
+Extract operator                  → SemanticState v1
+      ↓
+Planner operator → SemanticPatch  → Runtime validates → SemanticState v2
+      ↓
+Critic operator  → SemanticPatch  → Runtime validates → SemanticState v3
+      ↓
+ReasoningReceipt projected from state history
+```
+
+Each operator returns a **`SemanticPatch`**, never a mutated state. The
+runtime validates the patch, routes it (commit / review / reject / retry),
+writes the next state version, and appends an audit event. Follow-up
+questions ("what did the critic add?", "which claims are weakest?", "what
+changed between v1 and v3?") are answered by querying the state history,
+not by re-prompting an LLM.
+
+## Project layout
+
+```text
+cas.spc/
+  PILOT_SPEC.md          # canonical v0.1 specification
+  AGENTS.md              # architectural invariants for contributors / agents
+  ROADMAP.md             # phased build plan
+  pyproject.toml
+  src/spc_state/         # the engine
+    models/              # Pydantic models for state, patch, receipt, etc.
+    store/               # file-based versioned state store
+    validation/          # L1 schema + L2 referential/provenance validators
+    router/              # COMMIT / REVIEW / REJECT / RETRY
+    runtime/             # the load → project → operate → validate → route loop
+    operators/           # extract, planner, critic, retriever, verifier, writer
+    projection/          # perspective-specific views of state
+    diff/                # state-version comparison
+    receipt/             # ReasoningReceipt projection
+    audit/               # jsonl audit log writer
+    providers/           # LLM provider abstraction (added in Phase 6)
+    cli.py               # `spc-demo` entrypoint
+  examples/              # demo input documents
+  runs/                  # generated; per-run output trees (gitignored)
+  tests/
+```
+
+## Quickstart (planned — works once Phase 3 lands)
+
+```powershell
+# from a fresh clone
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+pytest
+spc-demo run --input examples/ai_coding_assistant.txt --run-id demo_001
+```
+
+This will write a complete reproducible artifact tree under
+`runs/demo_001/` (state snapshots, patches, validation reports, audit log,
+diffs, and a markdown `reasoning_receipt.md`).
+
+## Pilot scope
+
+This engine intentionally does **not** include:
+PDF parsing, vector databases, embeddings, autonomous agents, multi-user
+collaboration, a UI, real-time orchestration, authentication, or any cloud
+infrastructure. Those are deferred. The pilot tests the smallest useful
+shared-state kernel.
+
+## License
+
+Copyright © 2026 Daniel Wipert. All rights reserved. See [`LICENSE`](./LICENSE).

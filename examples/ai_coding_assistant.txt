@@ -1,0 +1,1 @@
+A company is evaluating whether to adopt an AI coding assistant. The engineering team expects productivity gains, but finance is concerned about usage-based costs. Security has concerns about source code exposure. Prior benchmark studies suggest coding assistants can accelerate routine tasks, but evidence is weaker for complex architecture work.
