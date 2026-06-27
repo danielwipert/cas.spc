@@ -25,6 +25,7 @@ from .demo import (
     write_demo_markdown,
 )
 from .evaluation import evaluate, write_report
+from .memo import write_memo
 from .models import EpistemicStatus, SemanticState
 from .operators import (
     CriticOperator,
@@ -151,6 +152,7 @@ def analyze(
         paths, states, generated_at=clock.now(), question=question
     )
     final = result.final_state
+    memo_path = write_memo(paths, final, question=question)
     _console.print(
         f"[green]state v{final.state_version}:[/green] "
         f"{len(final.claims)} claims, {len(final.evidence)} evidence, "
@@ -160,7 +162,32 @@ def analyze(
     if final.hypotheses:
         lead = max(final.hypotheses.values(), key=lambda h: h.confidence)
         _console.print(f"[green]recommendation:[/green] {_ascii(lead.text)}")
+    _console.print(f"[green]decision memo:[/green] [dim]{memo_path}[/dim]")
     _console.print(f"[green]reasoning receipt:[/green] [dim]{artifacts.receipt_path}[/dim]")
+
+
+@app.command()
+def memo(
+    run_id: str = typer.Option("analysis_001", "--run-id", help="Run to render."),
+    runs_dir: Path = typer.Option(Path("runs"), "--runs-dir"),
+    question: str = typer.Option(
+        "Decision analysis",
+        "--question",
+        "-q",
+        help="Heading/decision question for the memo.",
+    ),
+) -> None:
+    """Render a citation-backed Decision Memo from a run's committed state.
+
+    Reads the final `SemanticState` and projects `runs/<id>/memo.md` — a
+    stakeholder document where every finding cites its source span. Pure read,
+    no model call, so it can be regenerated any time.
+    """
+    paths = RunPaths(root=runs_dir, run_id=run_id)
+    history = _load_history(paths)
+    final = max(history, key=lambda s: s.state_version)
+    memo_path = write_memo(paths, final, question=question)
+    _console.print(f"[green]decision memo:[/green] [dim]{memo_path}[/dim]")
 
 
 @app.command()

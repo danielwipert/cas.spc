@@ -65,24 +65,18 @@ for at least one weakly-supported claim, the patch validates and commits to
 
 ---
 
-## T2 — WriterOperator: project the final memo from state · S
+## T2 — Writer: project the citation-backed memo from state · ✅ DONE
 
-**Why.** Spec §8.3 ends with *"Writer projects final memo from State v4."* The
-writer is a **terminal projector**, not a state mutator — it consumes the
-`WRITER` projection (high-confidence claims, no raw evidence) and renders a memo
-artifact, the SPC counterpart to the baseline's memo. This makes the
-head-to-head in `DEMO.md` a true memo-vs-memo at the end.
+`src/spc_state/memo.py` (`render_memo` / `write_memo`) projects committed state
+into a stakeholder Decision Memo: recommendation (leading hypothesis), key
+findings with inline `[E#]` citations, risks (weak claims + contradictions),
+assumptions with what they affect, prioritized open questions, and a numbered
+Sources list. Wired into `spc-demo analyze`; also a standalone `spc-demo memo
+--run-id` to regenerate from any run. Pure read, deterministic, no model call —
+the memo asserts nothing absent from state. Tests in `tests/test_memo.py`.
 
-**Scope.** `src/spc_state/writer/` (or `receipt/`-adjacent), writing
-`runs/<id>/memo.md`. It reads state; it returns **no** `SemanticPatch` (note the
-distinction in `AGENTS.md §II` — a projector is read-only, not an operator).
-
-**Acceptance test** (`tests/test_writer.py`). The memo cites only committed
-high-confidence claims and the leading hypothesis, never raw evidence spans, is
-deterministic (snapshot fixture), and contains no claim absent from the final
-state.
-
-**Invariants.** Read-only. No mutation, no patch. Pure projection → text.
+Possible follow-on: an *optional* LLM-narrated prose version layered on top
+(kept off by default, since re-prompting risks the drift SPC prevents).
 
 ---
 

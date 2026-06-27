@@ -110,11 +110,15 @@ spc-demo analyze --input path\to\your_document.txt --run-id my_analysis
 ```
 
 The CLI auto-loads a local `.env`, so a key dropped there is picked up without
-exporting it. The output isn't just prose — it's a queryable object graph. Interrogate it
-with `spc-demo followups --run-id my_analysis` (what did the critic change?
-which claims are weakest? which assumptions drive the conclusion?), all
-answered from committed state. Remaining operators (retriever, writer,
-contradiction detection) are tracked in [`TASKS.md`](TASKS.md).
+exporting it. `analyze` also writes `runs/<id>/memo.md` — a stakeholder **Decision Memo**
+where every finding cites its source span `[E#]`, weak claims surface as risks,
+and assumptions name what they affect (regenerate any time with `spc-demo memo
+--run-id my_analysis`). The output isn't just prose — it's a queryable object
+graph, so you can also interrogate it with `spc-demo followups --run-id
+my_analysis` (what did the critic change? which claims are weakest? which
+assumptions drive the conclusion?), all answered from committed state.
+Remaining operators (retriever, contradiction detection) are tracked in
+[`TASKS.md`](TASKS.md).
 
 ## Pilot scope
 
