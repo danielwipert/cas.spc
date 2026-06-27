@@ -91,16 +91,35 @@ and is byte-for-byte reproducible across runs.
 
 ---
 
-## Phase 5 — Projection builder
+## Phase 5 — Projection builder ✅
 
-Replace the projection stub from Phase 3.
+Replaced the projection stub from Phase 3.
 
-- Perspective-specific projections per spec §14.2: planner, critic,
-  retriever, verifier, writer.
-- Projection invariant tests: an operator that tries to mutate its
-  projection raises; operators only see their slice.
+- `spc_state.projection.build_projection` ships perspective-specific
+  projections per spec §14.2 — planner, critic, retriever, verifier, writer,
+  executive (plus extract as a passthrough over the initial state). Each
+  perspective selects a different slice (critic → weak claims + weak
+  evidence + assumptions; writer → high-confidence claims, no raw evidence;
+  planner → decision skeleton, no evidence spans; retriever → evidence gaps +
+  open questions; verifier → claims + evidence + provenance; executive →
+  recommendation + high-impact risks). Relations are included only when both
+  endpoints are in the slice, keeping the projection referentially closed.
+- `spc_state.projection.resolve_view` materialises a projection into a frozen,
+  deep-copied `ProjectionView` — the slice an operator actually reads. The
+  Planner and Critic operators now read through their view, not raw state.
+- The runtime builds a perspective-specific projection per step (was the
+  passthrough stub); the stub is deleted.
+- `Projection`, `IncludedObjects`, and `ProjectionPolicy` are frozen, so an
+  operator that receives a projection cannot mutate it.
+- Projection invariant tests (`tests/test_projection_invariant.py`): the
+  projection is frozen (writes raise); the view is frozen; the view contains
+  only its slice; editing a view object leaves canonical state untouched
+  (deep copies share no references). Perspective-slice tests in
+  `tests/test_projection_builder.py`.
 
 **Exit gate:** every operator runs against a perspective-specific projection.
+✅ Met — the runtime builds one per perspective; operators read their slice
+through `resolve_view`; the demo stays byte-for-byte reproducible.
 
 ---
 

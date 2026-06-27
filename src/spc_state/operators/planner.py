@@ -28,6 +28,7 @@ from ..models import (
     TransformRecord,
 )
 from ..models.patch import AddObjects
+from ..projection import resolve_view
 from ..runtime.clock import Clock
 from .base import Operator
 
@@ -53,10 +54,12 @@ class PlannerOperator(Operator):
         self.transform_id = transform_id
 
     def propose(self, state: SemanticState, projection: Projection) -> SemanticPatch:
-        if "claim_001" not in state.claims or "assumption_001" not in state.assumptions:
+        # Read only the planner's slice — claims, assumptions, dependencies.
+        view = resolve_view(projection, state)
+        if "claim_001" not in view.claims or "assumption_001" not in view.assumptions:
             raise RuntimeError(
                 "PlannerOperator (Phase 3 deterministic) expects the post-extract "
-                "demo state. Did the Extract step run?"
+                "demo state in its projection. Did the Extract step run?"
             )
 
         started = self.clock.now()

@@ -26,6 +26,7 @@ from ..models import (
 )
 from ..models.patch import AddObjects, UpdateObject
 from ..models.transform import ConfidenceChange
+from ..projection import resolve_view
 from ..runtime.clock import Clock
 from .base import Operator
 
@@ -51,10 +52,13 @@ class CriticOperator(Operator):
         self.transform_id = transform_id
 
     def propose(self, state: SemanticState, projection: Projection) -> SemanticPatch:
-        target = state.claims.get("claim_001")
+        # The critic's projection surfaces weak claims; claim_001 is one.
+        view = resolve_view(projection, state)
+        target = view.claims.get("claim_001")
         if target is None:
             raise RuntimeError(
-                "CriticOperator (Phase 3 deterministic) expects claim_001 in state."
+                "CriticOperator (Phase 3 deterministic) expects claim_001 in its "
+                "critic projection (it should be flagged as a weak claim)."
             )
 
         started = self.clock.now()

@@ -5,7 +5,9 @@ See PILOT_SPEC.md §14. Operators receive a `Projection`, not the raw
 their role needs. The projection may emphasize or hide, but it must not
 mutate canonical state (spec §14.4).
 
-Phase 2 ships the model; Phase 5 ships the perspective-specific builders.
+The model is frozen: an operator that receives a `Projection` cannot
+reassign its attributes. The perspective-specific builders live in
+`spc_state.projection` (Phase 5).
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ class ProjectionPolicy(BaseModel):
     include_archived: bool = False
     include_contradictions: bool = True
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class IncludedObjects(BaseModel):
@@ -41,7 +43,7 @@ class IncludedObjects(BaseModel):
     contradictions: list[str] = Field(default_factory=list)
     relations: list[str] = Field(default_factory=list)
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class Projection(BaseModel):
@@ -55,7 +57,7 @@ class Projection(BaseModel):
     included_objects: IncludedObjects = Field(default_factory=IncludedObjects)
     projection_policy: ProjectionPolicy = Field(default_factory=ProjectionPolicy)
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 __all__ = ["IncludedObjects", "Projection", "ProjectionPolicy"]

@@ -7,10 +7,12 @@ Every operator obeys this contract (AGENTS.md §II):
 3. Never mutates state or the projection.
 4. Includes `read_set` and `write_set` in its `TransformRecord`.
 
-Phase 3 hands operators *both* the state (for lookups) and the projection
-(for scope). Phase 5 will tighten this so operators only see what their
-projection includes. The state argument is kept here as a frozen Pydantic
-model — the operator cannot mutate it via attribute writes.
+Operators are handed *both* the frozen `SemanticState` and the perspective
+`Projection`, but they read through `resolve_view(projection, state)` (Phase
+5) so they only ever touch the slice their projection includes — a frozen,
+deep-copied `ProjectionView` with no path back to canonical state. The raw
+`state` argument remains a frozen Pydantic model; the operator cannot mutate
+it via attribute writes either.
 """
 
 from __future__ import annotations

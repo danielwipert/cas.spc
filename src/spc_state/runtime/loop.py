@@ -21,7 +21,7 @@ from ..models import (
     StateStatus,
     ValidationReport,
 )
-from ..projection import passthrough
+from ..projection import build_projection
 from ..router import decide as router_decide
 from ..store import PatchStore, RunPaths, StateStore, ValidationStore
 from ..validation import validate as run_validation
@@ -103,8 +103,8 @@ class Runtime:
         ordinal: int,
         report_id: str | None = None,
     ) -> StepOutcome:
-        # 1. Build a projection (Phase 3: passthrough stub).
-        projection = passthrough(
+        # 1. Build a perspective-specific projection (Phase 5).
+        projection = build_projection(
             state,
             perspective=operator.perspective,
             goal=operator.goal,
