@@ -18,11 +18,14 @@ from . import l1, l2
 def validate(
     *,
     state: SemanticState,
-    patch_payload: dict[str, Any],
+    patch_payload: dict[str, Any] | str,
     report_id: str,
     now: dt.datetime,
 ) -> ValidationReport:
     """Run L1 and (if L1 passes) L2 against `(state, patch_payload)`.
+
+    `patch_payload` may be a parsed dict or the raw string an LLM returned;
+    L1 handles JSON decoding (and reports `L1.JSON_DECODE` on prose).
 
     The `suggested_decision` field is a first-cut recommendation:
     - any L1 error → REJECT
@@ -41,9 +44,17 @@ def validate(
 
     suggested = _decide(issues)
 
+    if patch is not None:
+        patch_id = patch.patch_id
+    elif isinstance(patch_payload, dict):
+        patch_id = patch_payload.get("patch_id", "unknown_patch")
+    else:
+        # Raw, unparseable text (e.g. an LLM returned prose).
+        patch_id = "unparsed_patch"
+
     return ValidationReport(
         report_id=report_id,
-        patch_id=patch.patch_id if patch is not None else (patch_payload.get("patch_id", "unknown_patch")),
+        patch_id=patch_id,
         base_state_id=state.state_id,
         base_state_version=state.state_version,
         generated_at=now,

@@ -8,6 +8,15 @@ land in Phase 6 (mock) and Phase 7 (live).
 from .base import Operator
 from .critic import CriticOperator
 from .extract import ExtractOperator
+from .llm import LLMOperator, MalformedPatchError, MockLLMCriticOperator
 from .planner import PlannerOperator
 
-__all__ = ["CriticOperator", "ExtractOperator", "Operator", "PlannerOperator"]
+__all__ = [
+    "CriticOperator",
+    "ExtractOperator",
+    "LLMOperator",
+    "MalformedPatchError",
+    "MockLLMCriticOperator",
+    "Operator",
+    "PlannerOperator",
+]

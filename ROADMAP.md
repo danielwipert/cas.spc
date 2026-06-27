@@ -123,15 +123,33 @@ through `resolve_view`; the demo stays byte-for-byte reproducible.
 
 ---
 
-## Phase 6 — Mock LLM operator
+## Phase 6 — Mock LLM operator ✅
 
-- `LLMProvider` interface (provider-agnostic).
-- `MockProvider` that returns canned patches — valid, invalid, and prose
-  ("repair me").
-- Mock-backed critic operator exercising the validation-feedback retry path.
+- `spc_state.providers` ships the provider-agnostic seam: `LLMProvider`
+  (abstract `complete(ProviderRequest) -> ProviderResponse`), where a
+  response carries the model's **raw** text plus a `ModelFingerprint`. The
+  provider never parses or commits — the runtime does.
+- `MockProvider` returns scripted completions (one per call, last repeats).
+  Canned builders land on each outcome: `build_valid_critic_payload` →
+  COMMIT, `build_invalid_critic_payload` (ghost update target) → REJECT,
+  `PROSE_RESPONSE` (not JSON) → RETRY.
+- `MockLLMCriticOperator` (`operators/llm.py`, an `LLMOperator`) turns its
+  critic projection slice — plus any prior validation feedback — into a
+  prompt and delegates to the provider. It never mutates state.
+- The runtime gained a validation-feedback retry loop (`Runtime.step_llm`,
+  spec §15.6): validate → route → on RETRY, pass the issue codes/messages
+  back to the operator and ask again, up to `operator.max_attempts` (hard
+  cap). State commits only on a clean COMMIT; the committed patch records
+  the `model_fingerprint`. The validator now accepts a raw `str` payload
+  (prose → `L1.JSON_DECODE`).
+- Tests (`tests/test_mock_provider.py`, `tests/test_runtime_llm_retry.py`):
+  COMMIT, REJECT, prose→RETRY→COMMIT, retry-cap exhaustion, and that the
+  feedback actually reaches the second prompt.
 
 **Exit gate:** mock LLM operator produces both valid and invalid patches;
-runtime commits one, rejects/retries the others.
+runtime commits one, rejects/retries the others. ✅ Met — valid → COMMIT,
+ghost-ref → REJECT, prose → RETRY (then repairs and commits on feedback);
+the deterministic demo stays byte-for-byte reproducible.
 
 ---
 

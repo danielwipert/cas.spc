@@ -25,6 +25,7 @@ from ..projection import build_projection
 from ..router import decide as router_decide
 from ..store import PatchStore, RunPaths, StateStore, ValidationStore
 from ..validation import validate as run_validation
+from ..validation.l1 import parse_patch
 from .clock import Clock, WallClock
 from .commit import commit_patch
 
@@ -62,10 +63,11 @@ def bootstrap_state(
 @dataclass
 class StepOutcome:
     ordinal: int
-    patch: SemanticPatch
+    patch: SemanticPatch | None  # None when no attempt parsed (e.g. only prose)
     report: ValidationReport
     decision: RouterDecision
     next_state: SemanticState | None  # None on REJECT / RETRY / FAIL
+    attempts: int = 1  # >1 when the validation-feedback retry loop ran
 
 
 @dataclass
@@ -176,6 +178,105 @@ class Runtime:
             next_state=next_state,
         )
 
+    # -- one LLM operator step (validation-feedback retry loop) -----------
+
+    def step_llm(
+        self,
+        state: SemanticState,
+        operator,
+        *,
+        ordinal: int,
+    ) -> StepOutcome:
+        """Run an `LLMOperator`, retrying on recoverable output (spec §15.6).
+
+        The provider may return prose or an invalid patch. On a RETRY decision
+        the runtime passes the validation issues back to the operator and asks
+        again, up to `operator.max_attempts`. State is committed only on a
+        clean COMMIT — the operator never mutates it.
+        """
+        feedback: list[str] = []
+        report: ValidationReport | None = None
+        decision: RouterDecision | None = None
+        final_text = ""
+        fingerprint = None
+        attempts = 0
+
+        for attempt in range(1, operator.max_attempts + 1):
+            attempts = attempt
+            projection = build_projection(
+                state, perspective=operator.perspective, goal=operator.goal
+            )
+            self.audit.append(
+                "operator.started",
+                at=self.clock.now(),
+                operator=operator.fully_qualified(),
+                base_state_version=state.state_version,
+                attempt=attempt,
+            )
+            response = operator.generate(state, projection, feedback)
+            fingerprint = response.fingerprint
+            final_text = response.text
+
+            report = run_validation(
+                state=state,
+                patch_payload=response.text,
+                report_id=f"report_{ordinal:03d}",
+                now=self.clock.now(),
+            )
+            self.validation_store.write(report, ordinal)
+
+            decision = router_decide(report)
+            self.audit.append(
+                "patch.routed",
+                at=self.clock.now(),
+                patch_id=report.patch_id,
+                decision=decision.value,
+                attempt=attempt,
+                issues=[i.code for i in report.issues],
+            )
+
+            if decision is RouterDecision.RETRY and attempt < operator.max_attempts:
+                # Feed the validation errors back so the operator can repair.
+                feedback = [f"{i.code}: {i.message}" for i in report.issues]
+                self.audit.append(
+                    "patch.retry",
+                    at=self.clock.now(),
+                    attempt=attempt,
+                    next_attempt=attempt + 1,
+                    issues=[i.code for i in report.issues],
+                )
+                continue
+            break
+
+        assert report is not None and decision is not None  # loop ran ≥ once
+
+        patch, _ = parse_patch(final_text)
+        next_state: SemanticState | None = None
+        if decision is RouterDecision.COMMIT and patch is not None:
+            # Record which model produced the patch (spec §10.6).
+            if fingerprint is not None and patch.transform_record.model_fingerprint is None:
+                patch.transform_record.model_fingerprint = fingerprint
+            patch = patch.model_copy(update={"status": PatchStatus.COMMITTED})
+            self.patch_store.write(patch, ordinal)
+            next_state = commit_patch(state, patch, now=self.clock.now())
+            self.state_store.write(next_state)
+            self.audit.append(
+                "state.committed",
+                at=self.clock.now(),
+                patch_id=patch.patch_id,
+                previous_state_version=state.state_version,
+                new_state_version=next_state.state_version,
+            )
+
+        return StepOutcome(
+            ordinal=ordinal,
+            patch=patch,
+            report=report,
+            decision=decision,
+            next_state=next_state,
+            attempts=attempts,
+        )
+
     # -- a full run -------------------------------------------------------
 
     def run(
@@ -185,6 +286,9 @@ class Runtime:
         operators: list,
         input_text: str | None = None,
     ) -> RunResult:
+        # Lazy import to avoid a runtime <-> operators import cycle.
+        from ..operators.llm import LLMOperator
+
         self.paths.ensure_dirs()
         if input_text is not None:
             self.paths.input_copy().write_text(input_text, encoding="utf-8")
@@ -201,7 +305,10 @@ class Runtime:
         state = initial_state
         steps: list[StepOutcome] = []
         for ordinal, operator in enumerate(operators, start=1):
-            outcome = self.step(state, operator, ordinal=ordinal)
+            if isinstance(operator, LLMOperator):
+                outcome = self.step_llm(state, operator, ordinal=ordinal)
+            else:
+                outcome = self.step(state, operator, ordinal=ordinal)
             steps.append(outcome)
             if outcome.next_state is not None:
                 state = outcome.next_state
