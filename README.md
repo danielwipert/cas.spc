@@ -95,6 +95,23 @@ Add `--live-critic [--model <slug>]` to `run` to swap the deterministic critic
 for an OpenRouter LLM (needs `OPENROUTER_API_KEY`; the run becomes
 non-deterministic).
 
+## Use it on your own documents
+
+The demo run is hardcoded to one scenario, but `analyze` runs a **live LLM
+Extract** over *any* document and commits provenance-tracked semantic state —
+every claim it finds is stored with the exact span that supports it, then a
+Reasoning Receipt is projected from that state:
+
+```powershell
+$env:OPENROUTER_API_KEY = "sk-or-..."
+spc-demo analyze --input path\to\your_document.txt --run-id my_analysis
+```
+
+This is the first step toward "decision memos with receipts": the output isn't
+just prose, it's a queryable object graph you can interrogate with `followups`.
+Generalizing the Planner and Critic the same way (so the full pipeline runs on
+arbitrary input) is the next step — see [`TASKS.md`](TASKS.md).
+
 ## Pilot scope
 
 This engine intentionally does **not** include:

@@ -29,6 +29,7 @@ from .operators import (
     CriticOperator,
     ExtractOperator,
     LLMCriticOperator,
+    LLMExtractOperator,
     Operator,
     PlannerOperator,
 )
@@ -51,6 +52,80 @@ _console = Console()
 def version() -> None:
     """Print the engine version."""
     typer.echo(f"spc-state {__version__}")
+
+
+@app.command()
+def analyze(
+    input: Path = typer.Option(
+        ...,
+        "--input",
+        "-i",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+        help="Any document to analyze into semantic state.",
+    ),
+    run_id: str = typer.Option("analysis_001", "--run-id", help="Run id."),
+    runs_dir: Path = typer.Option(Path("runs"), "--runs-dir"),
+    question: str = typer.Option(
+        "What does this document establish?",
+        "--question",
+        "-q",
+        help="Decision/analysis question recorded in the receipt.",
+    ),
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        help="OpenRouter model slug (defaults to a value-based model; also "
+        "reads SPC_OPENROUTER_MODEL).",
+    ),
+) -> None:
+    """Extract a real document into provenance-tracked semantic state + receipt.
+
+    Runs the live LLM Extract operator over ANY document (not just the demo):
+    every claim it finds is committed with its supporting quote, then a
+    Reasoning Receipt is projected from the committed state. Needs
+    OPENROUTER_API_KEY. The run is non-deterministic (a live model).
+    """
+    document = input.read_text(encoding="utf-8")
+    paths = RunPaths(root=runs_dir, run_id=run_id)
+    clock = WallClock()
+
+    try:
+        provider = OpenRouterProvider(model=model)
+    except OpenRouterConfigError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    _console.print(f"[yellow]live extract via OpenRouter:[/yellow] {provider.model}")
+    runtime = Runtime(paths=paths, clock=clock)
+    result = runtime.run(
+        initial_state=bootstrap_state(
+            state_id="sr_001",
+            project_id="spc_analysis_001",
+            name="Document analysis",
+            now=clock.now(),
+        ),
+        operators=[LLMExtractOperator(provider, input_text=document, clock=clock)],
+        input_text=document,
+    )
+
+    if result.final_state.state_version == 0:
+        _render_summary(result)
+        raise typer.Exit(
+            code=1,
+        )
+
+    states = [result.initial_state, *(s.next_state for s in result.steps if s.next_state)]
+    artifacts = write_run_artifacts(
+        paths, states, generated_at=clock.now(), question=question
+    )
+    final = result.final_state
+    _console.print(
+        f"[green]extracted[/green] {len(final.claims)} claims, "
+        f"{len(final.evidence)} evidence spans, {len(final.assumptions)} assumptions "
+        f"-> state v{final.state_version}"
+    )
+    _console.print(f"[green]reasoning receipt:[/green] [dim]{artifacts.receipt_path}[/dim]")
 
 
 @app.command()
