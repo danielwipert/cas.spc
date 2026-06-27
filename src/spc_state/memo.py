@@ -129,9 +129,16 @@ def render_memo(state: SemanticState, *, question: str = "Decision analysis") ->
                 f"_(confidence {c.confidence:.0%})_"
             )
         for k in contradictions.values():
+            a = claims[k.claim_a].text if k.claim_a in claims else k.claim_a
+            b = claims[k.claim_b].text if k.claim_b in claims else k.claim_b
+            opts = (
+                " Options: " + "; ".join(k.resolution_options) + "."
+                if k.resolution_options
+                else ""
+            )
             lines.append(
-                f"- **Conflict ({k.contradiction_type.value}):** "
-                f"{k.claim_a} vs {k.claim_b} — {k.status.value}"
+                f"- **Conflict ({k.contradiction_type.value}, {k.severity.value}):** "
+                f'"{a}" vs "{b}" — {k.status.value}.{opts}'
             )
         lines.append("")
 

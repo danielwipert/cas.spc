@@ -31,6 +31,7 @@ from .operators import (
     CriticOperator,
     ExtractOperator,
     LLMCriticOperator,
+    LLMContradictionOperator,
     LLMExtractOperator,
     LLMPlannerOperator,
     LLMReviewCriticOperator,
@@ -119,7 +120,11 @@ def analyze(
     except OpenRouterConfigError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    stages = "extract" if extract_only else "extract -> plan -> critique -> retrieve"
+    stages = (
+        "extract"
+        if extract_only
+        else "extract -> plan -> critique -> retrieve -> verify"
+    )
     _console.print(
         f"[yellow]live analysis via OpenRouter:[/yellow] {provider.model} "
         f"[dim]({stages})[/dim]"
@@ -132,6 +137,7 @@ def analyze(
         operators.append(LLMReviewCriticOperator(provider, clock=clock))
         # The retriever is deterministic — flags evidence gaps, no model call.
         operators.append(RetrieverOperator(clock=clock))
+        operators.append(LLMContradictionOperator(provider, clock=clock))
 
     runtime = Runtime(paths=paths, clock=clock)
     result = runtime.run(

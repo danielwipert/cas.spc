@@ -73,25 +73,24 @@ Possible follow-on: an *optional* LLM-narrated prose version layered on top
 
 ---
 
-## T3 — Formal Contradiction objects · M
+## T3 — Formal Contradiction objects · ✅ DONE
 
-**Why.** The `Contradiction` model exists but the demo produces **zero** formal
-contradiction objects — tensions are captured as `Question`s instead (see
-`evaluation` §20.5). Spec §20.5 asks whether the system preserves conflicts *as
-objects*. A scenario with two directly conflicting claims should yield a
-committed `Contradiction` linking them, routed for `REVIEW`.
+`src/spc_state/operators/contradiction_llm.py` (`LLMContradictionOperator`,
+LLM-backed — conflict is a semantic judgement) reads the verifier projection
+(all claims), asks for conflicting pairs, and commits first-class
+`Contradiction` objects with status `unresolved` — that unresolved status *is*
+the standing review flag (spec §20.5 counts these). It references only existing
+claim ids, skips self-pairs, and never re-adds a pair already in state. Wired
+into `spc-demo analyze` as the 5th stage (→ v5); contradictions render in the
+Decision Memo's risks with claim text + resolution options. Tests in
+`tests/test_contradiction_llm.py`. Verified live: a marketing-vs-finance
+revenue memo surfaced a high-severity `factual_conflict` and a medium
+`tension`, and the recommendation turned cautious.
 
-**Scope.** A new scenario fixture under `examples/`, contradiction-detection
-logic in a critic-style operator, and updates to `evaluation/metrics.py §20.5`
-to count formal contradictions when present.
-
-**Acceptance test** (`tests/test_contradiction.py`). Given the conflicting-claims
-fixture, the pipeline commits (or routes to REVIEW) a `Contradiction` object
-whose `claim_a`/`claim_b` reference the conflicting claims, and the §20.5 metric
-reports `formal_contradiction_objects ≥ 1`.
-
-**Invariants.** Contradiction enters via a patch like any other object; do not
-special-case it around the validator.
+Note on "routed for REVIEW": rather than withholding the patch (which would
+lose the object), the conflict is committed *as* an unresolved object — the
+queryable, review-pending record. A future L3/L4 validator could additionally
+route the patch to REVIEW.
 
 ---
 

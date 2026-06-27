@@ -118,8 +118,10 @@ graph, so you can also interrogate it with `spc-demo followups --run-id
 my_analysis` (what did the critic change? which claims are weakest? which
 assumptions drive the conclusion?), all answered from committed state.
 The pipeline also runs a deterministic Retriever that flags under-evidenced
-claims as `needs_evidence` questions. Remaining work (contradiction detection,
-optional LLM-narrated memo) is tracked in [`TASKS.md`](TASKS.md).
+claims as `needs_evidence` questions, and a verifier that records genuine
+conflicts between claims as first-class `Contradiction` objects (surfaced in the
+memo's risks). Remaining refinements (planner retry-on-shape, an optional
+LLM-narrated memo) are tracked in [`TASKS.md`](TASKS.md).
 
 ## Pilot scope
 
