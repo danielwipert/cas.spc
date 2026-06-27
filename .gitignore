@@ -61,3 +61,6 @@ runs/
 
 # extracted-from-docx transient files
 Planning/*_extracted.txt
+
+# local test documents — never commit (may contain private/sensitive content)
+test_files/
