@@ -23,9 +23,6 @@ passed through untouched.
 
 from __future__ import annotations
 
-import json
-from typing import Any
-
 from ..models import (
     Assumption,
     Claim,
@@ -45,7 +42,11 @@ from ..models.patch import AddObjects
 from ..projection import ProjectionView, resolve_view
 from ..providers import LLMProvider, ProviderRequest, ProviderResponse
 from ..runtime.clock import Clock, WallClock
+from ._assembly import LLMAssemblyError, clamp_confidence, coerce_enum, load_json
 from .llm import LLMOperator
+
+#: Back-compat alias — this operator originally defined its own error type.
+ExtractionError = LLMAssemblyError
 
 _SCHEMA_HINT = """Return ONLY a single JSON object of this exact shape:
 
@@ -72,18 +73,6 @@ Rules:
 - No prose, no markdown fences — only the JSON object."""
 
 
-class ExtractionError(ValueError):
-    """The model output could not be assembled into an extract patch."""
-
-
-def _coerce_enum(value: Any, mapping: dict[str, Any], default: Any) -> Any:
-    """Map a loose model string onto an enum, tolerating case and synonyms."""
-    if not isinstance(value, str):
-        return default
-    key = value.strip().lower()
-    return mapping.get(key, default)
-
-
 _CLAIM_TYPES = {
     "factual_claim": ClaimType.FACTUAL,
     "factual": ClaimType.FACTUAL,
@@ -97,14 +86,6 @@ _CLAIM_TYPES = {
 _EPISTEMIC = {s.value: s for s in EpistemicStatus}
 _RELIABILITY = {r.value: r for r in Reliability}
 _IMPACT = {i.value: i for i in Impact}
-
-
-def _confidence(value: Any) -> float:
-    try:
-        c = float(value)
-    except (TypeError, ValueError):
-        return 0.5
-    return max(0.0, min(1.0, c))
 
 
 class LLMExtractOperator(LLMOperator):
@@ -178,7 +159,7 @@ class LLMExtractOperator(LLMOperator):
     # -- assembly ---------------------------------------------------------
 
     def _assemble(self, state: SemanticState, raw: str) -> SemanticPatch:
-        data = _load_json(raw)
+        data = load_json(raw)
         # If the model already emitted a full patch, trust the validator with it.
         if isinstance(data, dict) and ("add_objects" in data or "patch_id" in data):
             return SemanticPatch.model_validate(data)
@@ -208,7 +189,7 @@ class LLMExtractOperator(LLMOperator):
                         source_type="input_document",
                         source_id=self.source_id,
                         quote_or_span=quote,
-                        reliability=_coerce_enum(
+                        reliability=coerce_enum(
                             rc.get("evidence_reliability"), _RELIABILITY, Reliability.MEDIUM
                         ),
                         extracted_by=self.transform_id,
@@ -229,7 +210,7 @@ class LLMExtractOperator(LLMOperator):
                             id=aid,
                             text=atext,
                             confidence=0.5,
-                            impact=_coerce_enum(
+                            impact=coerce_enum(
                                 rc.get("assumption_impact"), _IMPACT, Impact.MEDIUM
                             ),
                             extracted_by=self.transform_id,
@@ -245,13 +226,13 @@ class LLMExtractOperator(LLMOperator):
                 Claim(
                     id=cid,
                     text=text,
-                    claim_type=_coerce_enum(
+                    claim_type=coerce_enum(
                         rc.get("claim_type"), _CLAIM_TYPES, ClaimType.ANALYTICAL
                     ),
-                    epistemic_status=_coerce_enum(
+                    epistemic_status=coerce_enum(
                         rc.get("epistemic_status"), _EPISTEMIC, EpistemicStatus.INFERRED
                     ),
-                    confidence=_confidence(rc.get("confidence")),
+                    confidence=clamp_confidence(rc.get("confidence")),
                     supporting_evidence=supporting,
                     assumptions=claim_assumptions,
                     extracted_by=self.transform_id,
@@ -286,23 +267,6 @@ class LLMExtractOperator(LLMOperator):
             transform_record=transform_record,
             status=PatchStatus.PROPOSED,
         )
-
-
-def _load_json(raw: str) -> Any:
-    """Parse JSON, tolerating a ```json fenced block the model may emit."""
-    text = raw.strip()
-    if text.startswith("```"):
-        # Drop the opening fence line and any trailing fence.
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise ExtractionError(f"Output was not valid JSON: {exc}") from exc
 
 
 __all__ = ["ExtractionError", "LLMExtractOperator"]

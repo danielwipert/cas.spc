@@ -26,28 +26,20 @@ documented v0.1 constraint — get sign-off before starting.
 
 ---
 
-## T0 — Generalize Planner & Critic to arbitrary input (LLM-backed) · M
+## T0 — Generalize Planner & Critic to arbitrary input (LLM-backed) · ✅ DONE
 
-**Why.** `LLMExtractOperator` (`operators/extract_llm.py`) already turns *any*
-document into a committed initial state — `spc-demo analyze` runs it live. But
-the Planner and Critic are still the Phase 3 deterministic ones, keyed to the
-demo's `claim_001`/`assumption_001`. Generalizing them unlocks the **full**
-pipeline (extract → plan → critique → receipt) on real documents — the path to
-"decision memos with receipts."
+`LLMExtractOperator`, `LLMPlannerOperator`, and `LLMReviewCriticOperator`
+(`operators/*_llm.py`, sharing `operators/_assembly.py`) now run the **full**
+live pipeline on any document — `spc-demo analyze` drives extract → plan →
+critique → receipt. Verified live and with injected-provider tests
+(`tests/test_extract_llm.py`, `tests/test_planner_critic_llm.py`). The model
+supplies content; the operator owns ids/transform bookkeeping; everything
+flows through `Runtime.step_llm`.
 
-**Scope.** `operators/planner_llm.py`, `operators/critic_llm.py` modelled on
-`LLMExtractOperator` (the operator owns id/transform bookkeeping; the model
-contributes content; everything flows through `Runtime.step_llm`). Extend
-`spc-demo analyze` to run all three live operators.
-
-**Acceptance test** (injected provider, no network). Over an LLM-extracted
-state, the LLM planner commits a hypothesis + open question linked to real
-claim ids, and the LLM critic lowers an unsupported claim's confidence via a
-versioned `update_objects` entry with `from`/`to`/`reason`. Both assert the
-no-direct-mutation invariant.
-
-**Invariants.** Mirror `extract_llm.py`: value-based per-task model, injected
-client in tests, model only supplies content — never timestamps or ids.
+Follow-on polish worth a task: the planner currently **REJECTs** (no retry)
+when the model returns valid JSON in the wrong shape, because the runtime only
+RETRYs on `JSON_DECODE`. A small improvement would route shape-invalid LLM
+output to RETRY with targeted feedback ("include a hypothesis").
 
 ---
 

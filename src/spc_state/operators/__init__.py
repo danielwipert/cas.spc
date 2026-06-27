@@ -5,8 +5,10 @@ Retriever, Verifier, and Writer arrive in later phases. LLM-backed versions
 land in Phase 6 (mock) and Phase 7 (live).
 """
 
+from ._assembly import LLMAssemblyError
 from .base import Operator
 from .critic import CriticOperator
+from .critic_llm import LLMReviewCriticOperator
 from .extract import ExtractOperator
 from .extract_llm import ExtractionError, LLMExtractOperator
 from .llm import (
@@ -16,14 +18,18 @@ from .llm import (
     MockLLMCriticOperator,
 )
 from .planner import PlannerOperator
+from .planner_llm import LLMPlannerOperator
 
 __all__ = [
     "CriticOperator",
     "ExtractOperator",
     "ExtractionError",
+    "LLMAssemblyError",
     "LLMCriticOperator",
     "LLMExtractOperator",
     "LLMOperator",
+    "LLMPlannerOperator",
+    "LLMReviewCriticOperator",
     "MalformedPatchError",
     "MockLLMCriticOperator",
     "Operator",

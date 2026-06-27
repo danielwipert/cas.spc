@@ -31,6 +31,8 @@ from .operators import (
     ExtractOperator,
     LLMCriticOperator,
     LLMExtractOperator,
+    LLMPlannerOperator,
+    LLMReviewCriticOperator,
     Operator,
     PlannerOperator,
 )
@@ -91,13 +93,20 @@ def analyze(
         help="OpenRouter model slug (defaults to a value-based model; also "
         "reads SPC_OPENROUTER_MODEL).",
     ),
+    extract_only: bool = typer.Option(
+        False,
+        "--extract-only",
+        help="Stop after extraction (skip the planner and critic).",
+    ),
 ) -> None:
-    """Extract a real document into provenance-tracked semantic state + receipt.
+    """Analyze a real document into provenance-tracked semantic state + receipt.
 
-    Runs the live LLM Extract operator over ANY document (not just the demo):
-    every claim it finds is committed with its supporting quote, then a
-    Reasoning Receipt is projected from the committed state. Needs
-    OPENROUTER_API_KEY. The run is non-deterministic (a live model).
+    Runs the full live pipeline over ANY document (not just the demo):
+    Extract -> Planner -> Critic, each emitting a validated patch. Every claim
+    is committed with its supporting quote, the planner adds a recommendation
+    and open questions, the critic adjusts weak confidence — then a Reasoning
+    Receipt is projected from the committed state. Needs OPENROUTER_API_KEY;
+    the run is non-deterministic (a live model).
     """
     document = input.read_text(encoding="utf-8")
     paths = RunPaths(root=runs_dir, run_id=run_id)
@@ -108,7 +117,18 @@ def analyze(
     except OpenRouterConfigError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    _console.print(f"[yellow]live extract via OpenRouter:[/yellow] {provider.model}")
+    stages = "extract" if extract_only else "extract -> plan -> critique"
+    _console.print(
+        f"[yellow]live analysis via OpenRouter:[/yellow] {provider.model} "
+        f"[dim]({stages})[/dim]"
+    )
+    operators: list[Operator] = [
+        LLMExtractOperator(provider, input_text=document, clock=clock)
+    ]
+    if not extract_only:
+        operators.append(LLMPlannerOperator(provider, clock=clock))
+        operators.append(LLMReviewCriticOperator(provider, clock=clock))
+
     runtime = Runtime(paths=paths, clock=clock)
     result = runtime.run(
         initial_state=bootstrap_state(
@@ -117,15 +137,14 @@ def analyze(
             name="Document analysis",
             now=clock.now(),
         ),
-        operators=[LLMExtractOperator(provider, input_text=document, clock=clock)],
+        operators=operators,
         input_text=document,
     )
 
+    _render_summary(result)
     if result.final_state.state_version == 0:
-        _render_summary(result)
-        raise typer.Exit(
-            code=1,
-        )
+        _console.print("[red]Nothing committed — the extractor produced no valid patch.[/red]")
+        raise typer.Exit(code=1)
 
     states = [result.initial_state, *(s.next_state for s in result.steps if s.next_state)]
     artifacts = write_run_artifacts(
@@ -133,10 +152,14 @@ def analyze(
     )
     final = result.final_state
     _console.print(
-        f"[green]extracted[/green] {len(final.claims)} claims, "
-        f"{len(final.evidence)} evidence spans, {len(final.assumptions)} assumptions "
-        f"-> state v{final.state_version}"
+        f"[green]state v{final.state_version}:[/green] "
+        f"{len(final.claims)} claims, {len(final.evidence)} evidence, "
+        f"{len(final.assumptions)} assumptions, {len(final.hypotheses)} hypotheses, "
+        f"{len(final.questions)} questions"
     )
+    if final.hypotheses:
+        lead = max(final.hypotheses.values(), key=lambda h: h.confidence)
+        _console.print(f"[green]recommendation:[/green] {_ascii(lead.text)}")
     _console.print(f"[green]reasoning receipt:[/green] [dim]{artifacts.receipt_path}[/dim]")
 
 
@@ -433,8 +456,20 @@ def followups(
     history = _load_history(paths)
     fu = FollowUps(history)
 
+    # The critic's operator name differs between the deterministic
+    # (critic_transform) and live (llm_critic_transform) pipelines; find it
+    # from the transform log so the follow-up works for either.
+    critic_op = next(
+        (
+            rec.operator
+            for rec in reversed(fu.final.transform_log)
+            if rec.transform_type == "critique"
+        ),
+        "critic_transform",
+    )
+
     answers = [
-        ("What did the critic add?", fu.what_did_operator_add("critic_transform").text),
+        ("What did the critic add?", fu.what_did_operator_add(critic_op).text),
         ("Which claims are weakest?", fu.weakest_claims().text),
         (
             "Which assumptions most affect the conclusion?",
@@ -453,11 +488,11 @@ def followups(
         ),
     ]
 
-    table = Table(title=f"§8.4 follow-ups — {run_id}", box=box.ASCII, show_lines=True)
+    table = Table(title=f"follow-ups — {run_id}", box=box.ASCII, show_lines=True)
     table.add_column("Question")
     table.add_column("Answer (from state)")
     for q, a in answers:
-        table.add_row(q, a)
+        table.add_row(_ascii(q), _ascii(a))
     _console.print(table)
 
 

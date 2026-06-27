@@ -97,10 +97,11 @@ non-deterministic).
 
 ## Use it on your own documents
 
-The demo run is hardcoded to one scenario, but `analyze` runs a **live LLM
-Extract** over *any* document and commits provenance-tracked semantic state —
-every claim it finds is stored with the exact span that supports it, then a
-Reasoning Receipt is projected from that state:
+The demo run is hardcoded to one scenario, but `analyze` runs the **full live
+pipeline** (Extract → Planner → Critic) over *any* document: every claim is
+committed with the exact span that supports it, the planner adds a
+recommendation and open questions, the critic adjusts weak confidence with a
+recorded reason, then a Reasoning Receipt is projected from that state:
 
 ```powershell
 pip install -e ".[openrouter]"     # the live provider needs the openai SDK
@@ -109,10 +110,11 @@ spc-demo analyze --input path\to\your_document.txt --run-id my_analysis
 ```
 
 The CLI auto-loads a local `.env`, so a key dropped there is picked up without
-exporting it. This is the first step toward "decision memos with receipts": the output isn't
-just prose, it's a queryable object graph you can interrogate with `followups`.
-Generalizing the Planner and Critic the same way (so the full pipeline runs on
-arbitrary input) is the next step — see [`TASKS.md`](TASKS.md).
+exporting it. The output isn't just prose — it's a queryable object graph. Interrogate it
+with `spc-demo followups --run-id my_analysis` (what did the critic change?
+which claims are weakest? which assumptions drive the conclusion?), all
+answered from committed state. Remaining operators (retriever, writer,
+contradiction detection) are tracked in [`TASKS.md`](TASKS.md).
 
 ## Pilot scope
 
