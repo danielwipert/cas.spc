@@ -117,8 +117,9 @@ and assumptions name what they affect (regenerate any time with `spc-demo memo
 graph, so you can also interrogate it with `spc-demo followups --run-id
 my_analysis` (what did the critic change? which claims are weakest? which
 assumptions drive the conclusion?), all answered from committed state.
-Remaining operators (retriever, contradiction detection) are tracked in
-[`TASKS.md`](TASKS.md).
+The pipeline also runs a deterministic Retriever that flags under-evidenced
+claims as `needs_evidence` questions. Remaining work (contradiction detection,
+optional LLM-narrated memo) is tracked in [`TASKS.md`](TASKS.md).
 
 ## Pilot scope
 

@@ -19,6 +19,7 @@ from .llm import (
 )
 from .planner import PlannerOperator
 from .planner_llm import LLMPlannerOperator
+from .retriever import RetrieverOperator
 
 __all__ = [
     "CriticOperator",
@@ -34,4 +35,5 @@ __all__ = [
     "MockLLMCriticOperator",
     "Operator",
     "PlannerOperator",
+    "RetrieverOperator",
 ]

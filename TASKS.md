@@ -45,23 +45,16 @@ output to RETRY with targeted feedback ("include a hypothesis").
 
 ## T1 — RetrieverOperator (complete the §8.3 SPC flow) · S
 
-**Why.** Spec §8.3 has the SPC flow continue past the critic: *"Retriever
-proposes Patch p4 identifying evidence gaps."* The demo currently stops at the
-critic (state v3). The `RETRIEVER` projection already exists (evidence gaps +
-open questions, `projection/builder.py`); only the operator is missing.
-
-**Scope.** `src/spc_state/operators/retriever.py`, export it from
-`operators/__init__.py`, optionally add it to the `spc-demo run`/`demo`
-pipeline as a fourth step.
-
-**Acceptance test** (`tests/test_retriever.py`). Running the retriever over the
-post-critic demo state proposes a patch that adds an evidence-gap `Question`
-for at least one weakly-supported claim, the patch validates and commits to
-`v4`, and a test asserts the operator does **not** mutate state directly (mirror
-`tests/test_operator_cannot_mutate_state.py`).
-
-**Invariants.** Read through the projection (`resolve_view`); emit a patch with
-`read_set`/`write_set`; new questions link to the claims whose evidence is thin.
+✅ **DONE.** `src/spc_state/operators/retriever.py` (`RetrieverOperator`,
+deterministic — no model) reads its `RETRIEVER` projection and opens a
+`needs_evidence` question for each evidence-gap claim (no evidence on record →
+high priority; under-confident on lower-reliability evidence → medium). Wired
+into `spc-demo analyze` as the 4th stage (extract → plan → critique → retrieve
+→ v4); the gaps surface in the Decision Memo's open questions. Tests in
+`tests/test_retriever.py` (flags gaps not grounded claims, priority, clean
+state flags nothing, no direct mutation). Deliberately **not** added to the
+deterministic `spc-demo demo`, so the frozen pilot artifacts (DEMO.md, pilot
+report, §8.4 v1→v3 follow-ups) stay byte-stable.
 
 ---
 
