@@ -232,16 +232,21 @@ a validated patch). The report is generated entirely from committed state.
 
 ---
 
-## Phase 9 — Codex handoff _(optional)_
+## Phase 9 — Contributor handoff _(optional)_
 
-If the pilot succeeds and a second pair of hands joins:
+Now that the pilot report has shipped, the repo is packaged so a second pair
+of hands — a human or any coding agent, no specific tool assumed — can pick up
+work without breaking the architectural invariants:
 
-- `CODEX_TASKS.md` with narrow, test-backed PR specs.
-- `AGENTS.md` revisited to reflect anything learned.
-- Issue list seeded.
+- [`TASKS.md`](./TASKS.md) — narrow, test-backed task specs, each with its
+  acceptance test stated up front and the files it touches.
+- [`AGENTS.md`](./AGENTS.md) revisited to reflect what Phases 1–8 actually
+  built (live OpenRouter critic wired; pilot report shipped).
+- GitHub issues seeded from `TASKS.md` (optional; create on demand).
 
-**Exit gate:** an outside contributor (human or Codex) can take a task
-without violating the architectural invariants.
+**Exit gate:** an outside contributor can take a `TASKS.md` task and land it
+without violating the operator/patch invariant — every change still flows
+through a validated `SemanticPatch`.
 
 ---
 

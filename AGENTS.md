@@ -6,6 +6,13 @@ Semantic State Engine. It is short on purpose. Read it before writing code.
 The canonical specification is [`PILOT_SPEC.md`](./PILOT_SPEC.md). This file
 extracts the rules that must not be broken.
 
+**Status (v0.1).** Phases 1–8 plus the narrated demo are complete and the pilot
+report has shipped (see [`ROADMAP.md`](./ROADMAP.md)). The engine runs
+`extract → planner → critic` deterministically, a live OpenRouter critic is
+wired behind the same loop, and `spc-demo demo` tells the whole story. Open
+work is tracked in [`TASKS.md`](./TASKS.md); pick a task from there and keep the
+invariants below intact.
+
 ---
 
 ## I. The Hard Invariant
@@ -114,16 +121,21 @@ state (spec §14.4).
 
 ---
 
-## VII. LLM Operators (Phase 6+)
+## VII. LLM Operators (wired in Phases 6–7)
 
-When live LLMs are wired in:
+The mock provider (Phase 6) and a live OpenRouter provider (Phase 7) are in the
+tree. Any LLM operator — existing or new:
 
-- They must return structured `SemanticPatch` JSON, not prose.
-- If the LLM returns prose or malformed JSON, the runtime routes to RETRY
-  with the validation error passed back. Do not silently repair.
-- The provider, model name, and version go in `TransformRecord.model_fingerprint`.
-- A test must demonstrate that an LLM proposing direct-mutation prose
-  ("the new state is …") is **rejected**, not absorbed.
+- must return structured `SemanticPatch` JSON, not prose;
+- on prose or malformed JSON, the runtime routes to RETRY with the validation
+  error passed back (`Runtime.step_llm`). Do not silently repair;
+- records provider, model, and resolved version in
+  `TransformRecord.model_fingerprint`;
+- chooses a **value-based, per-task** model — never a hardcoded frontier
+  flagship — and keeps the model configurable;
+- is tested with an **injected client** (no network, no key in CI). A test must
+  show that an LLM proposing direct-mutation prose ("the new state is …") is
+  **rejected**, not absorbed.
 
 LLMs are processors, not authorities. The runtime decides what commits.
 
@@ -137,8 +149,11 @@ LLMs are processors, not authorities. The runtime decides what commits.
 - Not a vector database.
 - Not a production system.
 
-It is a kernel that tests one architectural claim. Keep it that way until
-the pilot report ships.
+It is a kernel that tests one architectural claim. The pilot report has now
+shipped — extensions are welcome (see [`TASKS.md`](./TASKS.md)), but each one
+must keep the kernel honest: the operator/patch invariant holds, and the
+v0.1 constraints above (file-based storage, no DB/index/queue) only relax by a
+deliberate, documented decision.
 
 ---
 
