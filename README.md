@@ -103,11 +103,13 @@ every claim it finds is stored with the exact span that supports it, then a
 Reasoning Receipt is projected from that state:
 
 ```powershell
-$env:OPENROUTER_API_KEY = "sk-or-..."
+pip install -e ".[openrouter]"     # the live provider needs the openai SDK
+# put OPENROUTER_API_KEY=sk-or-... in a .env file (gitignored), or export it
 spc-demo analyze --input path\to\your_document.txt --run-id my_analysis
 ```
 
-This is the first step toward "decision memos with receipts": the output isn't
+The CLI auto-loads a local `.env`, so a key dropped there is picked up without
+exporting it. This is the first step toward "decision memos with receipts": the output isn't
 just prose, it's a queryable object graph you can interrogate with `followups`.
 Generalizing the Planner and Critic the same way (so the full pipeline runs on
 arbitrary input) is the next step — see [`TASKS.md`](TASKS.md).

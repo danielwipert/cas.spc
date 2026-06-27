@@ -18,6 +18,7 @@ from rich.table import Table
 
 from . import __version__
 from .baseline import run_baseline
+from .config import load_dotenv
 from .demo import (
     LiveCriticUnavailable,
     run_full_demo,
@@ -46,6 +47,17 @@ app = typer.Typer(
 )
 
 _console = Console()
+
+
+@app.callback()
+def _main() -> None:
+    """Load a local `.env` (if any) before any command runs.
+
+    Lets a key dropped in `.env` (e.g. OPENROUTER_API_KEY) reach the live
+    operators without exporting it into the shell. Real env vars take
+    precedence; missing file is a no-op.
+    """
+    load_dotenv()
 
 
 @app.command()
