@@ -18,6 +18,11 @@ from rich.table import Table
 
 from . import __version__
 from .baseline import run_baseline
+from .demo import (
+    LiveCriticUnavailable,
+    run_full_demo,
+    write_demo_markdown,
+)
 from .evaluation import evaluate, write_report
 from .models import EpistemicStatus, SemanticState
 from .operators import (
@@ -153,6 +158,166 @@ def run(
     _console.print(
         f"[green]reasoning receipt:[/green] [dim]{artifacts.receipt_path}[/dim]"
     )
+
+
+_ASCII_MAP = {
+    "→": "->",  # right arrow
+    "≈": "~",  # almost-equal
+    "×": "x",  # multiplication sign
+    "—": "-",  # em dash
+    "–": "-",  # en dash
+    "“": '"',
+    "”": '"',
+    "‘": "'",
+    "’": "'",
+    "…": "...",
+    "§": "",  # section sign — drop cleanly for the terminal
+}
+
+
+def _ascii(text: str) -> str:
+    """Make a string safe to print on a legacy (cp1252) Windows console.
+
+    The Markdown artifacts keep the nicer glyphs; only terminal output is
+    down-converted so a narrated run never crashes on an un-encodable char.
+    """
+    for src, dst in _ASCII_MAP.items():
+        text = text.replace(src, dst)
+    return text.encode("ascii", "ignore").decode("ascii")
+
+
+@app.command()
+def demo(
+    run_id: str = typer.Option("demo", "--run-id", help="Run id for the demo tree."),
+    runs_dir: Path = typer.Option(Path("runs"), "--runs-dir"),
+    input: Path = typer.Option(
+        Path("examples/ai_coding_assistant.txt"),
+        "--input",
+        "-i",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+        help="Input document (defaults to the §8 demo scenario).",
+    ),
+    live_critic: bool = typer.Option(
+        False,
+        "--live-critic",
+        help="Use a live OpenRouter LLM critic instead of the deterministic one "
+        "(needs OPENROUTER_API_KEY; the run is no longer reproducible).",
+    ),
+    model: str | None = typer.Option(
+        None, "--model", help="OpenRouter model slug for --live-critic."
+    ),
+) -> None:
+    """Run the full §8 North Star Demo as a narrated, end-to-end story.
+
+    Builds semantic state through three governed patches, runs the JSON-handoff
+    baseline over the same document, answers the §8.4 follow-ups from state, and
+    writes a shareable `DEMO.md` plus the full pilot report. Deterministic by
+    default; `--live-critic` swaps in a real model on the same loop.
+    """
+    document = input.read_text(encoding="utf-8")
+    try:
+        result = run_full_demo(
+            runs_dir=runs_dir,
+            run_id=run_id,
+            document=document,
+            live_critic=live_critic,
+            model=model,
+        )
+    except LiveCriticUnavailable as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    _narrate_demo(result)
+
+    # The deterministic run is reproducible, so its DEMO.md is safe to commit at
+    # the repo root; a live run only writes into its own run tree.
+    repo_root = Path.cwd() if not result.live else None
+    demo_md = write_demo_markdown(result, repo_root=repo_root)
+    _console.print()
+    _console.print(f"[green]shareable walkthrough:[/green] [dim]{demo_md}[/dim]")
+    if repo_root is not None:
+        _console.print(f"[green]                     :[/green] [dim]{repo_root / 'DEMO.md'}[/dim]")
+    if result.report_md_path:
+        _console.print(f"[green]pilot report:[/green] [dim]{result.report_md_path}[/dim]")
+    _console.print(f"[green]reasoning receipt:[/green] [dim]{result.receipt_path}[/dim]")
+
+
+def _narrate_demo(result) -> None:
+    mode = f"live critic: {result.model}" if result.live else "deterministic"
+    _console.print()
+    _console.print(f"[bold]SPC North Star Demo[/bold] [dim]({_ascii(mode)})[/dim]")
+    _console.print(
+        "Coordinating AI stages through persistent, versioned semantic state "
+        "instead of text/JSON handoffs.\n"
+    )
+
+    _console.print(f"[bold]1. Decision[/bold]: {_ascii(result.question)}")
+    _console.print("[bold]   Document[/bold]:")
+    for line in result.document.strip().splitlines():
+        _console.print(f"   [dim]{_ascii(line)}[/dim]")
+    _console.print()
+
+    _console.print("[bold]2. SPC builds semantic state (one governed patch per step)[/bold]")
+    steps_table = Table(box=box.ASCII, show_lines=False)
+    steps_table.add_column("Step")
+    steps_table.add_column("Operator")
+    steps_table.add_column("Decision")
+    steps_table.add_column("State")
+    steps_table.add_column("What it wrote")
+    for s in result.steps:
+        bits = []
+        if s.added:
+            bits.append("added " + ", ".join(s.added))
+        for oid, frm, to in s.confidence_changes:
+            bits.append(f"{oid} conf {frm:.2f}->{to:.2f}")
+        decision = s.decision + (f" (x{s.attempts})" if s.attempts > 1 else "")
+        steps_table.add_row(
+            str(s.ordinal),
+            _ascii(s.operator),
+            decision,
+            f"v{s.state_version}",
+            _ascii("; ".join(bits) if bits else "-"),
+        )
+    _console.print(steps_table)
+
+    base = result.baseline
+    _console.print(
+        f"\n[bold]3. Baseline (JSON handoff)[/bold]: summary -> critique -> memo "
+        f"[dim](document re-read {base.full_document_reingestions}x; "
+        f"no durable state)[/dim]"
+    )
+
+    ev = result.evaluation
+    if ev is None:
+        for w in result.warnings:
+            _console.print(f"[yellow]note:[/yellow] {_ascii(w)}")
+        return
+
+    _console.print(
+        f"\n[bold]4. Follow-ups answered from state[/bold] "
+        f"[dim]({ev.followups_spc_answered}/{ev.followups_total}, no re-reading)[/dim]"
+    )
+    answers = next(m for m in ev.metrics if m.key == "20.7").spc.get("answers", {})
+    fu_table = Table(box=box.ASCII, show_lines=True)
+    fu_table.add_column("§8.4 question")
+    fu_table.add_column("Answer (read from committed state)")
+    for q, a in answers.items():
+        fu_table.add_row(_ascii(q), _ascii(a))
+    _console.print(fu_table)
+
+    dm = ev.demo_moment
+    _console.print(f"\n[bold]5. The demo moment (§8.5)[/bold]: {_ascii(dm.question)}")
+    _console.print(f"   [red]baseline[/red]: {_ascii(dm.baseline_response)}")
+    _console.print(f"   [green]SPC[/green]:      {_ascii(dm.spc_response)}")
+
+    _console.print("\n[bold]6. Scorecard (§20)[/bold]")
+    score = Table(box=box.ASCII, show_lines=True)
+    score.add_column("Metric")
+    score.add_column("SPC vs. baseline")
+    for m in ev.metrics:
+        score.add_row(_ascii(f"§{m.key} {m.name}"), _ascii(m.headline))
+    _console.print(score)
 
 
 def _load_history(paths: RunPaths) -> list[SemanticState]:

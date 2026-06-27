@@ -75,10 +75,16 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 pytest
+spc-demo demo                            # narrated end-to-end §8 demo + DEMO.md
 spc-demo run --input examples/ai_coding_assistant.txt --run-id demo_001
 spc-demo followups --run-id demo_001     # answer §8.4 questions from state
 spc-demo report --run-id demo_001        # SPC vs JSON-handoff baseline (§20)
 ```
+
+`spc-demo demo` is the fastest way to see the whole story: it runs the SPC
+engine and the baseline over the §8 scenario, answers the follow-ups live from
+state, prints the §20 scorecard, and writes a shareable [`DEMO.md`](DEMO.md).
+Add `--live-critic` to prove a real OpenRouter model on the same loop.
 
 `run` writes a complete reproducible artifact tree under `runs/demo_001/`
 (state snapshots, patches, validation reports, audit log, diffs, and a
