@@ -59,6 +59,58 @@ def test_weak_claim_surfaces_as_risk(tmp_path: Path) -> None:
     assert "Weakly supported" in md
 
 
+def test_inferred_but_well_supported_claim_is_not_a_risk(tmp_path: Path) -> None:
+    # An `inferred` claim with high confidence and high-reliability evidence
+    # must NOT be labelled "weakly supported" — only thin support counts.
+    import datetime as dt
+
+    from spc_state.models import (
+        Claim,
+        EpistemicStatus,
+        Evidence,
+        Reliability,
+        StateStatus,
+    )
+    from spc_state.runtime import bootstrap_state
+
+    now = dt.datetime(2026, 6, 26, tzinfo=dt.UTC)
+    base = bootstrap_state(state_id="s", project_id="p", name="n", now=now)
+    strong_inference = Claim(
+        id="claim_rec",
+        text="Officials should act now.",
+        epistemic_status=EpistemicStatus.INFERRED,
+        confidence=0.8,
+        supporting_evidence=["ev_solid"],
+    )
+    thin = Claim(
+        id="claim_thin",
+        text="The economy masks reality.",
+        epistemic_status=EpistemicStatus.INFERRED,
+        confidence=0.6,
+        supporting_evidence=["ev_solid"],
+    )
+    ev = Evidence(
+        id="ev_solid",
+        source_type="input_document",
+        source_id="doc",
+        quote_or_span="a solid span",
+        reliability=Reliability.HIGH,
+    )
+    state = base.model_copy(
+        update={
+            "state_version": 1,
+            "status": StateStatus.ACTIVE,
+            "claims": {strong_inference.id: strong_inference, thin.id: thin},
+            "evidence": {ev.id: ev},
+        }
+    )
+    md = render_memo(state)
+    # The low-confidence one is a risk; the high-confidence inference is not.
+    assert "The economy masks reality." in md.split("## Risks and caveats")[1].split("##")[0]
+    risks = md.split("## Risks and caveats")[1].split("##")[0]
+    assert "Officials should act now." not in risks
+
+
 def test_render_is_deterministic(tmp_path: Path) -> None:
     final = _final(tmp_path)
     assert render_memo(final, question="Q") == render_memo(final, question="Q")

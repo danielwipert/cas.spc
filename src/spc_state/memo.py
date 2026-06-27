@@ -19,11 +19,37 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .models import ObjectStatus, Priority, QuestionStatus, SemanticState
-from .projection.builder import is_weak_claim
+from .models import (
+    Claim,
+    Evidence,
+    ObjectStatus,
+    Priority,
+    QuestionStatus,
+    Reliability,
+    SemanticState,
+)
+from .projection.builder import WEAK_CONFIDENCE_THRESHOLD
 from .store import RunPaths
 
 _PRIORITY_RANK = {Priority.HIGH: 0, Priority.MEDIUM: 1, Priority.LOW: 2}
+
+
+def _is_weakly_supported(claim: Claim, evidence: dict[str, Evidence]) -> bool:
+    """Whether a claim is genuinely thin on *support* — not merely inferred.
+
+    A claim is weakly supported if it cites no evidence, its confidence is below
+    threshold, or it rests only on low-reliability evidence. Epistemic status
+    (e.g. `inferred`) is deliberately excluded: a well-evidenced, high-confidence
+    inference is not a support risk, and labelling it one is misleading.
+    """
+    if not claim.supporting_evidence:
+        return True
+    if claim.confidence < WEAK_CONFIDENCE_THRESHOLD:
+        return True
+    reliabilities = [
+        evidence[eid].reliability for eid in claim.supporting_evidence if eid in evidence
+    ]
+    return bool(reliabilities) and all(r == Reliability.LOW for r in reliabilities)
 
 
 def _active(container: dict) -> dict:
@@ -118,7 +144,7 @@ def render_memo(state: SemanticState, *, question: str = "Decision analysis") ->
     lines.append("")
 
     # -- Risks and caveats ----------------------------------------------------
-    weak = [(cid, c) for cid, c in ranked if is_weak_claim(c)]
+    weak = [(cid, c) for cid, c in ranked if _is_weakly_supported(c, evidence)]
     contradictions = _active(state.contradictions)
     if weak or contradictions:
         lines.append("## Risks and caveats")
