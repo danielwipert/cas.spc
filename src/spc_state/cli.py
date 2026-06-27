@@ -8,6 +8,7 @@ canonical `runs/<run_id>/` artifact tree.
 from __future__ import annotations
 
 import datetime as dt
+import json
 from pathlib import Path
 
 import typer
@@ -16,6 +17,8 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
+from .baseline import run_baseline
+from .evaluation import evaluate, write_report
 from .models import EpistemicStatus, SemanticState
 from .operators import (
     CriticOperator,
@@ -204,6 +207,106 @@ def followups(
     for q, a in answers:
         table.add_row(q, a)
     _console.print(table)
+
+
+def _write_baseline_artifacts(paths: RunPaths, result) -> None:
+    """Persist the baseline's per-stage JSON and the handoff transcript."""
+    paths.baseline_dir.mkdir(parents=True, exist_ok=True)
+    for stage in result.stages:
+        paths.baseline_file(f"{stage.name}.json").write_text(
+            json.dumps(stage.output, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    paths.baseline_file("transcript.md").write_text(
+        result.transcript_markdown(), encoding="utf-8"
+    )
+
+
+def _resolve_input_text(input: Path | None, paths: RunPaths) -> str:
+    """Use --input if given, else the document copied into the run tree."""
+    if input is not None:
+        return input.read_text(encoding="utf-8")
+    saved = paths.input_copy()
+    if not saved.exists():
+        raise typer.BadParameter(
+            f"No input document for run '{paths.run_id}'. Pass --input or run "
+            "`spc-demo run` first so the document is saved under the run tree."
+        )
+    return saved.read_text(encoding="utf-8")
+
+
+@app.command()
+def baseline(
+    input: Path = typer.Option(
+        ...,
+        "--input",
+        "-i",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+        help="Path to the input document.",
+    ),
+    run_id: str = typer.Option("demo_001", "--run-id", help="Run tree to write into."),
+    runs_dir: Path = typer.Option(Path("runs"), "--runs-dir"),
+) -> None:
+    """Run the JSON-handoff baseline (spec §8.2) and write its artifacts."""
+    paths = RunPaths(root=runs_dir, run_id=run_id)
+    result = run_baseline(input.read_text(encoding="utf-8"))
+    _write_baseline_artifacts(paths, result)
+
+    _console.print(
+        f"[green]baseline:[/green] summary -> critique -> memo "
+        f"[dim]({result.total_ingested_tokens} tokens ingested, "
+        f"document re-read {result.full_document_reingestions}x)[/dim]"
+    )
+    _console.print(f"[dim]-> {paths.baseline_file('transcript.md')}[/dim]")
+
+
+@app.command()
+def report(
+    run_id: str = typer.Option("demo_001", "--run-id", help="SPC run to evaluate."),
+    runs_dir: Path = typer.Option(Path("runs"), "--runs-dir"),
+    input: Path = typer.Option(
+        None,
+        "--input",
+        "-i",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+        help="Input document. Defaults to the copy saved in the run tree.",
+    ),
+) -> None:
+    """Compare the SPC run against the baseline and write the pilot report.
+
+    Reads the committed SPC state history, runs the JSON-handoff baseline over
+    the same document, scores both across the spec §20 metrics, and writes
+    `report/pilot_report.md` + `report/metrics.json` (Milestone 3).
+    """
+    paths = RunPaths(root=runs_dir, run_id=run_id)
+    history = _load_history(paths)
+    document = _resolve_input_text(input, paths)
+
+    baseline_result = run_baseline(document)
+    _write_baseline_artifacts(paths, baseline_result)
+
+    generated_at = dt.datetime(2026, 6, 26, 0, 0, 0, tzinfo=dt.UTC)
+    evaluation = evaluate(
+        run_id=run_id,
+        history=history,
+        paths=paths,
+        baseline=baseline_result,
+        generated_at=generated_at,
+    )
+    md_path, json_path = write_report(paths, evaluation)
+
+    table = Table(title=f"Pilot scorecard — {run_id}", box=box.ASCII, show_lines=True)
+    table.add_column("§ Metric")
+    table.add_column("Result (SPC vs baseline)")
+    for m in evaluation.metrics:
+        table.add_row(f"§{m.key} {m.name}", m.headline)
+    _console.print(table)
+    _console.print(f"[green]pilot report:[/green] [dim]{md_path}[/dim]")
+    _console.print(f"[green]metrics json:[/green] [dim]{json_path}[/dim]")
 
 
 def _render_summary(result) -> None:

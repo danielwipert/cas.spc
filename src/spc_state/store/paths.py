@@ -49,6 +49,14 @@ class RunPaths:
     def diffs_dir(self) -> Path:
         return self.run_dir / "diffs"
 
+    @property
+    def baseline_dir(self) -> Path:
+        return self.run_dir / "baseline"
+
+    @property
+    def report_dir(self) -> Path:
+        return self.run_dir / "report"
+
     def state_file(self, state_version: int) -> Path:
         return self.state_dir / f"semantic_state_v{state_version:03d}.json"
 
@@ -66,6 +74,12 @@ class RunPaths:
 
     def diff_file(self, version_a: int, version_b: int) -> Path:
         return self.diffs_dir / f"diff_v{version_a:03d}_v{version_b:03d}.json"
+
+    def baseline_file(self, name: str) -> Path:
+        return self.baseline_dir / name
+
+    def report_file(self, name: str = "pilot_report.md") -> Path:
+        return self.report_dir / name
 
     def input_copy(self) -> Path:
         return self.input_dir / "input.txt"

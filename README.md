@@ -58,13 +58,16 @@ cas.spc/
     receipt/             # ReasoningReceipt projection
     audit/               # jsonl audit log writer
     providers/           # LLM provider abstraction (added in Phase 6)
+    baseline/            # JSON-handoff control pipeline (Phase 8)
+    evaluation/          # §20 metrics + pilot report (Phase 8)
+    tokens.py            # dependency-free token estimator
     cli.py               # `spc-demo` entrypoint
   examples/              # demo input documents
   runs/                  # generated; per-run output trees (gitignored)
   tests/
 ```
 
-## Quickstart (planned — works once Phase 3 lands)
+## Quickstart
 
 ```powershell
 # from a fresh clone
@@ -73,11 +76,18 @@ python -m venv .venv
 pip install -e ".[dev]"
 pytest
 spc-demo run --input examples/ai_coding_assistant.txt --run-id demo_001
+spc-demo followups --run-id demo_001     # answer §8.4 questions from state
+spc-demo report --run-id demo_001        # SPC vs JSON-handoff baseline (§20)
 ```
 
-This will write a complete reproducible artifact tree under
-`runs/demo_001/` (state snapshots, patches, validation reports, audit log,
-diffs, and a markdown `reasoning_receipt.md`).
+`run` writes a complete reproducible artifact tree under `runs/demo_001/`
+(state snapshots, patches, validation reports, audit log, diffs, and a
+markdown `reasoning_receipt.md`). `report` runs the JSON-handoff baseline over
+the same document, scores both pipelines across the spec §20 metrics, captures
+the §8.5 demo moment, and writes `report/pilot_report.md` + `report/metrics.json`.
+Add `--live-critic [--model <slug>]` to `run` to swap the deterministic critic
+for an OpenRouter LLM (needs `OPENROUTER_API_KEY`; the run becomes
+non-deterministic).
 
 ## Pilot scope
 

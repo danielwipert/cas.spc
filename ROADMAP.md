@@ -197,20 +197,38 @@ only via the validated patch, and the model fingerprint is recorded.
 
 ---
 
-## Phase 8 — Baseline comparison + pilot report
+## Phase 8 — Baseline comparison + pilot report ✅
 
-- Competent JSON-handoff baseline: summary → critique → final memo.
-- Same input document, same model budget.
-- Evaluation report across spec §20 metrics:
-  semantic continuity, provenance completeness, drift rate, reprocessing
-  burden, contradiction detection, assumption sensitivity, state-reuse
-  efficiency, audit clarity.
-- The §8.5 demo moment captured in writing.
+- `spc_state.baseline` ships the competent JSON-handoff control (spec §8.2):
+  summary → critique → final memo, keyed to the demo document like the Phase 3
+  operators so the headline report is byte-for-byte reproducible. It is
+  deliberately *not* a strawman — the prose names the cost/security concerns
+  and surfaces the architecture caveat — but it carries no stable ids, no
+  provenance, no assumption/contradiction objects, and no transform history.
+  `spc-demo baseline` writes its per-stage JSON + handoff transcript.
+- `spc_state.evaluation` computes all eight spec §20 metrics as **reads** over
+  the committed SPC state history + run tree on one side and the baseline
+  output on the other (no hand-set numbers): semantic continuity, provenance
+  completeness, drift rate, reprocessing burden, contradiction detection,
+  assumption sensitivity, state-reuse efficiency, audit clarity. A neutral
+  `spc_state.tokens.estimate_tokens` is the shared, dependency-free yardstick.
+- `spc-demo report` scores the run, maps each metric to the spec §4
+  hypotheses, captures the §8.5 demo moment from the actual follow-up answer,
+  and writes `report/pilot_report.md` + `report/metrics.json` (deterministic:
+  same run → identical bytes).
+- Headline results on the demo: provenance 3/3 vs 0/3; drift 0/1 (diff-visible)
+  vs 2/2 (undetectable by the chain); source re-ingestion 1× vs 3×; follow-ups
+  8/8 from state vs 0 from durable artifacts; 7 audit affordances vs 0.
+- Tests (`tests/test_baseline.py`, `tests/test_evaluation.py`): baseline shape
+  + drift + reprocessing accounting; every metric asserted against the
+  canonical run; full-history guard; deterministic render; artifact writing.
 
 **Exit gate:** pilot report compares SPC engine against the baseline with
-quantitative evidence for the hypotheses in spec §4.
+quantitative evidence for the hypotheses in spec §4. ✅ Met — H1–H4 and H6 are
+supported by the §20 scorecard; H5 holds by construction (every operator emits
+a validated patch). The report is generated entirely from committed state.
 
-> 🎯 **Milestone 3 — Pilot report shipped.**
+> 🎯 **Milestone 3 — Pilot report shipped.** ✅
 
 ---
 
