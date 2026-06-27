@@ -17,9 +17,16 @@ from rich.table import Table
 
 from . import __version__
 from .models import EpistemicStatus, SemanticState
-from .operators import CriticOperator, ExtractOperator, PlannerOperator
+from .operators import (
+    CriticOperator,
+    ExtractOperator,
+    LLMCriticOperator,
+    Operator,
+    PlannerOperator,
+)
+from .providers import OpenRouterConfigError, OpenRouterProvider
 from .receipt import FollowUps, write_run_artifacts
-from .runtime import FixedClock, Runtime, WallClock, bootstrap_state
+from .runtime import Clock, FixedClock, Runtime, WallClock, bootstrap_state
 from .store import RunPaths, StateStore
 
 app = typer.Typer(
@@ -66,20 +73,35 @@ def run(
         "--deterministic/--wall-clock",
         help="Use a fixed clock for byte-reproducible runs (default) or the wall clock.",
     ),
+    live_critic: bool = typer.Option(
+        False,
+        "--live-critic",
+        help="Replace the deterministic critic with a live OpenRouter LLM critic "
+        "(needs OPENROUTER_API_KEY; run becomes non-deterministic).",
+    ),
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        help="OpenRouter model slug for --live-critic (e.g. deepseek/deepseek-chat). "
+        "Defaults to a value-based model; also reads SPC_OPENROUTER_MODEL.",
+    ),
 ) -> None:
-    """Run the deterministic demo pipeline against an input document.
+    """Run the demo pipeline against an input document.
 
     Writes the canonical artifact tree under `<runs-dir>/<run-id>/`:
     state snapshots, patches, validation reports, audit log, plus the input
-    document copied verbatim.
+    document copied verbatim. With --live-critic the third step is an
+    OpenRouter-backed LLM critic instead of the deterministic one.
     """
     input_text = input.read_text(encoding="utf-8")
     paths = RunPaths(root=runs_dir, run_id=run_id)
 
-    if deterministic:
-        # 12 evenly-spaced timestamps cover every clock.now() call in the
+    # A live model is non-deterministic, so a fixed clock would be misleading.
+    clock: Clock
+    if deterministic and not live_critic:
+        # 48 evenly-spaced timestamps cover every clock.now() call in the
         # three-operator demo run. WallClock is used otherwise.
-        start = dt.datetime(2026, 6, 26, 0, 0, 0, tzinfo=dt.timezone.utc)
+        start = dt.datetime(2026, 6, 26, 0, 0, 0, tzinfo=dt.UTC)
         clock = FixedClock([start + dt.timedelta(seconds=30 * i) for i in range(48)])
     else:
         clock = WallClock()
@@ -91,11 +113,22 @@ def run(
         now=clock.now(),
     )
 
+    critic: Operator
+    if live_critic:
+        try:
+            provider = OpenRouterProvider(model=model)
+        except OpenRouterConfigError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        critic = LLMCriticOperator(provider)
+        _console.print(f"[yellow]live critic via OpenRouter:[/yellow] {provider.model}")
+    else:
+        critic = CriticOperator(clock=clock)
+
     runtime = Runtime(paths=paths, clock=clock)
     operators = [
         ExtractOperator(input_text=input_text, clock=clock),
         PlannerOperator(clock=clock),
-        CriticOperator(clock=clock),
+        critic,
     ]
     result = runtime.run(
         initial_state=initial,
@@ -183,11 +216,20 @@ def _render_summary(result) -> None:
     table.add_column("Issues")
     for outcome in result.steps:
         state_version = outcome.next_state.state_version if outcome.next_state else "-"
+        # An LLM step can end without a parsed patch (e.g. only prose returned).
+        operator_name = (
+            outcome.patch.transform_record.operator if outcome.patch else "-"
+        )
+        patch_id = outcome.patch.patch_id if outcome.patch else "-"
+        decision = outcome.decision.value
+        attempts = getattr(outcome, "attempts", 1)
+        if attempts > 1:
+            decision = f"{decision} (x{attempts})"
         table.add_row(
             str(outcome.ordinal),
-            outcome.patch.transform_record.operator,
-            outcome.patch.patch_id,
-            outcome.decision.value,
+            operator_name,
+            patch_id,
+            decision,
             str(state_version),
             str(len(outcome.report.issues)),
         )

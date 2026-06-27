@@ -70,8 +70,13 @@ class LLMOperator(Operator):
             ) from exc
 
 
-class MockLLMCriticOperator(LLMOperator):
-    """A critic whose patches come from a (mock) provider. See spec §13.4."""
+class LLMCriticOperator(LLMOperator):
+    """A critic whose patches come from any `LLMProvider`. See spec §13.4.
+
+    Provider-agnostic: Phase 6 drives it with `MockProvider`, Phase 7 with
+    `OpenRouterProvider`. The operator only turns its critic projection slice
+    (plus retry feedback) into a prompt — the runtime validates and commits.
+    """
 
     name = "llm_critic_transform"
     version = "0.1.0"
@@ -86,7 +91,7 @@ class MockLLMCriticOperator(LLMOperator):
             "You are critiquing a shared semantic state. The weak claims in "
             f"your projection are: {weak_claims}. Propose a SemanticPatch (JSON) "
             "that lowers unsupported confidence and opens questions. Return only "
-            "the patch."
+            "the patch as a single JSON object."
         )
         return ProviderRequest(
             system="You are a rigorous critic. Emit a SemanticPatch, never prose.",
@@ -95,4 +100,14 @@ class MockLLMCriticOperator(LLMOperator):
         )
 
 
-__all__ = ["LLMOperator", "MalformedPatchError", "MockLLMCriticOperator"]
+#: Back-compat alias — Phase 6 introduced this under the "Mock" name before the
+#: operator was generalised to any provider in Phase 7.
+MockLLMCriticOperator = LLMCriticOperator
+
+
+__all__ = [
+    "LLMCriticOperator",
+    "LLMOperator",
+    "MalformedPatchError",
+    "MockLLMCriticOperator",
+]

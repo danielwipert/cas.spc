@@ -34,8 +34,8 @@ dev = [
     "mypy>=1.10",
 ]
 # Provider deps gated for later phases; users opt in.
-anthropic = ["anthropic>=0.34"]
-openai = ["openai>=1.40"]
+# OpenRouter is OpenAI-compatible, so it reuses the `openai` SDK.
+openrouter = ["openai>=1.40"]
 
 [project.scripts]
 spc-demo = "spc_state.cli:app"

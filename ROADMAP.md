@@ -153,20 +153,47 @@ the deterministic demo stays byte-for-byte reproducible.
 
 ---
 
-## Phase 7 — Live LLM critic (Anthropic + OpenAI)
+## Phase 7 — Live LLM critic (OpenRouter) ✅
 
-- `AnthropicProvider` (Claude tool-use / structured output).
-- `OpenAIProvider` (JSON Schema mode).
-- Live critic operator returning a `SemanticPatch`.
-- Structured-output enforcement at the API layer.
-- Validation-feedback retry loop with a hard cap.
-- Provider, model name, and version recorded in
-  `TransformRecord.model_fingerprint`.
+> Design change from the original plan: instead of separate `AnthropicProvider`
+> and `OpenAIProvider`, the live seam is a single **`OpenRouterProvider`**.
+> OpenRouter is OpenAI-compatible, so one provider reaches ~1000 models
+> (Anthropic, OpenAI, Google, DeepSeek, Meta, Qwen, …) behind one `model`
+> string. Model choice is per-run and biased toward **value, not frontier**.
 
-**Exit gate:** a live LLM critic proposes a patch that the runtime
-validates and routes — without direct state mutation.
+- `spc_state.providers.OpenRouterProvider` — talks to OpenRouter's
+  OpenAI-compatible Chat Completions API through the `openai` SDK
+  (`base_url=https://openrouter.ai/api/v1`). Model resolves from
+  constructor arg → `SPC_OPENROUTER_MODEL` → a value-based default
+  (`deepseek/deepseek-chat`); key from `OPENROUTER_API_KEY`. A client can be
+  injected for testing (no network/key needed). `VALUE_MODELS` curates a few
+  cheap slugs; any OpenRouter slug works.
+- `LLMCriticOperator` (generalised from Phase 6's mock-only operator;
+  `MockLLMCriticOperator` kept as an alias) — provider-agnostic, drives the
+  same critic prompt against mock or live providers.
+- Structured-output enforcement at the API layer: `response_format=
+  {"type": "json_object"}` (broad model support) plus the existing
+  validation-feedback retry loop with a hard cap (`Runtime.step_llm`,
+  spec §15.6). Strict `json_schema` was rejected — it would shrink the
+  usable model set.
+- Provider, model, and resolved model version recorded in
+  `TransformRecord.model_fingerprint` (`provider="openrouter"`).
+- CLI: `spc-demo run --live-critic [--model <slug>]` swaps the deterministic
+  critic for the OpenRouter one (fails clearly without a key; run becomes
+  non-deterministic). The default deterministic run is unchanged and
+  byte-for-byte reproducible.
+- Tests (`tests/test_openrouter_provider.py`): config/model resolution,
+  request mapping + response parsing, json_object toggle, and full runtime
+  runs (commit; prose→retry→commit with feedback reaching the model) using
+  an injected fake client.
 
-> 🎯 **Milestone 2 — Live LLM critic in the loop.**
+**Exit gate:** a live LLM critic proposes a patch that the runtime validates
+and routes — without direct state mutation. ✅ Met — `OpenRouterProvider`
+behind `LLMCriticOperator` runs through `Runtime.step_llm`; state commits
+only via the validated patch, and the model fingerprint is recorded.
+
+> 🎯 **Milestone 2 — Live LLM critic in the loop.** ✅
+> _(Live network calls are key-gated; CI/tests use an injected client.)_
 
 ---
 
@@ -206,6 +233,6 @@ without violating the architectural invariants.
 - pgvector / FAISS semantic index.
 - NetworkX or graph DB for dependency traversal.
 - POA-compatible hash-chained packaging.
-- Multiple live model providers beyond Anthropic + OpenAI.
+- Per-operator model routing / cost tracking across OpenRouter models.
 - Web UI, state-graph visualizer.
 - Multi-user collaboration, auth, permissions.
