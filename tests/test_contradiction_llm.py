@@ -56,6 +56,7 @@ PAIR = {
         {
             "claim_a": "claim_001",
             "claim_b": "claim_002",
+            "conflict": "Revenue cannot both rise and fall in the same quarter.",
             "type": "factual_conflict",
             "severity": "high",
             "resolution_options": ["Re-measure", "Scope by quarter"],
@@ -64,18 +65,34 @@ PAIR = {
 }
 
 
+# The verifier (second pass) confirms candidate 1 as a genuine contradiction.
+KEEP = {"keep": [1]}
+DROP: dict = {"keep": []}
+
+
 def test_detects_and_commits_contradiction(tmp_path: Path) -> None:
     state = _state(
         _c("claim_001", "Revenue rose in Q3."),
         _c("claim_002", "Revenue fell in Q3."),
     )
-    final = _run(tmp_path, state, [json.dumps(PAIR)]).final_state
+    final = _run(tmp_path, state, [json.dumps(PAIR), json.dumps(KEEP)]).final_state
     assert final.state_version == 2
     assert len(final.contradictions) == 1
     k = next(iter(final.contradictions.values()))
     assert {k.claim_a, k.claim_b} == {"claim_001", "claim_002"}
     assert k.status == ContradictionStatus.UNRESOLVED
     assert k.resolution_options == ["Re-measure", "Scope by quarter"]
+
+
+def test_verifier_rejects_spurious_pair(tmp_path: Path) -> None:
+    # Detection proposes a pair; the adversarial verifier judges they can
+    # coexist and drops it — nothing is committed.
+    state = _state(
+        _c("claim_001", "The court issued ruling A."),
+        _c("claim_002", "The court issued ruling B."),
+    )
+    final = _run(tmp_path, state, [json.dumps(PAIR), json.dumps(DROP)]).final_state
+    assert len(final.contradictions) == 0
 
 
 def test_ignores_unknown_and_self_pairs(tmp_path: Path) -> None:
@@ -106,4 +123,17 @@ def test_no_conflicts_commits_noop(tmp_path: Path) -> None:
     state = _state(_c("claim_001", "A."), _c("claim_002", "B."))
     final = _run(tmp_path, state, [json.dumps({"contradictions": []})]).final_state
     assert final.state_version == 2
+    assert len(final.contradictions) == 0
+
+
+def test_pair_without_justification_is_dropped(tmp_path: Path) -> None:
+    # Two valid, distinct claims but no `conflict` sentence -> the model could
+    # not justify the incompatibility, so it is not committed (precision gate).
+    state = _state(_c("claim_001", "X up."), _c("claim_002", "Y down."))
+    unjustified = {
+        "contradictions": [
+            {"claim_a": "claim_001", "claim_b": "claim_002", "type": "tension"}
+        ]
+    }
+    final = _run(tmp_path, state, [json.dumps(unjustified)]).final_state
     assert len(final.contradictions) == 0
