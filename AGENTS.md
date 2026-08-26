@@ -6,6 +6,10 @@ Semantic State Engine. It is short on purpose. Read it before writing code.
 The canonical specification is [`PILOT_SPEC.md`](./PILOT_SPEC.md). This file
 extracts the rules that must not be broken.
 
+**Start here each session.** Read [`HANDOFF.md`](./HANDOFF.md) first — it is a
+snapshot of what the previous session did and what comes next. Rewrite it at
+the close of every session (overwrite wholesale; it is not a running ledger).
+
 **Status (v0.1).** Phases 1–8 plus the narrated demo are complete and the pilot
 report has shipped (see [`ROADMAP.md`](./ROADMAP.md)). The engine runs
 `extract → planner → critic` deterministically, a live OpenRouter critic is
