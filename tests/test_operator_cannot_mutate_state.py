@@ -22,7 +22,6 @@ import datetime as dt
 import json
 from pathlib import Path
 
-import pytest
 from pydantic import ValidationError
 
 from spc_state.models import (
@@ -38,7 +37,7 @@ from spc_state.operators.base import Operator
 from spc_state.runtime import FixedClock, Runtime, bootstrap_state
 from spc_state.store import RunPaths
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 class _NaughtyOperator(Operator):

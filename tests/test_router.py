@@ -13,7 +13,7 @@ from spc_state.models import (
 )
 from spc_state.router import decide
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 def _report(*issues: ValidationIssue) -> ValidationReport:

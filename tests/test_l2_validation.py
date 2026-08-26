@@ -12,7 +12,7 @@ from spc_state.models import SemanticPatch, SemanticState, ValidationSeverity
 from spc_state.validation.l2 import validate_patch
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 @pytest.fixture

@@ -9,6 +9,7 @@ issue list — the patch passed schema-level checks.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from typing import Any
 
 from pydantic import ValidationError
@@ -42,7 +43,7 @@ def parse_patch(payload: dict[str, Any] | str) -> tuple[SemanticPatch | None, li
     return patch, []
 
 
-def _issue_from_pydantic_error(err: dict[str, Any]) -> ValidationIssue:
+def _issue_from_pydantic_error(err: Mapping[str, Any]) -> ValidationIssue:
     loc = ".".join(str(x) for x in err.get("loc", ()))
     return ValidationIssue(
         layer=ValidationLayer.L1_SCHEMA,

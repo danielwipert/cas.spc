@@ -30,8 +30,8 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
-    "ruff>=0.5",
-    "mypy>=1.10",
+    "ruff>=0.15,<0.16",
+    "mypy>=1.19,<2",
 ]
 # Provider deps gated for later phases; users opt in.
 # OpenRouter is OpenAI-compatible, so it reuses the `openai` SDK.
@@ -53,7 +53,36 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "RUF"]
-ignore = ["E501"]  # line length handled by formatter
+ignore = [
+    "E501",   # line length handled by formatter
+    # `class X(str, Enum)` is deliberate, NOT a missed StrEnum upgrade.
+    # StrEnum changes str()/f-string output from "ObjectType.CLAIM" to "claim",
+    # which would silently alter rendered receipts, memos and the byte-stable
+    # demo artifacts. The mixin form is also the shape pydantic serializes and
+    # model_json_schema() exports today. Do not "fix" this without a snapshot
+    # review.
+    "UP042",
+    # Prose in docstrings uses en/em dashes on purpose; they are not typos.
+    "RUF002",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# typer.Option(...) in an argument default IS the documented typer idiom —
+# the whole CLI is written this way and B008 cannot see that.
+# RUF001: the _ascii() table maps ambiguous unicode to ASCII, so the ambiguous
+# characters are the data, not a mistake.
+"src/spc_state/cli.py" = ["B008", "RUF001"]
+# __all__ is grouped by object kind with comments; sorting flattens that.
+"src/spc_state/models/__init__.py" = ["RUF022"]
+
+[tool.mypy]
+# Run as `python -m mypy src`, never bare `mypy` — a uv/pipx-installed mypy
+# runs in its own isolated environment, cannot see pydantic/typer/rich, and
+# reports ~17 phantom import-not-found errors.
+python_version = "3.11"
+files = ["src"]
+warn_unused_ignores = true
+warn_redundant_casts = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

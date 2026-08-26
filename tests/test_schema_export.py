@@ -11,7 +11,7 @@ from spc_state.models.schema_export import EXPORTED_MODELS, build_schemas, write
 def test_every_exported_model_has_a_schema() -> None:
     schemas = build_schemas()
     assert set(schemas) == set(EXPORTED_MODELS)
-    for name, schema in schemas.items():
+    for _name, schema in schemas.items():
         # Each schema is a non-empty dict and is JSON-serialisable.
         assert isinstance(schema, dict) and schema
         json.dumps(schema)

@@ -182,7 +182,7 @@ def run_full_demo(
             f"SPC produced only {len(history)} state version(s); the live critic "
             "may not have committed. Showing what was built; metrics need v0..v3."
         )
-        evaluation = None  # type: ignore[assignment]
+        evaluation = None
         report_md, metrics_json = "", ""
     else:
         evaluation = evaluate(
@@ -329,7 +329,7 @@ def render_demo_markdown(demo: DemoResult) -> str:
 
 def _markdown_payoff(demo: DemoResult, ev: EvaluationReport) -> list[str]:
     by_key = {m.key: m for m in ev.metrics}
-    answers: dict[str, str] = by_key["20.7"].spc.get("answers", {})  # type: ignore[assignment]
+    answers: dict[str, str] = by_key["20.7"].spc.get("answers", {})
     dm = ev.demo_moment
     lines = [
         "## 4. The payoff: follow-ups answered from state, not re-reasoned",

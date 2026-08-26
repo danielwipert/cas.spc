@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from spc_state.models import Claim, EpistemicStatus, SemanticState
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 def _fresh_state() -> SemanticState:

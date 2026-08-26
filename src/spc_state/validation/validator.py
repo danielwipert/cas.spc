@@ -64,7 +64,7 @@ def validate(
     )
 
 
-def _decide(issues: list) -> RouterDecision:  # noqa: ARG001 — keep signature open
+def _decide(issues: list) -> RouterDecision:
     has_error = any(i.severity == ValidationSeverity.ERROR for i in issues)
     if has_error:
         return RouterDecision.REJECT

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 from abc import ABC, abstractmethod
-from typing import Iterator
+from collections.abc import Iterator
 
 
 class Clock(ABC):
@@ -20,7 +20,7 @@ class Clock(ABC):
 
 class WallClock(Clock):
     def now(self) -> dt.datetime:
-        return dt.datetime.now(tz=dt.timezone.utc)
+        return dt.datetime.now(tz=dt.UTC)
 
 
 class FixedClock(Clock):

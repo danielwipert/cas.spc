@@ -63,5 +63,6 @@ Full specs with acceptance tests are in [`TASKS.md`](./TASKS.md).
 Read [`AGENTS.md`](./AGENTS.md). The hard invariant: **no operator mutates
 `SemanticState` directly** — all change flows through a validated
 `SemanticPatch`. Definition of done for any task is in `TASKS.md`: acceptance
-test passes, `pytest` green, `ruff check` + `mypy src` clean on touched files,
+test passes, `pytest` green, `ruff check src tests` + `python -m mypy` clean
+(bare `mypy` is isolated from project deps and reports phantom errors),
 `spc-demo demo` still byte-for-byte reproducible, no run output committed.

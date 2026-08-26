@@ -29,7 +29,6 @@ from ..validation.l1 import parse_patch
 from .clock import Clock, WallClock
 from .commit import commit_patch
 
-
 # ---------------------------------------------------------------------------
 # Bootstrapping an initial state
 # ---------------------------------------------------------------------------
@@ -321,4 +320,4 @@ class Runtime:
         )
 
 
-__all__ = ["Runtime", "RunResult", "StepOutcome", "bootstrap_state"]
+__all__ = ["RunResult", "Runtime", "StepOutcome", "bootstrap_state"]

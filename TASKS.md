@@ -14,7 +14,10 @@ through a validated `SemanticPatch`.
 3. Write the acceptance test first; make it pass.
 4. **Definition of done** for every task:
    - the stated acceptance test passes;
-   - `pytest` is green and `ruff check` + `mypy src` are clean on touched files;
+   - `pytest` is green and `ruff check src tests` + `python -m mypy` are
+     clean (**`python -m mypy`, not bare `mypy`** — a uv/pipx-installed mypy
+     runs isolated from the project's dependencies and reports ~17 phantom
+     import errors);
    - the deterministic demo stays byte-for-byte reproducible
      (`spc-demo demo` → identical `DEMO.md`) unless the task explicitly changes
      it;

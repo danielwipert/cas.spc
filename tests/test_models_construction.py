@@ -37,8 +37,7 @@ from spc_state.models import (
     UpdateObject,
 )
 
-
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 def _now() -> dt.datetime:

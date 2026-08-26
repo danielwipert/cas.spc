@@ -30,8 +30,8 @@ from .models import EpistemicStatus, SemanticState
 from .operators import (
     CriticOperator,
     ExtractOperator,
-    LLMCriticOperator,
     LLMContradictionOperator,
+    LLMCriticOperator,
     LLMExtractOperator,
     LLMPlannerOperator,
     LLMReviewCriticOperator,

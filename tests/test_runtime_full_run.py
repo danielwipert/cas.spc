@@ -19,7 +19,7 @@ from spc_state.operators import CriticOperator, ExtractOperator, PlannerOperator
 from spc_state.runtime import FixedClock, Runtime, bootstrap_state
 from spc_state.store import RunPaths
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 def _fresh_clock() -> FixedClock:

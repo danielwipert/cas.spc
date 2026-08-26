@@ -20,7 +20,7 @@ from spc_state.models import (
 from spc_state.models.patch import AddObjects, ArchiveObject, UpdateObject
 from spc_state.runtime.commit import CommitError, commit_patch
 
-UTC = dt.timezone.utc
+UTC = dt.UTC
 
 
 def _state_with_one_claim() -> SemanticState:
