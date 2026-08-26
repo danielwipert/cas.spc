@@ -99,16 +99,22 @@ def analyze(
     extract_only: bool = typer.Option(
         False,
         "--extract-only",
-        help="Stop after extraction (skip the planner and critic).",
+        help="Stop after extraction (skip the remaining four stages).",
     ),
 ) -> None:
-    """Analyze a real document into provenance-tracked semantic state + receipt.
+    """Analyze a real document into provenance-tracked semantic state + memo.
 
-    Runs the full live pipeline over ANY document (not just the demo):
-    Extract -> Planner -> Critic, each emitting a validated patch. Every claim
-    is committed with its supporting quote, the planner adds a recommendation
-    and open questions, the critic adjusts weak confidence — then a Reasoning
-    Receipt is projected from the committed state. Needs OPENROUTER_API_KEY;
+    Runs the full live pipeline over ANY document (not just the demo), five
+    stages each emitting a validated patch:
+
+      extract  -> claims committed with their supporting quote
+      plan     -> a recommendation plus open questions
+      critique -> weak confidence adjusted
+      retrieve -> evidence gaps opened as questions (deterministic, no model)
+      verify   -> conflicting claim pairs committed as unresolved contradictions
+
+    A Decision Memo and a Reasoning Receipt are then projected from the
+    committed state — neither re-prompts the model. Needs OPENROUTER_API_KEY;
     the run is non-deterministic (a live model).
     """
     document = input.read_text(encoding="utf-8")
