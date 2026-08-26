@@ -10,12 +10,23 @@ extracts the rules that must not be broken.
 snapshot of what the previous session did and what comes next. Rewrite it at
 the close of every session (overwrite wholesale; it is not a running ledger).
 
-**Status (v0.1).** Phases 1–8 plus the narrated demo are complete and the pilot
-report has shipped (see [`ROADMAP.md`](./ROADMAP.md)). The engine runs
-`extract → planner → critic` deterministically, a live OpenRouter critic is
-wired behind the same loop, and `spc-demo demo` tells the whole story. Open
-work is tracked in [`TASKS.md`](./TASKS.md); pick a task from there and keep the
-invariants below intact.
+**Status (v0.1).** Phases 1–9 are complete and the pilot report has shipped
+(see [`ROADMAP.md`](./ROADMAP.md)). The engine has two entry points, both over
+the same runtime and the same patch loop:
+
+- `spc-demo demo` / `run` — the deterministic pilot. `extract → planner →
+  critic` with pattern-matching operators, byte-for-byte reproducible. The
+  frozen artifacts (DEMO.md, pilot report, §8.4 follow-ups) are snapshot-tested;
+  keep them byte-stable.
+- `spc-demo analyze` — the live pipeline over *any* document, five stages:
+  `extract → plan → critique → retrieve → verify`. Extract, plan, critique and
+  the contradiction verifier are LLM-backed via OpenRouter; the retriever is
+  deterministic (no model call). Output is a Decision Memo plus a Reasoning
+  Receipt, both projected from committed state. Needs `OPENROUTER_API_KEY`, and
+  the run is non-deterministic by nature.
+
+Tasks T0–T3 in [`TASKS.md`](./TASKS.md) are done; T4–T6 are open. Pick a task
+from there and keep the invariants below intact.
 
 ---
 
