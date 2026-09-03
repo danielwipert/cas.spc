@@ -13,15 +13,15 @@
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. Tasks
-T0–T3 are done, T4–T7 open. This session closed two defects in the LLM path:
-the audit-trail gap, then the planner retry.
+T0–T3 and T7 are done, T4–T6 open. This session closed two defects in the LLM
+path (audit trail, planner retry), then T7.
 
 All four definition-of-done gates pass on a fresh clone:
 
 ```
 ruff check src tests   ->  All checks passed
-python -m mypy         ->  Success: no issues found in 62 source files
-pytest                 ->  194 passed
+python -m mypy         ->  Success: no issues found in 63 source files
+pytest                 ->  200 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -71,17 +71,32 @@ shape: 3 attempts spent (was 1), and each retry prompt carries the hint alone.
 calls instead of 1. That is the point of the retry budget, but it is a real
 cost change on `analyze`.
 
+### 3. T7 — end-to-end test for the `analyze` pipeline
+
+`cli.py` was at ~20% coverage and the five-stage live pipeline had no
+composition test — every LLM operator was tested alone. Factored the operator
+list + runtime run out of `cli.analyze` into `src/spc_state/analyze.py`
+(`run_analysis`, `build_analysis_operators`); `cli.analyze` is now a thin
+wrapper that builds the provider and calls it. `AnalysisResult` carries the
+run plus the projected receipt/memo, both `None` when nothing committed.
+
+Six tests in `tests/test_analyze_pipeline.py` with an injected `MockProvider`
+(no network, no key): the five stages commit in order to state v5; one
+canonical patch/validation report per stage, one attempt file per LLM stage
+(none for the deterministic retriever — this is the audit-trail fix from
+earlier in this session, verified end to end here for the first time); every
+`[E#]` citation in the memo resolves to real evidence; `--extract-only` stops
+at v1; nothing committed skips both artifacts rather than building them empty.
+`analyze.py` itself is 100% covered.
+
 ## Next up
 
 Nothing is half-finished — pick any of these cold.
 
-1. **T7 — end-to-end test for `analyze`** (S). `cli.py` sits at 20% coverage
-   and the five-stage pipeline has no composition test; every operator is
-   tested alone. A wiring regression would pass the whole suite. This is the
-   biggest remaining hole.
-2. **T4 — State-graph visualizer** (M).
-3. **T5 — Per-operator model routing + cost ledger** (M).
-4. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
+1. **T4 — State-graph visualizer** (M). Mermaid export embedded in the
+   receipt; strengthens the §20.8 audit-clarity story.
+2. **T5 — Per-operator model routing + cost ledger** (M).
+3. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
    needs sign-off before starting.
 
 An optional LLM-narrated memo is noted as a possible follow-on under T2, kept

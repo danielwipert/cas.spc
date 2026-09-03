@@ -171,24 +171,27 @@ Reproducibility preserved. Requires sign-off to relax `AGENTS.md §V`.
 
 ---
 
-## T7 — End-to-end test for the `analyze` pipeline · S
+## T7 — End-to-end test for the `analyze` pipeline · ✅ DONE
 
-**Why.** `cli.py` sits at ~20% coverage and the five-stage live pipeline —
-the headline feature — has no composition test. Every LLM operator is tested
-alone with an injected provider, but nothing exercises them in sequence, so a
-wiring regression (operator order, ordinal/patch_id allocation, memo and
-receipt projected from the final state) would pass the whole suite.
+`src/spc_state/analyze.py` (`run_analysis`, `build_analysis_operators`) is the
+five-stage operator list + runtime run, factored out of `cli.analyze` so the
+CLI and the test share it — the CLI command is now a thin wrapper that builds
+the provider, calls `run_analysis`, and renders the result. `AnalysisResult`
+carries the run plus the projected `ReceiptArtifacts` and memo path, both
+`None` when nothing committed (no state to project from).
 
-**Scope.** Factor the operator list + run out of `cli.analyze` into a callable
-the command and the test share; drive it with a scripted provider.
+Tests in `tests/test_analyze_pipeline.py` (injected `MockProvider`, no
+network, no key): a five-stage run reaches state v5 with the operators
+committing in the documented order; one canonical patch and validation report
+per stage (plus one attempt file per LLM stage, per the audit-trail fix —
+none for the deterministic retriever); receipt and memo are written and every
+`[E#]` citation in the memo's findings resolves to real evidence in the final
+state; `--extract-only` stops at v1; nothing committed skips both artifacts
+rather than building them empty.
 
-**Acceptance test** (`tests/test_analyze_pipeline.py`, injected provider — no
-network, no key). A five-stage run over a small document reaches state v5,
-writes one patch and one validation report per stage, and produces a memo whose
-findings all cite an evidence id present in the final state.
-
-**Invariants.** No network in tests — inject the provider. The deterministic
-demo must stay byte-stable.
+`cli.py` coverage was ~20% with the pipeline entirely untested; the pipeline
+logic itself (`analyze.py`) is now 100% covered. `cli.py` remains low because
+what is left there is typer plumbing and console output, not logic.
 
 ---
 

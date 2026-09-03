@@ -17,6 +17,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
+from .analyze import DEFAULT_QUESTION, run_analysis
 from .baseline import run_baseline
 from .config import load_dotenv
 from .demo import (
@@ -27,18 +28,7 @@ from .demo import (
 from .evaluation import evaluate, write_report
 from .memo import write_memo
 from .models import EpistemicStatus, SemanticState
-from .operators import (
-    CriticOperator,
-    ExtractOperator,
-    LLMContradictionOperator,
-    LLMCriticOperator,
-    LLMExtractOperator,
-    LLMPlannerOperator,
-    LLMReviewCriticOperator,
-    Operator,
-    PlannerOperator,
-    RetrieverOperator,
-)
+from .operators import CriticOperator, ExtractOperator, LLMCriticOperator, Operator, PlannerOperator
 from .providers import OpenRouterConfigError, OpenRouterProvider
 from .receipt import FollowUps, write_run_artifacts
 from .runtime import Clock, FixedClock, Runtime, WallClock, bootstrap_state
@@ -85,7 +75,7 @@ def analyze(
     run_id: str = typer.Option("analysis_001", "--run-id", help="Run id."),
     runs_dir: Path = typer.Option(Path("runs"), "--runs-dir"),
     question: str = typer.Option(
-        "What does this document establish?",
+        DEFAULT_QUESTION,
         "--question",
         "-q",
         help="Decision/analysis question recorded in the receipt.",
@@ -135,39 +125,22 @@ def analyze(
         f"[yellow]live analysis via OpenRouter:[/yellow] {provider.model} "
         f"[dim]({stages})[/dim]"
     )
-    operators: list[Operator] = [
-        LLMExtractOperator(provider, input_text=document, clock=clock)
-    ]
-    if not extract_only:
-        operators.append(LLMPlannerOperator(provider, clock=clock))
-        operators.append(LLMReviewCriticOperator(provider, clock=clock))
-        # The retriever is deterministic — flags evidence gaps, no model call.
-        operators.append(RetrieverOperator(clock=clock))
-        operators.append(LLMContradictionOperator(provider, clock=clock))
 
-    runtime = Runtime(paths=paths, clock=clock)
-    result = runtime.run(
-        initial_state=bootstrap_state(
-            state_id="sr_001",
-            project_id="spc_analysis_001",
-            name="Document analysis",
-            now=clock.now(),
-        ),
-        operators=operators,
-        input_text=document,
+    analysis = run_analysis(
+        provider,
+        document,
+        paths,
+        clock=clock,
+        question=question,
+        extract_only=extract_only,
     )
 
-    _render_summary(result)
-    if result.final_state.state_version == 0:
+    _render_summary(analysis.run)
+    if analysis.artifacts is None or analysis.memo_path is None:
         _console.print("[red]Nothing committed — the extractor produced no valid patch.[/red]")
         raise typer.Exit(code=1)
 
-    states = [result.initial_state, *(s.next_state for s in result.steps if s.next_state)]
-    artifacts = write_run_artifacts(
-        paths, states, generated_at=clock.now(), question=question
-    )
-    final = result.final_state
-    memo_path = write_memo(paths, final, question=question)
+    final = analysis.run.final_state
     _console.print(
         f"[green]state v{final.state_version}:[/green] "
         f"{len(final.claims)} claims, {len(final.evidence)} evidence, "
@@ -177,8 +150,10 @@ def analyze(
     if final.hypotheses:
         lead = max(final.hypotheses.values(), key=lambda h: h.confidence)
         _console.print(f"[green]recommendation:[/green] {_ascii(lead.text)}")
-    _console.print(f"[green]decision memo:[/green] [dim]{memo_path}[/dim]")
-    _console.print(f"[green]reasoning receipt:[/green] [dim]{artifacts.receipt_path}[/dim]")
+    _console.print(f"[green]decision memo:[/green] [dim]{analysis.memo_path}[/dim]")
+    _console.print(
+        f"[green]reasoning receipt:[/green] [dim]{analysis.artifacts.receipt_path}[/dim]"
+    )
 
 
 @app.command()
