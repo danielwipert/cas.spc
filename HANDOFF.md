@@ -12,111 +12,115 @@
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**; all three milestones shipped. Tasks
-T0–T5 and T7 are done — only **T6** (SQLite `StateStore`, ⚠ needs sign-off)
-remains. This session closed two defects in the LLM path (audit trail,
-planner retry), then shipped T7, T4, and T5 in sequence.
+Roadmap complete through **Phase 9**; all three milestones shipped. **The
+entire `TASKS.md` backlog is now done — T0 through T7, including T6.** This
+session closed two defects in the LLM path (audit trail, planner retry),
+then shipped T7, T4, T5, and T6 in sequence, each verified against the four
+gates before moving to the next.
 
 All four definition-of-done gates pass on a fresh clone:
 
 ```
 ruff check src tests   ->  All checks passed
-python -m mypy         ->  Success: no issues found in 65 source files
-pytest                 ->  222 passed
+python -m mypy         ->  Success: no issues found in 66 source files
+pytest                 ->  236 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
 ## What the last session did
 
-Five pieces of work, each verified against the four gates before moving on.
-None touch the deterministic demo, so the frozen artifacts stay byte-stable.
+Six pieces of work. None touch the deterministic demo — verified with a real
+`spc-demo demo` run after every single one, not just at the end.
 
 ### 1–2. Two LLM-path defects (audit trail, planner retry)
 
-See git log (`Runtime: keep rejected LLM proposals on the record`, `LLM path:
-retry shape-invalid output with the operator's own feedback`) — both fixes
-and their tests are unchanged since. Summary: a rejected LLM proposal used to
-vanish entirely (nothing on disk); now every attempt is persisted verbatim,
-the final parse lands as the canonical patch regardless of outcome, and the
-model is named even when rejected. Separately, the planner used to REJECT
-(no retry) on valid JSON in the wrong shape, wasting 2 of 3 attempts; the LLM
-path now RETRYs on any L1 schema failure (`router.decide_llm`), and operators
-supply their own repair hint (`OperatorCompletion.repair_hint`) rather than
-misdirecting the model with `SemanticPatch`-shaped validator noise.
+A rejected LLM proposal used to vanish entirely (nothing on disk); every
+attempt is now persisted verbatim, the final parse lands as the canonical
+patch regardless of outcome, and the model is named even when rejected.
+Separately, the planner used to REJECT (no retry) on valid JSON in the wrong
+shape, wasting 2 of 3 attempts; the LLM path now RETRYs on any L1 schema
+failure, and operators supply their own repair hint rather than misdirecting
+the model with `SemanticPatch`-shaped validator noise.
 
 ### 3. T7 — end-to-end test for the `analyze` pipeline
 
 `cli.analyze`'s operator list + runtime run factored into
 `src/spc_state/analyze.py` (`run_analysis`), shared by the CLI and
-`tests/test_analyze_pipeline.py`. `cli.py` was ~20% covered with the whole
-five-stage pipeline untested; `analyze.py` is now 100% covered.
+`tests/test_analyze_pipeline.py`. `analyze.py` is 100% covered.
 
 ### 4. T4 — state-graph Mermaid export
 
-`src/spc_state/receipt/graph.py` (`render_mermaid_graph`) projects a
-`SemanticState` to a Mermaid flowchart — one node per active object, one edge
-per active `Relation` (never invented from a claim's `assumptions`/
-`supporting_evidence` fields). Embedded into `render_markdown()` as a new
-"State Graph" section, so every Reasoning Receipt gets one — both `demo` and
-`analyze`, no CLI changes. `tests/fixtures/reasoning_receipt_demo.md`
-regenerated to match; confirmed `DEMO.md` doesn't change (it counts the
-receipt as a metric, never renders its content).
+`src/spc_state/receipt/graph.py` (`render_mermaid_graph`) — one node per
+active object, one edge per active `Relation`, never invented from a
+claim's structural fields. Embedded into every Reasoning Receipt as a new
+"State Graph" section. `tests/fixtures/reasoning_receipt_demo.md`
+regenerated; `DEMO.md` confirmed unaffected (it counts the receipt as a
+metric, never renders its content).
 
 ### 5. T5 — per-operator model routing + cost ledger
 
-**Per-operator model routing needed no new mechanism** — every operator
-already takes its own `LLMProvider`, and a provider carries its own model;
-two operators with two differently-configured providers already run two
-different models. What's new is the accounting:
+Per-operator model routing needed no new mechanism — every operator already
+takes its own `LLMProvider`, and a provider carries its own model. Built the
+accounting around that: `TokenUsage` on `ProviderResponse`/`TransformRecord`,
+summed across every retry attempt (a retry is a real billed call) and
+stamped even on a rejected patch (composes with fix #1). `cost_ledger.py`
+prices these via `providers/openrouter.py::estimate_cost_usd` into
+`runs/<id>/cost_ledger.json` — wired into `analyze` always, and into the two
+`--live-critic` paths only, so the deterministic default writes nothing new.
 
-- `TokenUsage` (`models/transform.py`) on `ProviderResponse.usage` — real API
-  usage from OpenRouter when reported, a deterministic estimate
-  (`tokens.py`) otherwise (`MockProvider` always estimates).
-- `TransformRecord.token_usage` — `Runtime.step_llm` now sums usage across
-  *every* attempt of a step (a retry is a real, billed call, not a free
-  do-over) and stamps the total the same way it stamps `model_fingerprint` —
-  including on a REJECTed patch, composing directly with fix #1 above.
-  `LLMContradictionOperator`'s two-pass detection sums both its calls into
-  the one `TransformRecord` they share.
-- `providers/openrouter.py::estimate_cost_usd` + a small illustrative
-  pricing table, unlisted models falling back to a documented default
-  instead of a misleading $0.00.
-- `src/spc_state/cost_ledger.py` (`build_cost_ledger`, `write_cost_ledger`) —
-  one entry per `TransformRecord` that spent tokens; writes
-  `runs/<id>/cost_ledger.json`. Wired into `analyze.py` (always) and into
-  `cli.py run` / `demo.py run_full_demo`'s `--live-critic` paths only, so the
-  deterministic default writes no new file.
+### 6. T6 ⚠ — SQLite-backed StateStore (sign-off given this session)
 
-Known, documented scope boundary: a step where every attempt was unparseable
-never assembles a patch, so it has no `TransformRecord` to ledger — the
-ledger sums per `TransformRecord`, per its literal T5 scope, not a full
-attempt-by-attempt accounting. 22 new/changed tests across
-`tests/test_cost_ledger.py`, `test_openrouter_provider.py`, and
-`test_analyze_pipeline.py`. `cost_ledger.py` and `runtime/loop.py` are 100%
-covered.
+`StateStoreProtocol` (`store/store.py`) — a structural `Protocol`, three
+methods (`write`/`read`/`latest_version`) — is what `Runtime` actually
+depends on. `Runtime.__init__` gained exactly one optional keyword,
+`state_store: StateStoreProtocol | None = None`; omitted, it builds the
+file-based store exactly as before. That is the *entire* runtime-side
+change — matches the "the runtime must not change" invariant literally, not
+just in spirit.
+
+`src/spc_state/store/sqlite_store.py` (`SQLiteStateStore`) implements the
+same protocol against a per-run `.sqlite3` file — one table, one row per
+version, the row payload the exact same `model_dump_json(by_alias=True)`
+text the file backend writes. Everything else (patches, validation, audit,
+diffs, receipts) stays file-based regardless of backend; no CLI flag was
+added — T6 proves the seam exists, it doesn't ship a new user-facing switch.
+
+Incidental fix found while testing: `RunPaths.ensure_dirs()` used to
+unconditionally pre-create an empty `state/` directory, which was already
+redundant for the file backend (self-creates on first write) and actively
+misleading for a SQLite-backed run (an empty dir sitting next to
+`state.sqlite3`). Removed.
+
+`tests/test_store_backends.py`: a 6-test generic behavioral suite
+parametrized over both backends (12 runs), plus the literal acceptance
+scenario — the full deterministic demo pipeline run once per backend,
+asserting the committed state history is identical **object-for-object**
+(not just version numbers), while confirming the storage medium genuinely
+differs so the comparison isn't accidentally testing the same backend
+against itself. `sqlite_store.py` is 100% covered.
 
 ## Next up
 
-Only **T6 — SQLite `StateStore`** (L) remains in `TASKS.md`, and it is ⚠
-gated: it relaxes a documented v0.1 constraint (`AGENTS.md §V` — file-based
-storage only), so get sign-off before starting it.
+**The `TASKS.md` backlog is empty.** Nothing is queued. Options for a next
+session, none of them urgent:
 
-Everything else is genuinely open-ended:
-
-- An optional LLM-narrated memo, noted as a possible follow-on under T2, kept
-  off by default since re-prompting risks the drift SPC exists to prevent.
-- A possible follow-on under T4: give contradictions an explicit `Relation`
-  to each claim they conflict with, so contradiction nodes stop being
-  visually isolated in the state graph — changes what the contradiction
-  operator commits, not just how it's rendered, so it wasn't done alongside
-  T4 itself.
-- A possible follow-on under T5: attempt-level (not just per-`TransformRecord`)
-  cost accounting, to capture the tokens spent on a step that never produced
-  a patch at all (every attempt unparseable). Documented as a known boundary,
-  not a bug, but a real gap if a live run needs to reconcile against an
-  actual OpenRouter invoice.
-
-Full specs with acceptance tests are in [`TASKS.md`](./TASKS.md).
+- Pick a fresh extension task and add it to `TASKS.md` following the
+  existing format (Why / Scope / Acceptance test / Invariants).
+- The two possible follow-ons noted inline in `TASKS.md`: an optional
+  LLM-narrated memo (T2, kept off by default — re-prompting risks the drift
+  SPC exists to prevent), and giving contradictions an explicit `Relation`
+  to each claim they conflict with so they stop being visually isolated in
+  the T4 state graph (changes what the contradiction operator commits, not
+  just how it renders, so it wasn't bundled into T4 itself).
+- A possible T5 follow-on: attempt-level (not just per-`TransformRecord`)
+  cost accounting, to capture tokens spent on a step that never produced a
+  patch at all. Documented as a known, deliberate boundary in T5 — real if a
+  live run ever needs to reconcile against an actual OpenRouter invoice.
+- If a SQLite-backed *end-to-end* run is wanted (not just the storage seam
+  proven, which T6 already did) — a `--state-backend sqlite` CLI flag on
+  `run`/`analyze`/`demo`, plus teaching `_load_history`/`followups`/`memo`
+  which backend a given run used. Deliberately not built in T6: that's a
+  new user-facing feature, a different scope than "prove the seam is real."
 
 ## Gate notes a future session still needs
 

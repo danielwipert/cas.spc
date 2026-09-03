@@ -208,23 +208,59 @@ hardcoded flagship anywhere. No network in any test — every provider is
 
 ---
 
-## T6 ⚠ — SQLite-backed StateStore · L
+## T6 ⚠ — SQLite-backed StateStore · ✅ DONE (sign-off given 2026-09-03)
 
-**Why.** Roadmap "Deferred." The file-based store is the v0.1 norm
-(`AGENTS.md §V`). A SQLite backend behind the **same** `StateStore` interface
-would prove the storage seam is real — but it relaxes a documented constraint,
-so confirm before starting.
+`StateStoreProtocol` (`store/store.py`) is the interface `Runtime` actually
+depends on — a structural `Protocol` (three methods: `write`, `read`,
+`latest_version`), not a base class, so the existing file-based `StateStore`
+satisfies it with zero changes. `Runtime.__init__` gained one optional
+keyword, `state_store: StateStoreProtocol | None = None`; when omitted it
+builds the file-based store exactly as before, so every existing caller is
+untouched — this is the whole extent of the runtime-side change, matching
+the invariant literally.
 
-**Scope.** `src/spc_state/store/sqlite_store.py` implementing the existing store
-protocol; a test fixture that parametrizes the store backend.
+`src/spc_state/store/sqlite_store.py` (`SQLiteStateStore`) implements that
+same protocol against a **per-run** `.sqlite3` file
+(`RunPaths.state_db_file`) — one table, one row per state version, the row
+payload the exact same `model_dump_json(by_alias=True)` text the file
+backend writes; only where it lives differs, not what it says. `close()`
+releases the connection. A missing version raises
+`StateVersionNotFoundError` (a `KeyError`), read alongside the file
+backend's `FileNotFoundError` in tests. Everything else — patches,
+validation reports, the audit log, diffs, receipts — stays file-based
+regardless of which state backend is chosen; nothing wires a `--state-backend`
+CLI flag, since T6 is about proving the seam exists, not shipping a new
+user-facing switch.
 
-**Acceptance test** (`tests/test_store_backends.py`). The existing store tests
-pass against both the file backend and the SQLite backend via parametrization;
-a full demo run on SQLite yields the same committed state versions as the file
-run.
+One incidental fix discovered while testing: `RunPaths.ensure_dirs()` used to
+unconditionally pre-create `state_dir`, which left a stray empty `state/`
+directory sitting next to `state.sqlite3` on a SQLite-backed run. Removed —
+the file-based `StateStore` already creates that directory lazily on first
+write (`_write_model`'s `mkdir(parents=True, exist_ok=True)`), so the
+pre-creation was already redundant for the file backend and actively
+misleading for any other backend.
 
-**Invariants.** The runtime must not change — only the store implementation.
-Reproducibility preserved. Requires sign-off to relax `AGENTS.md §V`.
+Tests in `tests/test_store_backends.py`: a generic behavioral suite
+(`latest_version` before any write, round-trip, out-of-order writes,
+overwriting a version, a missing version raises, two runs never share
+state) parametrized over both backends via
+`@pytest.fixture(params=[StateStore, SQLiteStateStore])` — 6 tests × 2
+backends. Plus the literal acceptance scenario: the full deterministic demo
+pipeline run once per backend (`tests/_demo_helpers.py::run_demo` gained an
+optional `state_store_factory` parameter for this), asserting the committed
+state history is identical version-for-version and object-for-object, while
+confirming the storage medium genuinely differs (one leaves a `.sqlite3`
+file and no `state/` directory, the other the reverse) so the comparison
+isn't accidentally testing the same backend against itself. `sqlite_store.py`
+is 100% covered.
+
+**Invariants held.** The runtime changed by exactly one optional
+constructor parameter — no behavior change for any existing caller.
+Reproducibility preserved (verified byte-for-byte via `SemanticState.__eq__`
+across backends, not just version numbers). `spc-demo demo` unaffected —
+confirmed with a real run that `DEMO.md` doesn't change; no new file
+appears under the deterministic `runs/demo/` tree either, since nothing
+opts into the SQLite backend by default.
 
 ---
 

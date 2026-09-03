@@ -12,7 +12,7 @@ patches).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TypeVar
+from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -21,6 +21,23 @@ from ..models import SemanticPatch, SemanticState, ValidationReport
 from .paths import RunPaths
 
 M = TypeVar("M", bound=BaseModel)
+
+
+@runtime_checkable
+class StateStoreProtocol(Protocol):
+    """The interface a state-version backend must implement (T6).
+
+    `Runtime` depends on this, not on the file-based `StateStore` below
+    directly — so a different backend (`sqlite_store.SQLiteStateStore`) can
+    stand in for it without the runtime importing or knowing anything about
+    SQLite. Structural (a `Protocol`), not a base class: any object with
+    these three methods satisfies it, `StateStore` included, with no
+    inheritance required.
+    """
+
+    def write(self, state: SemanticState) -> object: ...
+    def read(self, state_version: int) -> SemanticState: ...
+    def latest_version(self) -> int | None: ...
 
 
 def _write_model(path: Path, model: BaseModel) -> Path:
@@ -139,5 +156,6 @@ __all__ = [
     "PatchStore",
     "ReceiptStore",
     "StateStore",
+    "StateStoreProtocol",
     "ValidationStore",
 ]

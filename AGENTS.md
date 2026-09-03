@@ -25,9 +25,9 @@ the same runtime and the same patch loop:
   Receipt, both projected from committed state. Needs `OPENROUTER_API_KEY`, and
   the run is non-deterministic by nature.
 
-Tasks T0–T5 and T7 in [`TASKS.md`](./TASKS.md) are done; only T6 (⚠ needs
-sign-off) is open. Pick a task
-from there and keep the invariants below intact.
+All tasks T0–T7 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
+signed off 2026-09-03 — see §V). The backlog there is currently empty; add a
+task before picking one up, and keep the invariants below intact.
 
 ---
 
@@ -107,11 +107,14 @@ arrive in later phases.
 ## V. Storage Discipline
 
 The pilot is file-based. Do not introduce a database, embedding index, or
-queue in v0.1. State versions live at:
+queue in v0.1 — with one sanctioned, scoped exception (T6, signed off
+2026-09-03): a SQLite backend for state-version storage only, opt-in per
+caller, never the default. State versions live at:
 
 ```text
 runs/<run_id>/state/semantic_state_v000.json
 runs/<run_id>/state/semantic_state_v001.json
+runs/<run_id>/state.sqlite3                        # opt-in alternative (T6) — not both
 runs/<run_id>/patches/patch_<NNN>.json
 runs/<run_id>/patches/attempt_<NNN>_<K>.txt        # LLM steps only
 runs/<run_id>/validation/validation_<NNN>.json
@@ -121,6 +124,18 @@ runs/<run_id>/diffs/diff_v<A>_v<B>.json
 runs/<run_id>/receipts/reasoning_receipt_v<N>.md
 runs/<run_id>/cost_ledger.json                     # LLM-backed runs only
 ```
+
+**The T6 exception, precisely.** `Runtime` depends only on
+`StateStoreProtocol` (`store/store.py` — `write`/`read`/`latest_version`,
+structural, not a base class), never on the file-based `StateStore`
+directly. `store/sqlite_store.py::SQLiteStateStore` implements the same
+protocol against a per-run `.sqlite3` file — same row content
+(`model_dump_json(by_alias=True)`), different medium. Nothing else may use
+this exception without its own sign-off: patches, validation, the audit
+log, diffs, and receipts stay file-based no matter which state backend is
+active. No CLI flag selects it — a caller wanting SQLite constructs
+`SQLiteStateStore(paths)` and passes it to `Runtime(state_store=...)`
+directly; the default remains file-based everywhere nothing opts in.
 
 Every patch a runtime step proposes is written **before** validation judges
 it, so a rejected proposal is still on the record (§III). An LLM step may take

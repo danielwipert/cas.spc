@@ -99,13 +99,26 @@ class RunPaths:
     def cost_ledger_file(self) -> Path:
         return self.run_dir / "cost_ledger.json"
 
+    def state_db_file(self) -> Path:
+        """Where `SQLiteStateStore` (T6) keeps this run's state versions.
+
+        Deliberately its own file, not inside `state_dir` — a run must never
+        end up with both a file-based and a SQLite state history, and this
+        keeps them from ever colliding on disk.
+        """
+        return self.run_dir / "state.sqlite3"
+
     def input_copy(self) -> Path:
         return self.input_dir / "input.txt"
 
     def ensure_dirs(self) -> None:
+        # `state_dir` is deliberately not pre-created here: the file-based
+        # `StateStore` already creates it lazily on first write (T6 sibling
+        # backends, e.g. `SQLiteStateStore`, don't use it at all — a run on
+        # the SQLite backend must not end up with a stray empty `state/` dir
+        # sitting next to `state.sqlite3`).
         for d in (
             self.input_dir,
-            self.state_dir,
             self.patches_dir,
             self.validation_dir,
             self.receipts_dir,

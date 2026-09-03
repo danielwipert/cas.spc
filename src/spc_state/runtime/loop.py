@@ -26,7 +26,7 @@ from ..models import (
 from ..projection import build_projection
 from ..router import decide as router_decide
 from ..router import decide_llm as router_decide_llm
-from ..store import PatchStore, RunPaths, StateStore, ValidationStore
+from ..store import PatchStore, RunPaths, StateStore, StateStoreProtocol, ValidationStore
 from ..validation import validate as run_validation
 from ..validation.l1 import parse_patch
 from .clock import Clock, WallClock
@@ -89,10 +89,15 @@ class Runtime:
         paths: RunPaths,
         clock: Clock | None = None,
         audit: AuditLog | None = None,
+        state_store: StateStoreProtocol | None = None,
     ) -> None:
         self.paths = paths
         self.clock = clock or WallClock()
-        self.state_store = StateStore(paths)
+        # File-based by default (AGENTS.md §V); a caller may hand in a
+        # different backend (e.g. `sqlite_store.SQLiteStateStore`, T6) behind
+        # the same `StateStoreProtocol` — the runtime never imports or knows
+        # about that backend's implementation.
+        self.state_store = state_store or StateStore(paths)
         self.patch_store = PatchStore(paths)
         self.validation_store = ValidationStore(paths)
         self.audit = audit or AuditLog(paths.audit_log())
