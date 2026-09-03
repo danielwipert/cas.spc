@@ -112,11 +112,21 @@ queue in v0.1. State versions live at:
 runs/<run_id>/state/semantic_state_v000.json
 runs/<run_id>/state/semantic_state_v001.json
 runs/<run_id>/patches/patch_<NNN>.json
+runs/<run_id>/patches/attempt_<NNN>_<K>.txt        # LLM steps only
 runs/<run_id>/validation/validation_<NNN>.json
+runs/<run_id>/validation/attempt_<NNN>_<K>.json    # LLM steps only
 runs/<run_id>/audit/audit_log.jsonl
 runs/<run_id>/diffs/diff_v<A>_v<B>.json
 runs/<run_id>/receipts/reasoning_receipt_v<N>.md
 ```
+
+Every patch a runtime step proposes is written **before** validation judges
+it, so a rejected proposal is still on the record (§III). An LLM step may take
+several attempts (`Runtime.step_llm`), and a completion may not parse into a
+patch at all: the `attempt_<NNN>_<K>` files hold each attempt's raw completion
+and its validation report, while the canonical `patch_<NNN>.json` /
+`validation_<NNN>.json` hold the final outcome. The `attempt_` prefix keeps
+them out of the `patch_*` / `validation_*` globs the §20.8 artifact counts use.
 
 The `runs/` directory is **generated and gitignored**. Every demo run must
 be reproducible from `examples/` plus the engine. Do not commit run output.

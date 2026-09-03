@@ -196,8 +196,7 @@ class Runtime:
         feedback: list[str] = []
         report: ValidationReport | None = None
         decision: RouterDecision | None = None
-        final_text = ""
-        fingerprint = None
+        proposed: SemanticPatch | None = None
         attempts = 0
 
         for attempt in range(1, operator.max_attempts + 1):
@@ -213,8 +212,25 @@ class Runtime:
                 attempt=attempt,
             )
             response = operator.generate(state, projection, feedback)
-            fingerprint = response.fingerprint
-            final_text = response.text
+
+            # Keep the raw completion *before* validation judges it — it is
+            # the only record of what the model actually proposed, and it may
+            # not parse into a patch at all. The parsed form (when there is
+            # one) becomes the step's canonical patch after the loop.
+            self.patch_store.write_attempt(response.text, ordinal, attempt)
+            proposed, _ = parse_patch(response.text)
+            if proposed is not None and proposed.transform_record.model_fingerprint is None:
+                # Record which model produced the patch (spec §10.6) — on the
+                # proposal, so a rejected one still names its author.
+                proposed.transform_record.model_fingerprint = response.fingerprint
+            self.audit.append(
+                "patch.proposed",
+                at=self.clock.now(),
+                patch_id=proposed.patch_id if proposed is not None else "unparsed_patch",
+                base_state_version=state.state_version,
+                operator=operator.fully_qualified(),
+                attempt=attempt,
+            )
 
             report = run_validation(
                 state=state,
@@ -222,7 +238,10 @@ class Runtime:
                 report_id=f"report_{ordinal:03d}",
                 now=self.clock.now(),
             )
+            # The canonical report holds the final attempt; the attempt file
+            # keeps this one, so a retry never erases what came before.
             self.validation_store.write(report, ordinal)
+            self.validation_store.write_attempt(report, ordinal, attempt)
 
             decision = router_decide(report)
             self.audit.append(
@@ -249,12 +268,14 @@ class Runtime:
 
         assert report is not None and decision is not None  # loop ran ≥ once
 
-        patch, _ = parse_patch(final_text)
+        # The final attempt's parse is the step's outcome. Persist it whatever
+        # the router decided: a rejected patch belongs on the record too, the
+        # same way the deterministic `step` keeps one (AGENTS.md §III).
+        patch = proposed
         next_state: SemanticState | None = None
+        if patch is not None:
+            self.patch_store.write(patch, ordinal)
         if decision is RouterDecision.COMMIT and patch is not None:
-            # Record which model produced the patch (spec §10.6).
-            if fingerprint is not None and patch.transform_record.model_fingerprint is None:
-                patch.transform_record.model_fingerprint = fingerprint
             patch = patch.model_copy(update={"status": PatchStatus.COMMITTED})
             self.patch_store.write(patch, ordinal)
             next_state = commit_patch(state, patch, now=self.clock.now())

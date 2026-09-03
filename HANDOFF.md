@@ -6,76 +6,94 @@
 > never append. The durable record lives in git history, `ROADMAP.md`, and
 > `TASKS.md` — not here.
 
-**Last session:** 2026-08-26 · **Branch:** `claude/project-status-check-l7zkvl`
-(4 commits ahead of `main`, pushed)
+**Last session:** 2026-09-03 · **Branch:** `claude/project-review-7als6t`
 
 ---
 
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. Tasks
-T0–T3 are done, T4–T6 open. No code changed this session — the engine does
-exactly what it did on 2026-06-27.
+T0–T3 are done, T4–T7 open. This session closed an audit-trail gap in the LLM
+path — the first behaviour change since 2026-06-27.
 
-All four definition-of-done gates now pass on a fresh clone:
+All four definition-of-done gates pass on a fresh clone:
 
 ```
 ruff check src tests   ->  All checks passed
 python -m mypy         ->  Success: no issues found in 62 source files
-pytest                 ->  178 passed
+pytest                 ->  186 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
 ## What the last session did
 
-Housekeeping only. No behavior change anywhere.
+**Reviewed the repo, then fixed the one real defect the review turned up.**
 
-- **Established this handoff convention.** `HANDOFF.md` + a pointer at the top
-  of `AGENTS.md`, so it is discoverable from the file `TASKS.md` already tells
-  every contributor to read first.
-- **Refreshed the `AGENTS.md` status block**, which still described the repo as
-  of Phase 8. It now covers both entry points — the deterministic byte-stable
-  pilot (`demo`/`run`) and the five-stage live pipeline (`analyze`).
-- **Fixed stale `--help` text** on `analyze`: the docstring claimed three
-  stages while the code ran five, and `--extract-only` said it skipped two.
-- **Repaired the ruff and mypy gates**, which the docs claimed were clean and
-  which failed 56 / 17 on a fresh clone. Details below — the UP042 note
-  matters.
+`Runtime.step` persists a patch *before* validation judges it, so a rejected
+proposal stays on the record (`AGENTS.md §III`). `Runtime.step_llm` only wrote
+a patch inside its COMMIT branch — so when a live `analyze` run had a model
+propose something invalid, **what it proposed was nowhere on disk**. The
+validation report said `patch_id: "unparsed_patch"` plus error codes; the audit
+log recorded the decision; the content was gone. Verified before the fix with a
+wrong-shape planner probe: `patches/` was empty.
 
-## Gate repair — what a future session needs to know
+`step_llm` now mirrors `step`:
+
+- **Every attempt's raw completion is kept verbatim** at
+  `patches/attempt_<NNN>_<K>.txt`, written before validation runs. Raw, because
+  a completion may not parse into a patch at all.
+- **The final attempt's parsed patch lands canonically** at
+  `patches/patch_<NNN>.json` whatever the router decided — rejected included.
+- **`patch.proposed` is emitted** on the LLM path (it never was), carrying the
+  attempt number and `unparsed_patch` when nothing parsed.
+- **Each attempt keeps its own validation report** at
+  `validation/attempt_<NNN>_<K>.json`; retries used to overwrite a single file.
+- **The proposal is stamped with the model fingerprint** before it is persisted,
+  not only on commit — so a *rejected* patch still names its author (§10.6).
+
+The `attempt_` prefix is deliberate: `evaluation/metrics.py` counts
+`patch_*.json` and `validation_*.json` with non-recursive globs for the §20.8
+artifact score, and the attempt files must not inflate it. A test pins that.
+
+Eight acceptance tests in `tests/test_runtime_llm_audit_trail.py`. The
+deterministic demo is untouched (it uses `step`, not `step_llm`), so the frozen
+artifacts stay byte-stable.
+
+## Next up
+
+Nothing is half-finished — pick any of these cold.
+
+1. **Planner RETRY fix** (unlisted, cheapest win). The planner REJECTs when the
+   model returns valid JSON in the wrong shape, because the runtime only RETRYs
+   on `JSON_DECODE`. Confirmed: 1 attempt used of `max_attempts=3`.
+   ⚠ **Routing it to RETRY is not sufficient on its own.** The feedback fed back
+   would be pydantic errors about `SemanticPatch` fields (`L1.MISSING`,
+   `L1.EXTRA_FORBIDDEN`) — but the planner never asked the model for a
+   `SemanticPatch`, it asked for the compact `{"hypothesis": ...}` shape. The
+   operator has to supply its own repair feedback ("include a hypothesis"),
+   which means `LLMAssemblyError`'s message needs to reach the retry loop.
+   Noted as a follow-on under T0 in `TASKS.md`.
+2. **T7 — end-to-end test for `analyze`** (S). `cli.py` sits at 20% coverage and
+   the five-stage pipeline has no composition test; every operator is tested
+   alone. A wiring regression would pass the whole suite.
+3. **T4 — State-graph visualizer** (M).
+4. **T5 — Per-operator model routing + cost ledger** (M).
+5. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
+   needs sign-off before starting.
+
+Full specs with acceptance tests are in [`TASKS.md`](./TASKS.md).
+
+## Gate notes a future session still needs
 
 **Run `python -m mypy`, never bare `mypy`.** The `mypy` on PATH is a
 uv-installed tool in an isolated environment that cannot see pydantic, typer or
-rich; it reports ~17 phantom `import-not-found` errors. Invoked correctly there
-was exactly **one** real error (now fixed: `_issue_from_pydantic_error` took
-`dict[str, Any]`, but pydantic passes an `ErrorDetails` TypedDict).
-
-**ruff had drifted** — `>=0.5` resolved to 0.15.8, enabling rules the code
-predates. 16 genuine issues auto-fixed, B007 fixed by hand, the rest ignored
-with written rationale in `pyproject.toml`. Both linters are now pinned.
+rich; it reports ~17 phantom `import-not-found` errors.
 
 > ⚠ **Do not "fix" UP042.** It wants `class X(str, Enum)` → `StrEnum` across
 > `models/enums.py`. Verified in a REPL: that changes `str()` and f-string
 > output from `ObjectType.CLAIM` to `claim`, which would silently alter every
 > rendered receipt and memo and break the byte-stable demo artifacts. The
 > ignore is deliberate and documented at the rule.
-
-## Next up
-
-Nothing is half-finished — pick any of these cold.
-
-1. **Planner RETRY fix** (unlisted, cheapest win). The planner currently
-   REJECTs when the model returns valid JSON in the wrong shape, because the
-   runtime only RETRYs on `JSON_DECODE`. Route shape-invalid output to RETRY
-   with targeted feedback ("include a hypothesis"). Noted as a follow-on under
-   T0 in `TASKS.md`.
-2. **T4 — State-graph visualizer** (M). Mermaid export embedded in the
-   receipt; strengthens the §20.8 audit-clarity story.
-3. **T5 — Per-operator model routing + cost ledger** (M).
-4. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
-   needs sign-off before starting.
-
-Full specs with acceptance tests are in [`TASKS.md`](./TASKS.md).
 
 ## Before touching code
 

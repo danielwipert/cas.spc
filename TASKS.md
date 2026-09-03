@@ -44,6 +44,13 @@ when the model returns valid JSON in the wrong shape, because the runtime only
 RETRYs on `JSON_DECODE`. A small improvement would route shape-invalid LLM
 output to RETRY with targeted feedback ("include a hypothesis").
 
+Note for whoever picks this up: routing to RETRY is not sufficient on its own.
+The feedback the loop passes back is built from the validation issues, which
+here are pydantic errors about `SemanticPatch` fields — but the planner asked
+the model for the compact `{"hypothesis": ...}` shape, not a `SemanticPatch`,
+so that feedback would misdirect it. The operator needs to supply its own
+repair message, which means `LLMAssemblyError`'s text has to reach the loop.
+
 ---
 
 ## T1 — RetrieverOperator (complete the §8.3 SPC flow) · S
@@ -152,6 +159,27 @@ run.
 
 **Invariants.** The runtime must not change — only the store implementation.
 Reproducibility preserved. Requires sign-off to relax `AGENTS.md §V`.
+
+---
+
+## T7 — End-to-end test for the `analyze` pipeline · S
+
+**Why.** `cli.py` sits at ~20% coverage and the five-stage live pipeline —
+the headline feature — has no composition test. Every LLM operator is tested
+alone with an injected provider, but nothing exercises them in sequence, so a
+wiring regression (operator order, ordinal/patch_id allocation, memo and
+receipt projected from the final state) would pass the whole suite.
+
+**Scope.** Factor the operator list + run out of `cli.analyze` into a callable
+the command and the test share; drive it with a scripted provider.
+
+**Acceptance test** (`tests/test_analyze_pipeline.py`, injected provider — no
+network, no key). A five-stage run over a small document reaches state v5,
+writes one patch and one validation report per stage, and produces a memo whose
+findings all cite an evidence id present in the final state.
+
+**Invariants.** No network in tests — inject the provider. The deterministic
+demo must stay byte-stable.
 
 ---
 

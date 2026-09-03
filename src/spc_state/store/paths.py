@@ -66,6 +66,21 @@ class RunPaths:
     def validation_file(self, ordinal: int) -> Path:
         return self.validation_dir / f"validation_{ordinal:03d}.json"
 
+    # -- per-attempt artifacts (the LLM retry trail) ----------------------
+    # An LLM step may take several attempts before the runtime commits or
+    # gives up. The canonical `patch_*.json` / `validation_*.json` files hold
+    # the final outcome; these hold every attempt that led there. The
+    # `attempt_` prefix keeps them out of the `patch_*` / `validation_*` globs
+    # the §20.8 artifact counts use.
+
+    def patch_attempt_file(self, ordinal: int, attempt: int) -> Path:
+        """The model's raw completion for one attempt, kept verbatim."""
+        return self.patches_dir / f"attempt_{ordinal:03d}_{attempt:02d}.txt"
+
+    def validation_attempt_file(self, ordinal: int, attempt: int) -> Path:
+        """The validation report for one attempt."""
+        return self.validation_dir / f"attempt_{ordinal:03d}_{attempt:02d}.json"
+
     def receipt_file(self, state_version: int) -> Path:
         return self.receipts_dir / f"reasoning_receipt_v{state_version:03d}.md"
 
