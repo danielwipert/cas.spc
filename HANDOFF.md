@@ -13,119 +13,108 @@
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. Tasks
-T0–T3, T4, and T7 are done, T5–T6 open. This session closed two defects in
-the LLM path (audit trail, planner retry), then shipped T7 and T4.
+T0–T5 and T7 are done — only **T6** (SQLite `StateStore`, ⚠ needs sign-off)
+remains. This session closed two defects in the LLM path (audit trail,
+planner retry), then shipped T7, T4, and T5 in sequence.
 
 All four definition-of-done gates pass on a fresh clone:
 
 ```
 ruff check src tests   ->  All checks passed
-python -m mypy         ->  Success: no issues found in 64 source files
-pytest                 ->  211 passed
+python -m mypy         ->  Success: no issues found in 65 source files
+pytest                 ->  222 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
 ## What the last session did
 
-Two fixes in the LLM path. Both were found by reviewing the repo; neither
-touches the deterministic demo, so the frozen artifacts stay byte-stable.
+Five pieces of work, each verified against the four gates before moving on.
+None touch the deterministic demo, so the frozen artifacts stay byte-stable.
 
-### 1. Rejected LLM proposals stayed on the record
+### 1–2. Two LLM-path defects (audit trail, planner retry)
 
-`Runtime.step` persists a patch *before* validation judges it; `step_llm` only
-wrote one inside its COMMIT branch — so when a model proposed something
-invalid, what it proposed was nowhere on disk. `step_llm` now mirrors `step`:
-every attempt's raw completion is kept verbatim at
-`patches/attempt_<NNN>_<K>.txt`, the final parse lands canonically whatever the
-router decided, `patch.proposed` is emitted, each attempt keeps its own
-validation report, and the fingerprint is stamped on the proposal so a rejected
-patch still names its author. The `attempt_` prefix keeps these files out of
-the `patch_*` / `validation_*` globs the §20.8 artifact counts use.
-Tests: `tests/test_runtime_llm_audit_trail.py`.
-
-### 2. Shape-invalid LLM output now retries (the T0 follow-on)
-
-The planner REJECTed when the model returned valid JSON in the wrong shape,
-spending 1 of 3 attempts, because the runtime only RETRYd on `JSON_DECODE`.
-Two halves, both needed:
-
-- **Routing.** `router.decide_llm` routes *any* L1 schema failure to RETRY on
-  the LLM path — a model can repair its own output. `router.decide` is
-  unchanged for deterministic operators, where the same failure is a code bug.
-  L2 failures still REJECT on both paths: a well-formed patch that says
-  something untrue about the state is a judgement, not a shape.
-- **Feedback.** Routing alone would have misdirected the model. The validation
-  issues are pydantic errors about `SemanticPatch` fields the planner never
-  asked for (it asked for `{"hypothesis": ...}`). Operators that assemble a
-  patch from a compact content shape now return an `OperatorCompletion`
-  carrying a `repair_hint` from `LLMAssemblyError`, and `step_llm` prefers it.
-  Wired in all four assembling operators, not just the planner — same defect.
-  The assembly messages were rewritten to be directive, because they are now
-  read by the model: `Your output must include a "hypothesis" object with a
-  non-empty "text" field naming the single recommended course of action.`
-
-Verified end to end with an injected provider that always returns the wrong
-shape: 3 attempts spent (was 1), and each retry prompt carries the hint alone.
-
-⚠ Note for live runs: a persistently wrong-shaped response now costs 3 model
-calls instead of 1. That is the point of the retry budget, but it is a real
-cost change on `analyze`.
+See git log (`Runtime: keep rejected LLM proposals on the record`, `LLM path:
+retry shape-invalid output with the operator's own feedback`) — both fixes
+and their tests are unchanged since. Summary: a rejected LLM proposal used to
+vanish entirely (nothing on disk); now every attempt is persisted verbatim,
+the final parse lands as the canonical patch regardless of outcome, and the
+model is named even when rejected. Separately, the planner used to REJECT
+(no retry) on valid JSON in the wrong shape, wasting 2 of 3 attempts; the LLM
+path now RETRYs on any L1 schema failure (`router.decide_llm`), and operators
+supply their own repair hint (`OperatorCompletion.repair_hint`) rather than
+misdirecting the model with `SemanticPatch`-shaped validator noise.
 
 ### 3. T7 — end-to-end test for the `analyze` pipeline
 
-`cli.py` was at ~20% coverage and the five-stage live pipeline had no
-composition test — every LLM operator was tested alone. Factored the operator
-list + runtime run out of `cli.analyze` into `src/spc_state/analyze.py`
-(`run_analysis`, `build_analysis_operators`); `cli.analyze` is now a thin
-wrapper that builds the provider and calls it. `AnalysisResult` carries the
-run plus the projected receipt/memo, both `None` when nothing committed.
+`cli.analyze`'s operator list + runtime run factored into
+`src/spc_state/analyze.py` (`run_analysis`), shared by the CLI and
+`tests/test_analyze_pipeline.py`. `cli.py` was ~20% covered with the whole
+five-stage pipeline untested; `analyze.py` is now 100% covered.
 
-Six tests in `tests/test_analyze_pipeline.py` with an injected `MockProvider`
-(no network, no key): the five stages commit in order to state v5; one
-canonical patch/validation report per stage, one attempt file per LLM stage
-(none for the deterministic retriever — this is the audit-trail fix from
-earlier in this session, verified end to end here for the first time); every
-`[E#]` citation in the memo resolves to real evidence; `--extract-only` stops
-at v1; nothing committed skips both artifacts rather than building them empty.
-`analyze.py` itself is 100% covered.
-
-### 4. T4 — state-graph visualizer (Mermaid export)
+### 4. T4 — state-graph Mermaid export
 
 `src/spc_state/receipt/graph.py` (`render_mermaid_graph`) projects a
-`SemanticState` to a Mermaid flowchart: one node per active object, one edge
-per active `Relation` whose endpoints are both active. Edges come only from
-`state.relations` — the explicit, predicate-labeled graph operators already
-build — never invented from a claim's `assumptions`/`supporting_evidence`
-fields. Nodes are styled per type via `classDef`. "Active" reuses memo.py's
-existing convention (`status != ARCHIVED`), so a resolved question or a
-rejected hypothesis still renders.
+`SemanticState` to a Mermaid flowchart — one node per active object, one edge
+per active `Relation` (never invented from a claim's `assumptions`/
+`supporting_evidence` fields). Embedded into `render_markdown()` as a new
+"State Graph" section, so every Reasoning Receipt gets one — both `demo` and
+`analyze`, no CLI changes. `tests/fixtures/reasoning_receipt_demo.md`
+regenerated to match; confirmed `DEMO.md` doesn't change (it counts the
+receipt as a metric, never renders its content).
 
-Embedded into `render_markdown()` as a new "State Graph" section, so it now
-appears in every Reasoning Receipt — both `demo` and `analyze` — with no CLI
-changes. Regenerated `tests/fixtures/reasoning_receipt_demo.md` to match, and
-confirmed with a real `spc-demo demo` run that `DEMO.md` does **not** change
-— it reports the receipt only as a metric count, never its content.
+### 5. T5 — per-operator model routing + cost ledger
 
-12 tests in `tests/test_graph.py`, 100% coverage on `graph.py`. Rendered the
-actual demo-pipeline graph in a preview artifact to confirm the Mermaid
-syntax is valid — it is; nodes, edges, and per-type colors all display
-correctly.
+**Per-operator model routing needed no new mechanism** — every operator
+already takes its own `LLMProvider`, and a provider carries its own model;
+two operators with two differently-configured providers already run two
+different models. What's new is the accounting:
+
+- `TokenUsage` (`models/transform.py`) on `ProviderResponse.usage` — real API
+  usage from OpenRouter when reported, a deterministic estimate
+  (`tokens.py`) otherwise (`MockProvider` always estimates).
+- `TransformRecord.token_usage` — `Runtime.step_llm` now sums usage across
+  *every* attempt of a step (a retry is a real, billed call, not a free
+  do-over) and stamps the total the same way it stamps `model_fingerprint` —
+  including on a REJECTed patch, composing directly with fix #1 above.
+  `LLMContradictionOperator`'s two-pass detection sums both its calls into
+  the one `TransformRecord` they share.
+- `providers/openrouter.py::estimate_cost_usd` + a small illustrative
+  pricing table, unlisted models falling back to a documented default
+  instead of a misleading $0.00.
+- `src/spc_state/cost_ledger.py` (`build_cost_ledger`, `write_cost_ledger`) —
+  one entry per `TransformRecord` that spent tokens; writes
+  `runs/<id>/cost_ledger.json`. Wired into `analyze.py` (always) and into
+  `cli.py run` / `demo.py run_full_demo`'s `--live-critic` paths only, so the
+  deterministic default writes no new file.
+
+Known, documented scope boundary: a step where every attempt was unparseable
+never assembles a patch, so it has no `TransformRecord` to ledger — the
+ledger sums per `TransformRecord`, per its literal T5 scope, not a full
+attempt-by-attempt accounting. 22 new/changed tests across
+`tests/test_cost_ledger.py`, `test_openrouter_provider.py`, and
+`test_analyze_pipeline.py`. `cost_ledger.py` and `runtime/loop.py` are 100%
+covered.
 
 ## Next up
 
-Nothing is half-finished — pick either of these cold.
+Only **T6 — SQLite `StateStore`** (L) remains in `TASKS.md`, and it is ⚠
+gated: it relaxes a documented v0.1 constraint (`AGENTS.md §V` — file-based
+storage only), so get sign-off before starting it.
 
-1. **T5 — Per-operator model routing + cost ledger** (M).
-2. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
-   needs sign-off before starting.
+Everything else is genuinely open-ended:
 
-An optional LLM-narrated memo is noted as a possible follow-on under T2, kept
-off by default since re-prompting risks the drift SPC exists to prevent. A
-possible follow-on under T4: give contradictions an explicit `Relation` to
-each claim they conflict with (the way planner/critic/retriever already do
-for their own edges), so contradiction nodes stop being visually isolated
-in the state graph — not done here because it changes what the
-contradiction operator commits, not just how it's rendered.
+- An optional LLM-narrated memo, noted as a possible follow-on under T2, kept
+  off by default since re-prompting risks the drift SPC exists to prevent.
+- A possible follow-on under T4: give contradictions an explicit `Relation`
+  to each claim they conflict with, so contradiction nodes stop being
+  visually isolated in the state graph — changes what the contradiction
+  operator commits, not just how it's rendered, so it wasn't done alongside
+  T4 itself.
+- A possible follow-on under T5: attempt-level (not just per-`TransformRecord`)
+  cost accounting, to capture the tokens spent on a step that never produced
+  a patch at all (every attempt unparseable). Documented as a known boundary,
+  not a bug, but a real gap if a live run needs to reconcile against an
+  actual OpenRouter invoice.
 
 Full specs with acceptance tests are in [`TASKS.md`](./TASKS.md).
 

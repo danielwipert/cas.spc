@@ -96,6 +96,9 @@ class RunPaths:
     def report_file(self, name: str = "pilot_report.md") -> Path:
         return self.report_dir / name
 
+    def cost_ledger_file(self) -> Path:
+        return self.run_dir / "cost_ledger.json"
+
     def input_copy(self) -> Path:
         return self.input_dir / "input.txt"
 

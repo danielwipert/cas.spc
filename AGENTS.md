@@ -25,7 +25,8 @@ the same runtime and the same patch loop:
   Receipt, both projected from committed state. Needs `OPENROUTER_API_KEY`, and
   the run is non-deterministic by nature.
 
-Tasks T0–T3 in [`TASKS.md`](./TASKS.md) are done; T4–T6 are open. Pick a task
+Tasks T0–T5 and T7 in [`TASKS.md`](./TASKS.md) are done; only T6 (⚠ needs
+sign-off) is open. Pick a task
 from there and keep the invariants below intact.
 
 ---
@@ -118,6 +119,7 @@ runs/<run_id>/validation/attempt_<NNN>_<K>.json    # LLM steps only
 runs/<run_id>/audit/audit_log.jsonl
 runs/<run_id>/diffs/diff_v<A>_v<B>.json
 runs/<run_id>/receipts/reasoning_receipt_v<N>.md
+runs/<run_id>/cost_ledger.json                     # LLM-backed runs only
 ```
 
 Every patch a runtime step proposes is written **before** validation judges
@@ -127,6 +129,10 @@ patch at all: the `attempt_<NNN>_<K>` files hold each attempt's raw completion
 and its validation report, while the canonical `patch_<NNN>.json` /
 `validation_<NNN>.json` hold the final outcome. The `attempt_` prefix keeps
 them out of the `patch_*` / `validation_*` globs the §20.8 artifact counts use.
+
+`cost_ledger.json` (T5) sums estimated token spend per `TransformRecord` —
+`src/spc_state/cost_ledger.py`, written only when a run actually called a
+model, so a purely deterministic run adds no new file.
 
 The `runs/` directory is **generated and gitignored**. Every demo run must
 be reproducible from `examples/` plus the engine. Do not commit run output.
@@ -165,9 +171,14 @@ tree. Any LLM operator — existing or new:
   the operator never asked the model for — so the operator supplies the repair
   feedback instead, phrased for the shape it actually requested;
 - records provider, model, and resolved version in
-  `TransformRecord.model_fingerprint`;
+  `TransformRecord.model_fingerprint`, and (T5) token usage in
+  `TransformRecord.token_usage` — the runtime stamps both once per step,
+  summed across every retry attempt, since a retry is a real billed call;
+  `cost_ledger.py` prices these into `runs/<id>/cost_ledger.json`;
 - chooses a **value-based, per-task** model — never a hardcoded frontier
-  flagship — and keeps the model configurable;
+  flagship — and keeps the model configurable. **Per-operator model
+  routing is just handing different operators differently-configured
+  provider instances** — there is no separate mechanism to opt into;
 - is tested with an **injected client** (no network, no key in CI). A test must
   show that an LLM proposing direct-mutation prose ("the new state is …") is
   **rejected**, not absorbed.

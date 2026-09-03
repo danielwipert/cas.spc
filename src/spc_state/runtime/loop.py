@@ -19,7 +19,9 @@ from ..models import (
     SemanticPatch,
     SemanticState,
     StateStatus,
+    TokenUsage,
     ValidationReport,
+    sum_token_usage,
 )
 from ..projection import build_projection
 from ..router import decide as router_decide
@@ -198,6 +200,7 @@ class Runtime:
         report: ValidationReport | None = None
         decision: RouterDecision | None = None
         proposed: SemanticPatch | None = None
+        total_usage: TokenUsage | None = None
         attempts = 0
 
         for attempt in range(1, operator.max_attempts + 1):
@@ -213,6 +216,10 @@ class Runtime:
                 attempt=attempt,
             )
             response = operator.generate(state, projection, feedback)
+            # Every attempt is a real, separately billed call — sum them all
+            # into the one TransformRecord this step produces (T5), not just
+            # the attempt that happened to win.
+            total_usage = sum_token_usage(total_usage, response.usage)
 
             # Keep the raw completion *before* validation judges it — it is
             # the only record of what the model actually proposed, and it may
@@ -231,6 +238,7 @@ class Runtime:
                 base_state_version=state.state_version,
                 operator=operator.fully_qualified(),
                 attempt=attempt,
+                token_usage=response.usage.model_dump() if response.usage else None,
             )
 
             report = run_validation(
@@ -284,6 +292,12 @@ class Runtime:
         patch = proposed
         next_state: SemanticState | None = None
         if patch is not None:
+            if total_usage is not None and patch.transform_record.token_usage is None:
+                # The cost of every attempt this step took (T5), not just the
+                # one that happened to parse — stamped alongside the
+                # fingerprint, for the same reason: a rejected patch still
+                # cost real tokens.
+                patch.transform_record.token_usage = total_usage
             self.patch_store.write(patch, ordinal)
         if decision is RouterDecision.COMMIT and patch is not None:
             patch = patch.model_copy(update={"status": PatchStatus.COMMITTED})

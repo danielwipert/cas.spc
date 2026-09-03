@@ -22,6 +22,38 @@ class ModelFingerprint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class TokenUsage(BaseModel):
+    """Tokens spent producing a patch (T5). Real API usage when a provider
+    reports it (OpenRouter); a deterministic estimate (`tokens.py`) otherwise
+    — either way this is what a `CostLedger` sums, never re-measured itself.
+    """
+
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
+
+
+def sum_token_usage(a: TokenUsage | None, b: TokenUsage | None) -> TokenUsage | None:
+    """Combine two calls' usage — e.g. two retry attempts, or a two-pass
+    operator's detection + verification calls — into one total. Each is a
+    real, separately billed API call, so the sum (not the last one) is what
+    a `TransformRecord` should carry.
+    """
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return TokenUsage(
+        prompt_tokens=a.prompt_tokens + b.prompt_tokens,
+        completion_tokens=a.completion_tokens + b.completion_tokens,
+    )
+
+
 class ConfidenceChange(BaseModel):
     """A logged confidence delta on a single object."""
 
@@ -46,6 +78,7 @@ class TransformRecord(BaseModel):
     write_set: list[str] = Field(default_factory=list)
     confidence_changes: list[ConfidenceChange] = Field(default_factory=list)
     model_fingerprint: ModelFingerprint | None = None
+    token_usage: TokenUsage | None = None
     started_at: AwareDatetime | None = None
     finished_at: AwareDatetime | None = None
     notes: str | None = None
@@ -53,4 +86,10 @@ class TransformRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-__all__ = ["ConfidenceChange", "ModelFingerprint", "TransformRecord"]
+__all__ = [
+    "ConfidenceChange",
+    "ModelFingerprint",
+    "TokenUsage",
+    "TransformRecord",
+    "sum_token_usage",
+]

@@ -75,7 +75,9 @@ class LLMOperator(Operator):
         response = self.provider.complete(self.build_request(view, feedback))
         # This operator asks for a whole SemanticPatch, so the validator's own
         # errors are already the right repair feedback — no hint to add.
-        return OperatorCompletion(text=response.text, fingerprint=response.fingerprint)
+        return OperatorCompletion(
+            text=response.text, fingerprint=response.fingerprint, usage=response.usage
+        )
 
     def propose(self, state: SemanticState, projection: Projection) -> SemanticPatch:
         """Single-shot, no-retry convenience. The runtime uses `generate`."""

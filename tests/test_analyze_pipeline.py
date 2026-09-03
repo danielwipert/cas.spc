@@ -144,6 +144,19 @@ def test_five_stage_run_produces_receipt_and_memo(tmp_path: Path) -> None:
     assert analysis.memo_path == paths.run_dir / "memo.md"
 
 
+def test_five_stage_run_writes_a_cost_ledger(tmp_path: Path) -> None:
+    """Four of the five stages are LLM-backed (T5) — the ledger must cover
+    all four, priced by whatever model each one's provider reports."""
+    paths = RunPaths(root=tmp_path / "runs", run_id="ledger")
+    analysis = run_analysis(_full_script(), DOCUMENT, paths, clock=_clock())
+
+    assert analysis.cost_ledger is not None
+    assert len(analysis.cost_ledger.entries) == 4  # extract, plan, critique, verify
+    assert analysis.cost_ledger.total_tokens > 0
+    assert analysis.cost_ledger.total_estimated_cost_usd >= 0.0
+    assert paths.cost_ledger_file().exists()
+
+
 def test_memo_findings_cite_evidence_present_in_final_state(tmp_path: Path) -> None:
     """Every citation `[E#]` in the memo must resolve to real evidence — the
     memo is a faithful projection, never a claim the state doesn't hold."""

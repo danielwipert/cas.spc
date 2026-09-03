@@ -36,19 +36,31 @@ def _state() -> SemanticState:
 
 
 class _FakeClient:
-    """An OpenAI-compatible client whose completions are scripted."""
+    """An OpenAI-compatible client whose completions are scripted.
 
-    def __init__(self, script: list[str]) -> None:
+    `usage` is `None` by default — most tests exercise the shape a real SDK
+    response has when usage is absent, so `OpenRouterProvider` estimates it.
+    Pass a `(prompt, completion)` pair to make it report real usage instead.
+    """
+
+    def __init__(self, script: list[str], *, usage: tuple[int, int] | None = None) -> None:
         self.calls: list[dict] = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
         self._script = script
+        self._usage = usage
 
     def _create(self, **kwargs):
         self.calls.append(kwargs)
         content = self._script[min(len(self.calls) - 1, len(self._script) - 1)]
+        usage_obj = None
+        if self._usage is not None:
+            usage_obj = SimpleNamespace(
+                prompt_tokens=self._usage[0], completion_tokens=self._usage[1]
+            )
         return SimpleNamespace(
             model="resolved/model-v1",
             choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+            usage=usage_obj,
         )
 
 
@@ -103,6 +115,31 @@ def test_complete_maps_request_and_parses_response() -> None:
     roles = [m["role"] for m in sent["messages"]]
     assert roles == ["system", "user", "user"]  # system + user + feedback turn
     assert "bad" in sent["messages"][-1]["content"]
+
+
+# ---------------------------------------------------------------------------
+# Token usage (T5) — real API usage when reported, estimated otherwise.
+# ---------------------------------------------------------------------------
+
+
+def test_usage_is_estimated_when_the_api_does_not_report_it() -> None:
+    client = _FakeClient(["some completion text"])  # no usage attached
+    provider = OpenRouterProvider(client=client, model="prov/model")
+    resp = provider.complete(ProviderRequest(system="sys", user="a fairly long prompt"))
+
+    assert resp.usage is not None
+    assert resp.usage.prompt_tokens > 0
+    assert resp.usage.completion_tokens > 0
+
+
+def test_real_api_usage_is_preferred_over_the_estimate() -> None:
+    client = _FakeClient(["ok"], usage=(123, 45))
+    provider = OpenRouterProvider(client=client, model="prov/model")
+    resp = provider.complete(ProviderRequest(system="sys", user="hi"))
+
+    assert resp.usage is not None
+    assert resp.usage.prompt_tokens == 123
+    assert resp.usage.completion_tokens == 45
 
 
 def test_json_object_can_be_disabled() -> None:

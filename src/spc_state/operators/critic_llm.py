@@ -123,11 +123,13 @@ class LLMReviewCriticOperator(LLMOperator):
             return OperatorCompletion(
                 text=response.text,
                 fingerprint=response.fingerprint,
+                usage=response.usage,
                 repair_hint=str(exc),
             )
         return OperatorCompletion(
             text=patch.model_dump_json(by_alias=True),
             fingerprint=response.fingerprint,
+            usage=response.usage,
         )
 
     def _assemble(

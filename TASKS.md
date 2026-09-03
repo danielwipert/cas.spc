@@ -152,24 +152,59 @@ output — never touches state, never calls a model.
 
 ---
 
-## T5 — Per-operator model routing + cost ledger · M
+## T5 — Per-operator model routing + cost ledger · ✅ DONE
 
-**Why.** Listed in the roadmap "Deferred" set. Today `--live-critic` uses one
-model for the critic. Each operator should be able to name its own value-based
-model (never a hardcoded frontier flagship), and the run should record token
-usage + an estimated cost per step.
+**Per-operator model routing needed no new mechanism.** Every operator
+already takes its own `LLMProvider` instance, and a provider carries its own
+`model` — handing two operators two differently-configured providers already
+runs two different models; verified directly in
+`tests/test_cost_ledger.py::test_two_operators_with_different_models_get_different_fingerprints_and_costs`.
+What T5 actually added is the accounting:
 
-**Scope.** Extend `providers/openrouter.py` config + `LLMCriticOperator` to
-accept a per-operator model; write a `runs/<id>/cost_ledger.json` summing
-tokens/cost per `TransformRecord`.
+- **`TokenUsage`** (`models/transform.py`) — `prompt_tokens` /
+  `completion_tokens`, plus `sum_token_usage(a, b)` for combining two calls'
+  usage. `ProviderResponse.usage: TokenUsage | None` (`providers/base.py`);
+  `MockProvider` estimates it via the existing `tokens.py` heuristic,
+  `OpenRouterProvider` prefers the API's own reported usage and falls back to
+  the same estimate when a response omits it (a bare/older SDK shape).
+- **`TransformRecord.token_usage`** — `Runtime.step_llm` sums usage across
+  *every* attempt of a step (a retry is a real, separately billed call, not
+  a free do-over) and stamps the total on the final patch, the same place and
+  the same way `model_fingerprint` is stamped — including on a REJECTed
+  patch, which still cost real tokens (composes with the audit-trail fix
+  earlier this session: `step.patch` survives rejection, so its cost does
+  too). `LLMContradictionOperator`'s two-pass detection (propose, then an
+  adversarial verify call) sums both passes into the one `TransformRecord`
+  they share.
+- **Pricing** — `providers/openrouter.py::MODEL_PRICING_PER_MILLION_USD` +
+  `estimate_cost_usd(model, usage)`; an unlisted model gets a documented
+  conservative default rather than a misleading $0.00.
+- **The ledger** — `src/spc_state/cost_ledger.py` (`build_cost_ledger`,
+  `write_cost_ledger`): one entry per `TransformRecord` that carries a
+  `model_fingerprint` (a deterministic step, e.g. the Retriever, contributes
+  nothing); writes `runs/<id>/cost_ledger.json`. Wired into
+  `analyze.py::run_analysis` (always, since `analyze` is always LLM-backed)
+  and into `cli.py run` / `demo.py run_full_demo`'s `--live-critic` paths
+  only — the deterministic default writes no new file, so `DEMO.md` is
+  unaffected (verified with a real `spc-demo demo` run).
 
-**Acceptance test** (`tests/test_cost_ledger.py`, injected fake client — no
-network). Two LLM operators run with different model slugs; their
-`model_fingerprint`s differ; the ledger records a per-step token count and a
-non-negative estimated cost.
+**Known scope boundary**, documented rather than silently missed: a step
+where *every* attempt was unparseable prose never assembles a patch, so
+there is no `TransformRecord` to attach cost to, even though real tokens
+were spent. The ledger sums per `TransformRecord`, per its literal scope —
+not a full attempt-by-attempt accounting outside that.
 
-**Invariants.** Model choice stays per-task and configurable (never a
-hardcoded flagship). No network in tests — inject the client.
+22 tests: `tests/test_cost_ledger.py` (the acceptance scenario, retries
+summed not just the winner, a rejected step still ledgers, deterministic and
+fully-exhausted steps ledger nothing, pricing) plus two in
+`test_openrouter_provider.py` (real usage preferred over the estimate, and
+the estimate used when usage is absent) and one in
+`test_analyze_pipeline.py` (all four LLM stages of a real five-stage run
+ledgered). `cost_ledger.py` and `runtime/loop.py` are 100% covered.
+
+**Invariants held.** Model choice stays per-task and configurable — no
+hardcoded flagship anywhere. No network in any test — every provider is
+`MockProvider` or a fake OpenAI-compatible client.
 
 ---
 

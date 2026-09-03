@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .cost_ledger import CostLedger, build_cost_ledger, write_cost_ledger
 from .memo import write_memo
 from .operators import (
     LLMContradictionOperator,
@@ -40,13 +41,15 @@ class AnalysisResult:
 
     `artifacts` and `memo_path` are `None` when nothing committed — the
     extractor produced no valid patch, so there is no committed state to
-    project a receipt or memo from.
+    project a receipt or memo from. `cost_ledger` is `None` on the same
+    condition, or if somehow no step recorded a model fingerprint.
     """
 
     paths: RunPaths
     run: RunResult
     artifacts: ReceiptArtifacts | None
     memo_path: Path | None
+    cost_ledger: CostLedger | None
 
 
 def build_analysis_operators(
@@ -100,8 +103,18 @@ def run_analysis(
         input_text=document,
     )
 
+    # Always build the ledger — every stage here is LLM-backed except the
+    # retriever, and even a run that committed nothing may have spent real
+    # tokens on rejected/retried attempts (spec T5, AGENTS.md §III).
+    ledger = build_cost_ledger(paths.run_id, result.steps)
+    cost_ledger = ledger if ledger.entries else None
+    if cost_ledger is not None:
+        write_cost_ledger(paths, cost_ledger)
+
     if result.final_state.state_version == 0:
-        return AnalysisResult(paths=paths, run=result, artifacts=None, memo_path=None)
+        return AnalysisResult(
+            paths=paths, run=result, artifacts=None, memo_path=None, cost_ledger=cost_ledger
+        )
 
     states = [result.initial_state, *(s.next_state for s in result.steps if s.next_state)]
     artifacts = write_run_artifacts(
@@ -109,7 +122,11 @@ def run_analysis(
     )
     memo_path = write_memo(paths, result.final_state, question=question)
     return AnalysisResult(
-        paths=paths, run=result, artifacts=artifacts, memo_path=memo_path
+        paths=paths,
+        run=result,
+        artifacts=artifacts,
+        memo_path=memo_path,
+        cost_ledger=cost_ledger,
     )
 
 

@@ -20,6 +20,7 @@ from . import __version__
 from .analyze import DEFAULT_QUESTION, run_analysis
 from .baseline import run_baseline
 from .config import load_dotenv
+from .cost_ledger import build_cost_ledger, write_cost_ledger
 from .demo import (
     LiveCriticUnavailable,
     run_full_demo,
@@ -286,6 +287,19 @@ def run(
         f"[green]reasoning receipt:[/green] [dim]{artifacts.receipt_path}[/dim]"
     )
 
+    if live_critic:
+        # Only a step outside the deterministic path ever spends real tokens,
+        # so only --live-critic gets a ledger file — no new artifact appears
+        # in the byte-stable default `spc-demo run`.
+        ledger = build_cost_ledger(run_id, result.steps)
+        if ledger.entries:
+            ledger_path = write_cost_ledger(paths, ledger)
+            _console.print(
+                f"[green]cost ledger:[/green] [dim]{ledger_path}[/dim] "
+                f"(~{ledger.total_tokens} tokens, "
+                f"${ledger.total_estimated_cost_usd:.6f} est.)"
+            )
+
 
 _ASCII_MAP = {
     "→": "->",  # right arrow
@@ -368,6 +382,8 @@ def demo(
     if result.report_md_path:
         _console.print(f"[green]pilot report:[/green] [dim]{result.report_md_path}[/dim]")
     _console.print(f"[green]reasoning receipt:[/green] [dim]{result.receipt_path}[/dim]")
+    if result.cost_ledger_path is not None:
+        _console.print(f"[green]cost ledger:[/green] [dim]{result.cost_ledger_path}[/dim]")
 
 
 def _narrate_demo(result) -> None:

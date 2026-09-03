@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..models import ModelFingerprint
+from ..models import ModelFingerprint, TokenUsage
 
 
 class ProviderRequest(BaseModel):
@@ -37,10 +37,16 @@ class ProviderRequest(BaseModel):
 
 
 class ProviderResponse(BaseModel):
-    """A provider's raw output. `text` is unparsed — it may not be a patch."""
+    """A provider's raw output. `text` is unparsed — it may not be a patch.
+
+    `usage` (T5) is optional: a provider that reports it (real API usage, or a
+    deterministic estimate) lets the runtime build a per-step cost ledger; a
+    minimal custom provider that doesn't bother still works, just uncounted.
+    """
 
     text: str
     fingerprint: ModelFingerprint
+    usage: TokenUsage | None = None
 
     model_config = ConfigDict(extra="forbid")
 
