@@ -13,73 +13,79 @@
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. Tasks
-T0–T3 are done, T4–T7 open. This session closed an audit-trail gap in the LLM
-path — the first behaviour change since 2026-06-27.
+T0–T3 are done, T4–T7 open. This session closed two defects in the LLM path:
+the audit-trail gap, then the planner retry.
 
 All four definition-of-done gates pass on a fresh clone:
 
 ```
 ruff check src tests   ->  All checks passed
 python -m mypy         ->  Success: no issues found in 62 source files
-pytest                 ->  186 passed
+pytest                 ->  194 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
 ## What the last session did
 
-**Reviewed the repo, then fixed the one real defect the review turned up.**
+Two fixes in the LLM path. Both were found by reviewing the repo; neither
+touches the deterministic demo, so the frozen artifacts stay byte-stable.
 
-`Runtime.step` persists a patch *before* validation judges it, so a rejected
-proposal stays on the record (`AGENTS.md §III`). `Runtime.step_llm` only wrote
-a patch inside its COMMIT branch — so when a live `analyze` run had a model
-propose something invalid, **what it proposed was nowhere on disk**. The
-validation report said `patch_id: "unparsed_patch"` plus error codes; the audit
-log recorded the decision; the content was gone. Verified before the fix with a
-wrong-shape planner probe: `patches/` was empty.
+### 1. Rejected LLM proposals stayed on the record
 
-`step_llm` now mirrors `step`:
+`Runtime.step` persists a patch *before* validation judges it; `step_llm` only
+wrote one inside its COMMIT branch — so when a model proposed something
+invalid, what it proposed was nowhere on disk. `step_llm` now mirrors `step`:
+every attempt's raw completion is kept verbatim at
+`patches/attempt_<NNN>_<K>.txt`, the final parse lands canonically whatever the
+router decided, `patch.proposed` is emitted, each attempt keeps its own
+validation report, and the fingerprint is stamped on the proposal so a rejected
+patch still names its author. The `attempt_` prefix keeps these files out of
+the `patch_*` / `validation_*` globs the §20.8 artifact counts use.
+Tests: `tests/test_runtime_llm_audit_trail.py`.
 
-- **Every attempt's raw completion is kept verbatim** at
-  `patches/attempt_<NNN>_<K>.txt`, written before validation runs. Raw, because
-  a completion may not parse into a patch at all.
-- **The final attempt's parsed patch lands canonically** at
-  `patches/patch_<NNN>.json` whatever the router decided — rejected included.
-- **`patch.proposed` is emitted** on the LLM path (it never was), carrying the
-  attempt number and `unparsed_patch` when nothing parsed.
-- **Each attempt keeps its own validation report** at
-  `validation/attempt_<NNN>_<K>.json`; retries used to overwrite a single file.
-- **The proposal is stamped with the model fingerprint** before it is persisted,
-  not only on commit — so a *rejected* patch still names its author (§10.6).
+### 2. Shape-invalid LLM output now retries (the T0 follow-on)
 
-The `attempt_` prefix is deliberate: `evaluation/metrics.py` counts
-`patch_*.json` and `validation_*.json` with non-recursive globs for the §20.8
-artifact score, and the attempt files must not inflate it. A test pins that.
+The planner REJECTed when the model returned valid JSON in the wrong shape,
+spending 1 of 3 attempts, because the runtime only RETRYd on `JSON_DECODE`.
+Two halves, both needed:
 
-Eight acceptance tests in `tests/test_runtime_llm_audit_trail.py`. The
-deterministic demo is untouched (it uses `step`, not `step_llm`), so the frozen
-artifacts stay byte-stable.
+- **Routing.** `router.decide_llm` routes *any* L1 schema failure to RETRY on
+  the LLM path — a model can repair its own output. `router.decide` is
+  unchanged for deterministic operators, where the same failure is a code bug.
+  L2 failures still REJECT on both paths: a well-formed patch that says
+  something untrue about the state is a judgement, not a shape.
+- **Feedback.** Routing alone would have misdirected the model. The validation
+  issues are pydantic errors about `SemanticPatch` fields the planner never
+  asked for (it asked for `{"hypothesis": ...}`). Operators that assemble a
+  patch from a compact content shape now return an `OperatorCompletion`
+  carrying a `repair_hint` from `LLMAssemblyError`, and `step_llm` prefers it.
+  Wired in all four assembling operators, not just the planner — same defect.
+  The assembly messages were rewritten to be directive, because they are now
+  read by the model: `Your output must include a "hypothesis" object with a
+  non-empty "text" field naming the single recommended course of action.`
+
+Verified end to end with an injected provider that always returns the wrong
+shape: 3 attempts spent (was 1), and each retry prompt carries the hint alone.
+
+⚠ Note for live runs: a persistently wrong-shaped response now costs 3 model
+calls instead of 1. That is the point of the retry budget, but it is a real
+cost change on `analyze`.
 
 ## Next up
 
 Nothing is half-finished — pick any of these cold.
 
-1. **Planner RETRY fix** (unlisted, cheapest win). The planner REJECTs when the
-   model returns valid JSON in the wrong shape, because the runtime only RETRYs
-   on `JSON_DECODE`. Confirmed: 1 attempt used of `max_attempts=3`.
-   ⚠ **Routing it to RETRY is not sufficient on its own.** The feedback fed back
-   would be pydantic errors about `SemanticPatch` fields (`L1.MISSING`,
-   `L1.EXTRA_FORBIDDEN`) — but the planner never asked the model for a
-   `SemanticPatch`, it asked for the compact `{"hypothesis": ...}` shape. The
-   operator has to supply its own repair feedback ("include a hypothesis"),
-   which means `LLMAssemblyError`'s message needs to reach the retry loop.
-   Noted as a follow-on under T0 in `TASKS.md`.
-2. **T7 — end-to-end test for `analyze`** (S). `cli.py` sits at 20% coverage and
-   the five-stage pipeline has no composition test; every operator is tested
-   alone. A wiring regression would pass the whole suite.
-3. **T4 — State-graph visualizer** (M).
-4. **T5 — Per-operator model routing + cost ledger** (M).
-5. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
+1. **T7 — end-to-end test for `analyze`** (S). `cli.py` sits at 20% coverage
+   and the five-stage pipeline has no composition test; every operator is
+   tested alone. A wiring regression would pass the whole suite. This is the
+   biggest remaining hole.
+2. **T4 — State-graph visualizer** (M).
+3. **T5 — Per-operator model routing + cost ledger** (M).
+4. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
    needs sign-off before starting.
+
+An optional LLM-narrated memo is noted as a possible follow-on under T2, kept
+off by default since re-prompting risks the drift SPC exists to prevent.
 
 Full specs with acceptance tests are in [`TASKS.md`](./TASKS.md).
 

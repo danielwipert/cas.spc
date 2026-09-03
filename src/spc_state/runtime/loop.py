@@ -23,6 +23,7 @@ from ..models import (
 )
 from ..projection import build_projection
 from ..router import decide as router_decide
+from ..router import decide_llm as router_decide_llm
 from ..store import PatchStore, RunPaths, StateStore, ValidationStore
 from ..validation import validate as run_validation
 from ..validation.l1 import parse_patch
@@ -243,7 +244,9 @@ class Runtime:
             self.validation_store.write(report, ordinal)
             self.validation_store.write_attempt(report, ordinal, attempt)
 
-            decision = router_decide(report)
+            # A model can repair its own output, so the LLM path retries on any
+            # schema failure, not just a JSON decode error (spec §15.6).
+            decision = router_decide_llm(report)
             self.audit.append(
                 "patch.routed",
                 at=self.clock.now(),
@@ -254,14 +257,21 @@ class Runtime:
             )
 
             if decision is RouterDecision.RETRY and attempt < operator.max_attempts:
-                # Feed the validation errors back so the operator can repair.
-                feedback = [f"{i.code}: {i.message}" for i in report.issues]
+                # Prefer the operator's own repair hint: an operator that asked
+                # the model for a compact content shape knows what to ask for
+                # again, where the validator can only report the SemanticPatch
+                # fields it found missing. Otherwise feed the errors back.
+                if response.repair_hint is not None:
+                    feedback = [response.repair_hint]
+                else:
+                    feedback = [f"{i.code}: {i.message}" for i in report.issues]
                 self.audit.append(
                     "patch.retry",
                     at=self.clock.now(),
                     attempt=attempt,
                     next_attempt=attempt + 1,
                     issues=[i.code for i in report.issues],
+                    repair_hint=response.repair_hint,
                 )
                 continue
             break

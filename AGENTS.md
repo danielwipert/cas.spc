@@ -152,8 +152,18 @@ The mock provider (Phase 6) and a live OpenRouter provider (Phase 7) are in the
 tree. Any LLM operator — existing or new:
 
 - must return structured `SemanticPatch` JSON, not prose;
-- on prose or malformed JSON, the runtime routes to RETRY with the validation
-  error passed back (`Runtime.step_llm`). Do not silently repair;
+- on any output the runtime cannot validate as a patch — prose, malformed JSON,
+  or valid JSON in the wrong shape — the runtime routes to RETRY and asks
+  again (`Runtime.step_llm`, routed by `router.decide_llm`). Do not silently
+  repair. A model can fix its own output, so **every** L1 schema failure is
+  retryable on this path; L2 referential failures still REJECT, because a
+  well-formed patch that says something untrue about the state is a judgement,
+  not a shape;
+- if it assembles its own patch from a compact content shape, it returns an
+  `OperatorCompletion` carrying a `repair_hint` when assembly fails. The
+  validator can only report the `SemanticPatch` fields it found missing — which
+  the operator never asked the model for — so the operator supplies the repair
+  feedback instead, phrased for the shape it actually requested;
 - records provider, model, and resolved version in
   `TransformRecord.model_fingerprint`;
 - chooses a **value-based, per-task** model — never a hardcoded frontier

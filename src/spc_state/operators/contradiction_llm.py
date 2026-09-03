@@ -41,10 +41,10 @@ from ..models import (
 )
 from ..models.patch import AddObjects
 from ..projection import ProjectionView, resolve_view
-from ..providers import LLMProvider, ProviderRequest, ProviderResponse
+from ..providers import LLMProvider, ProviderRequest
 from ..runtime.clock import Clock, WallClock
 from ._assembly import LLMAssemblyError, coerce_enum, load_json
-from .llm import LLMOperator
+from .llm import LLMOperator, OperatorCompletion
 
 _TYPES = {t.value: t for t in ContradictionType} | {
     "factual": ContradictionType.FACTUAL_CONFLICT,
@@ -147,18 +147,32 @@ class LLMContradictionOperator(LLMOperator):
         state: SemanticState,
         projection: Projection,
         feedback: list[str],
-    ) -> ProviderResponse:
+    ) -> OperatorCompletion:
         view = resolve_view(projection, state)
         response = self.provider.complete(self.build_request(view, feedback))
         try:
             data = load_json(response.text)
-        except LLMAssemblyError:
-            return ProviderResponse(text=response.text, fingerprint=response.fingerprint)
+        except LLMAssemblyError as exc:
+            # Raw text plus what to ask for next — see `OperatorCompletion`.
+            return OperatorCompletion(
+                text=response.text,
+                fingerprint=response.fingerprint,
+                repair_hint=str(exc),
+            )
         # If the model already emitted a full patch, let the runtime judge it.
         if isinstance(data, dict) and ("add_objects" in data or "patch_id" in data):
-            return ProviderResponse(text=response.text, fingerprint=response.fingerprint)
+            return OperatorCompletion(
+                text=response.text, fingerprint=response.fingerprint
+            )
         if not isinstance(data, dict):
-            return ProviderResponse(text=response.text, fingerprint=response.fingerprint)
+            return OperatorCompletion(
+                text=response.text,
+                fingerprint=response.fingerprint,
+                repair_hint=(
+                    'Your output must be a single JSON object with a '
+                    '"contradictions" array, not an array or a scalar.'
+                ),
+            )
 
         candidates = self._candidates(state, view, data)
         # Adversarial second pass: a skeptic that defaults to "they can coexist"
@@ -167,7 +181,7 @@ class LLMContradictionOperator(LLMOperator):
         if candidates:
             candidates = self._verify(view, candidates)
         patch = self._build_patch(state, view, candidates)
-        return ProviderResponse(
+        return OperatorCompletion(
             text=patch.model_dump_json(by_alias=True), fingerprint=response.fingerprint
         )
 

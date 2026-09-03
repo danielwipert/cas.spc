@@ -144,16 +144,67 @@ def test_planner_drops_unknown_supporting_claims(tmp_path: Path) -> None:
     assert ("claim_002", "depends_on", "assumption_001") in preds
 
 
-def test_planner_without_hypothesis_does_not_commit(tmp_path: Path) -> None:
-    # Hypothesis-less but valid JSON assembles to no patch -> the operator
-    # returns that JSON, which fails L1 schema -> REJECT (not a recoverable
-    # JSON_DECODE), so nothing commits and the pipeline keeps the prior state.
+NO_HYPOTHESIS = json.dumps({"questions": [], "dependencies": []})
+"""Valid JSON in the wrong shape — the planner cannot assemble a patch from it."""
+
+
+def test_planner_without_hypothesis_retries_then_gives_up(tmp_path: Path) -> None:
+    """Wrong-shape output is repairable, so the runtime asks again (spec §15.6).
+
+    The model never repairs it here, so the step ends on RETRY with the hard
+    cap spent and nothing committed — it must not commit a hypothesis-less plan.
+    """
     base = _extracted(tmp_path)
-    no_hyp = json.dumps({"questions": [], "dependencies": []})
-    provider = MockProvider([no_hyp], provider="fake", model="m")
+    provider = MockProvider([NO_HYPOTHESIS], provider="fake", model="m")
     result = _run_op(tmp_path, base, LLMPlannerOperator(provider, clock=_clock()), "p2")
+
+    assert result.steps[0].decision.value == "RETRY"
+    assert result.steps[0].attempts == 3  # not one shot at REJECT
+    assert provider.call_count == 3
     assert result.final_state.state_version == base.state_version  # nothing committed
-    assert result.steps[0].decision.value == "REJECT"
+
+
+def test_planner_repairs_its_shape_on_retry_and_commits(tmp_path: Path) -> None:
+    """A second attempt in the right shape lands the plan."""
+    base = _extracted(tmp_path)
+    provider = MockProvider(
+        [NO_HYPOTHESIS, json.dumps(PLAN)], provider="fake", model="m"
+    )
+    result = _run_op(tmp_path, base, LLMPlannerOperator(provider, clock=_clock()), "p3")
+
+    assert result.steps[0].attempts == 2
+    assert result.steps[0].decision.value == "COMMIT"
+    assert result.final_state.state_version == base.state_version + 1
+    assert result.final_state.hypotheses["hyp_001"].confidence == 0.7
+
+
+def test_planner_retry_feedback_asks_for_the_missing_hypothesis(tmp_path: Path) -> None:
+    """The repair prompt must come from the operator, not the schema validator.
+
+    The validator only knows the raw output is not a `SemanticPatch`, and
+    reports missing patch fields — but the planner never asked the model for a
+    patch, it asked for `{"hypothesis": ...}`. Feeding those errors back would
+    misdirect the model, so the operator supplies its own hint.
+    """
+    seen: list[list[str]] = []
+
+    class _SpyPlanner(LLMPlannerOperator):
+        def build_request(self, view, feedback):
+            seen.append(list(feedback))
+            return super().build_request(view, feedback)
+
+    base = _extracted(tmp_path)
+    provider = MockProvider(
+        [NO_HYPOTHESIS, json.dumps(PLAN)], provider="fake", model="m"
+    )
+    _run_op(tmp_path, base, _SpyPlanner(provider, clock=_clock()), "p4")
+
+    assert seen[0] == []  # first attempt carries no feedback
+    assert len(seen[1]) == 1  # exactly the operator's hint
+    assert "hypothesis" in seen[1][0].lower()
+    # None of the validator's SemanticPatch-shaped noise leaks into the prompt.
+    assert "patch_id" not in seen[1][0]
+    assert "transform_record" not in seen[1][0]
 
 
 def test_critic_updates_from_committed_confidence(tmp_path: Path) -> None:

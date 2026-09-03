@@ -33,10 +33,10 @@ from ..models import (
 )
 from ..models.patch import AddObjects
 from ..projection import ProjectionView, resolve_view
-from ..providers import LLMProvider, ProviderRequest, ProviderResponse
+from ..providers import LLMProvider, ProviderRequest
 from ..runtime.clock import Clock, WallClock
 from ._assembly import LLMAssemblyError, clamp_confidence, coerce_enum, load_json
-from .llm import LLMOperator
+from .llm import LLMOperator, OperatorCompletion
 
 _PRIORITIES = {p.value: p for p in Priority}
 
@@ -120,15 +120,25 @@ class LLMPlannerOperator(LLMOperator):
         state: SemanticState,
         projection: Projection,
         feedback: list[str],
-    ) -> ProviderResponse:
+    ) -> OperatorCompletion:
         view = resolve_view(projection, state)
         response = self.provider.complete(self.build_request(view, feedback))
         try:
             patch = self._assemble(state, view, response.text)
-            text = patch.model_dump_json(by_alias=True)
-        except LLMAssemblyError:
-            text = response.text
-        return ProviderResponse(text=text, fingerprint=response.fingerprint)
+        except LLMAssemblyError as exc:
+            # The model's output could not be assembled. Hand the runtime the
+            # raw text *and* what to ask for next: the validator can only
+            # report missing SemanticPatch fields, which this operator never
+            # asked the model for (spec §15.6).
+            return OperatorCompletion(
+                text=response.text,
+                fingerprint=response.fingerprint,
+                repair_hint=str(exc),
+            )
+        return OperatorCompletion(
+            text=patch.model_dump_json(by_alias=True),
+            fingerprint=response.fingerprint,
+        )
 
     def _assemble(
         self, state: SemanticState, view: ProjectionView, raw: str
@@ -137,7 +147,9 @@ class LLMPlannerOperator(LLMOperator):
         if isinstance(data, dict) and ("add_objects" in data or "patch_id" in data):
             return SemanticPatch.model_validate(data)
         if not isinstance(data, dict):
-            raise LLMAssemblyError("Expected a JSON object.")
+            raise LLMAssemblyError(
+                "Your output must be a single JSON object, not an array or a scalar."
+            )
 
         claim_ids = set(view.claims)
         assumption_ids = set(view.assumptions)
@@ -165,7 +177,10 @@ class LLMPlannerOperator(LLMOperator):
             write_set.append("hyp_001")
         else:
             # The hypothesis is the planner's whole point — without it, retry.
-            raise LLMAssemblyError("Planner produced no hypothesis.")
+            raise LLMAssemblyError(
+                'Your output must include a "hypothesis" object with a non-empty '
+                '"text" field naming the single recommended course of action.'
+            )
 
         for i, rq in enumerate(_as_dict_list(data.get("questions")), start=1):
             text = (rq.get("text") or "").strip()

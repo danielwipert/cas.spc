@@ -39,17 +39,26 @@ critique → receipt. Verified live and with injected-provider tests
 supplies content; the operator owns ids/transform bookkeeping; everything
 flows through `Runtime.step_llm`.
 
-Follow-on polish worth a task: the planner currently **REJECTs** (no retry)
-when the model returns valid JSON in the wrong shape, because the runtime only
-RETRYs on `JSON_DECODE`. A small improvement would route shape-invalid LLM
-output to RETRY with targeted feedback ("include a hypothesis").
+Follow-on ✅ **DONE** — shape-invalid LLM output now retries. The planner used
+to **REJECT** when the model returned valid JSON in the wrong shape, because
+the runtime only RETRYd on `JSON_DECODE`, spending 1 of 3 attempts. Two halves,
+both needed:
 
-Note for whoever picks this up: routing to RETRY is not sufficient on its own.
-The feedback the loop passes back is built from the validation issues, which
-here are pydantic errors about `SemanticPatch` fields — but the planner asked
-the model for the compact `{"hypothesis": ...}` shape, not a `SemanticPatch`,
-so that feedback would misdirect it. The operator needs to supply its own
-repair message, which means `LLMAssemblyError`'s text has to reach the loop.
+- **Routing.** `router.decide_llm` (spec §15.6) routes *any* L1 schema failure
+  to RETRY on the LLM path — a model can repair its own output. `router.decide`
+  is unchanged for deterministic operators, where the same failure is a code
+  bug. L2 failures still REJECT on both paths.
+- **Feedback.** The validation issues are pydantic errors about `SemanticPatch`
+  fields the operator never asked the model for, so feeding them back would
+  misdirect it. Operators that assemble a patch from a compact content shape
+  now return an `OperatorCompletion` with a `repair_hint` (from
+  `LLMAssemblyError`), and `Runtime.step_llm` prefers it. The planner asks for
+  a hypothesis by name; extract, critic and the contradiction verifier carry
+  their own hints.
+
+Tests: `tests/test_router.py` (the `decide_llm` table) and
+`tests/test_planner_critic_llm.py` (retry-then-commit, exhaustion, and that the
+repair prompt carries no `SemanticPatch` noise).
 
 ---
 

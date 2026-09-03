@@ -45,4 +45,28 @@ def decide(report: ValidationReport) -> RouterDecision:
     return RouterDecision.COMMIT
 
 
-__all__ = ["decide"]
+def decide_llm(report: ValidationReport) -> RouterDecision:
+    """Choose an outcome for a *model-produced* patch (spec §15.6).
+
+    Same table as `decide`, with one difference: a model can be asked to
+    repair its own output, so **any** L1 schema failure is RETRY, not just a
+    JSON decode error. Wrong-shape output is a shape the operator can ask for
+    again; for a deterministic operator the same failure is a code bug, which
+    is why `decide` still rejects it.
+
+    L2 is untouched. A referentially invalid patch is well-formed but says
+    something untrue about the state — a judgement to reject, not a shape to
+    fix — so it rejects on both paths.
+    """
+    has_l1_error = any(
+        i.layer == ValidationLayer.L1_SCHEMA and i.severity == ValidationSeverity.ERROR
+        for i in report.issues
+    )
+    if has_l1_error:
+        return RouterDecision.RETRY
+    # With no L1 error left to repair, the shared table decides: L2 errors
+    # reject, warnings and a clean report commit.
+    return decide(report)
+
+
+__all__ = ["decide", "decide_llm"]
