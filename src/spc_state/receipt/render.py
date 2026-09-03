@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from ..diff import StateDiff
 from ..models import ReasoningReceipt, SemanticState
+from .graph import render_mermaid_graph
 
 
 def _claim_line(state: SemanticState, cid: str) -> str:
@@ -116,6 +117,12 @@ def render_markdown(
         f"**Q.** {receipt.summary.question}",
         "",
         f"**A.** {receipt.summary.answer}",
+        "",
+        "## State Graph",
+        "",
+        "```mermaid",
+        render_mermaid_graph(final_state),
+        "```",
         "",
         "## Claims Produced",
         "",

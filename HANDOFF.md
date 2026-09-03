@@ -13,15 +13,15 @@
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. Tasks
-T0–T3 and T7 are done, T4–T6 open. This session closed two defects in the LLM
-path (audit trail, planner retry), then T7.
+T0–T3, T4, and T7 are done, T5–T6 open. This session closed two defects in
+the LLM path (audit trail, planner retry), then shipped T7 and T4.
 
 All four definition-of-done gates pass on a fresh clone:
 
 ```
 ruff check src tests   ->  All checks passed
-python -m mypy         ->  Success: no issues found in 63 source files
-pytest                 ->  200 passed
+python -m mypy         ->  Success: no issues found in 64 source files
+pytest                 ->  211 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -89,18 +89,43 @@ earlier in this session, verified end to end here for the first time); every
 at v1; nothing committed skips both artifacts rather than building them empty.
 `analyze.py` itself is 100% covered.
 
+### 4. T4 — state-graph visualizer (Mermaid export)
+
+`src/spc_state/receipt/graph.py` (`render_mermaid_graph`) projects a
+`SemanticState` to a Mermaid flowchart: one node per active object, one edge
+per active `Relation` whose endpoints are both active. Edges come only from
+`state.relations` — the explicit, predicate-labeled graph operators already
+build — never invented from a claim's `assumptions`/`supporting_evidence`
+fields. Nodes are styled per type via `classDef`. "Active" reuses memo.py's
+existing convention (`status != ARCHIVED`), so a resolved question or a
+rejected hypothesis still renders.
+
+Embedded into `render_markdown()` as a new "State Graph" section, so it now
+appears in every Reasoning Receipt — both `demo` and `analyze` — with no CLI
+changes. Regenerated `tests/fixtures/reasoning_receipt_demo.md` to match, and
+confirmed with a real `spc-demo demo` run that `DEMO.md` does **not** change
+— it reports the receipt only as a metric count, never its content.
+
+12 tests in `tests/test_graph.py`, 100% coverage on `graph.py`. Rendered the
+actual demo-pipeline graph in a preview artifact to confirm the Mermaid
+syntax is valid — it is; nodes, edges, and per-type colors all display
+correctly.
+
 ## Next up
 
-Nothing is half-finished — pick any of these cold.
+Nothing is half-finished — pick either of these cold.
 
-1. **T4 — State-graph visualizer** (M). Mermaid export embedded in the
-   receipt; strengthens the §20.8 audit-clarity story.
-2. **T5 — Per-operator model routing + cost ledger** (M).
-3. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
+1. **T5 — Per-operator model routing + cost ledger** (M).
+2. **T6 — SQLite `StateStore`** (L) ⚠ relaxes a documented v0.1 constraint —
    needs sign-off before starting.
 
 An optional LLM-narrated memo is noted as a possible follow-on under T2, kept
-off by default since re-prompting risks the drift SPC exists to prevent.
+off by default since re-prompting risks the drift SPC exists to prevent. A
+possible follow-on under T4: give contradictions an explicit `Relation` to
+each claim they conflict with (the way planner/critic/retriever already do
+for their own edges), so contradiction nodes stop being visually isolated
+in the state graph — not done here because it changes what the
+contradiction operator commits, not just how it's rendered.
 
 Full specs with acceptance tests are in [`TASKS.md`](./TASKS.md).
 

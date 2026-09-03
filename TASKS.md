@@ -113,20 +113,42 @@ route the patch to REVIEW.
 
 ---
 
-## T4 — State-graph visualizer (Mermaid export) · M
+## T4 — State-graph visualizer (Mermaid export) · ✅ DONE
 
-**Why.** The Reasoning Receipt is text. A graph view of objects + relations
-(`claim --depends_on--> assumption`, `question --questions--> claim`) makes the
-state legible at a glance and strengthens the §20.8 audit-clarity story.
+`src/spc_state/receipt/graph.py` (`render_mermaid_graph`) projects a
+`SemanticState` to a Mermaid `flowchart TD`: one node per active object
+(entities, claims, evidence, assumptions, inferences, hypotheses, questions,
+contradictions — grouped in that fixed order, sorted by id within each
+group), one edge per active `Relation` whose endpoints are both active nodes.
+Nodes are styled per type via Mermaid `classDef`/`class`. Edges come only
+from `state.relations` — the explicit, predicate-labeled graph the operators
+already build — never from a claim's `assumptions`/`supporting_evidence`
+fields or similar; that stays a faithful projection rather than inventing
+edge semantics the state doesn't assert. "Active" follows `memo.py`'s
+existing convention (`status != ARCHIVED`), so a resolved question or a
+rejected hypothesis still renders — it's still part of how the state got
+here.
 
-**Scope.** `src/spc_state/receipt/graph.py` rendering a `SemanticState` to a
-Mermaid diagram; embed it in the receipt markdown.
+Embedded into `render_markdown()` as a new "State Graph" section (right
+after the Q/A summary), so it appears in every Reasoning Receipt written by
+`write_run_artifacts` — both `spc-demo demo` and `spc-demo analyze`, with no
+CLI changes needed. `tests/fixtures/reasoning_receipt_demo.md` was
+regenerated to include it. Verified this does **not** touch `DEMO.md` byte
+stability: `DEMO.md` reports the receipt only as a metric count, never its
+rendered content.
 
-**Acceptance test** (`tests/test_graph.py`). Deterministic Mermaid output for the
-final demo state (snapshot fixture) contains a node per active object and an
-edge per relation, with stable ordering.
+12 tests in `tests/test_graph.py`: node/edge presence and stable ordering
+against the `demo_history` fixture (including the two examples this task
+originally named, both present in that fixture verbatim); an archived
+object gets no node; a relation to an archived object, or an archived
+relation itself, gets no edge; output is deterministic across calls; an
+empty state renders a bare `flowchart TD`; long/quoted claim text is
+truncated and escaped; entity and contradiction nodes (no shipped operator
+populates either today) render correctly from hand-built state. 100% line
+coverage on `graph.py`.
 
-**Invariants.** Read-only projection of state; deterministic (sorted) output.
+**Invariants held.** Read-only projection of state; deterministic (sorted)
+output — never touches state, never calls a model.
 
 ---
 
