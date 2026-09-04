@@ -22,7 +22,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from ..models import ModelFingerprint
+from ..models import ModelFingerprint, TokenUsage
+from ..tokens import estimate_tokens
 from .base import LLMProvider, ProviderRequest, ProviderResponse
 
 #: A value-based default — cheap and strong at reasoning. Overridable.
@@ -40,6 +41,37 @@ VALUE_MODELS: dict[str, str] = {
     "llama": "meta-llama/llama-3.3-70b-instruct",
     "qwen": "qwen/qwen-2.5-72b-instruct",
 }
+
+#: Illustrative USD price per **million** tokens, (prompt, completion), for
+#: the `VALUE_MODELS` slugs above (T5 cost ledger). Approximate and will
+#: drift — verify current rates at https://openrouter.ai/models before
+#: trusting an estimate for a real budget decision. An unlisted model falls
+#: back to `_DEFAULT_PRICE_PER_MILLION_USD` rather than silently costing $0.
+MODEL_PRICING_PER_MILLION_USD: dict[str, tuple[float, float]] = {
+    "deepseek/deepseek-chat": (0.14, 0.28),
+    "google/gemini-2.5-flash": (0.075, 0.30),
+    "openai/gpt-4o-mini": (0.15, 0.60),
+    "anthropic/claude-3.5-haiku": (0.80, 4.00),
+    "meta-llama/llama-3.3-70b-instruct": (0.12, 0.30),
+    "qwen/qwen-2.5-72b-instruct": (0.12, 0.30),
+}
+_DEFAULT_PRICE_PER_MILLION_USD: tuple[float, float] = (0.50, 1.50)
+
+
+def estimate_cost_usd(model: str, usage: TokenUsage) -> float:
+    """A rough USD estimate for `usage`, priced by `model` (T5 cost ledger).
+
+    Looks up `MODEL_PRICING_PER_MILLION_USD` by exact slug; an unrecognized
+    model (a custom slug, or a price-table drift) gets a conservative
+    default rather than reporting a misleadingly precise $0.00.
+    """
+    prompt_price, completion_price = MODEL_PRICING_PER_MILLION_USD.get(
+        model, _DEFAULT_PRICE_PER_MILLION_USD
+    )
+    cost = (
+        usage.prompt_tokens * prompt_price + usage.completion_tokens * completion_price
+    ) / 1_000_000
+    return round(cost, 6)
 
 
 class OpenRouterConfigError(RuntimeError):
@@ -148,13 +180,29 @@ class OpenRouterProvider(LLMProvider):
             model_version=getattr(completion, "model", None),
             sampling={"temperature": self.temperature, "max_tokens": self.max_tokens},
         )
-        return ProviderResponse(text=text, fingerprint=fingerprint)
+        return ProviderResponse(text=text, fingerprint=fingerprint, usage=self._usage(request, completion, text))
+
+    def _usage(self, request: ProviderRequest, completion: Any, text: str) -> TokenUsage:
+        """Prefer the API's own reported usage; estimate if it's absent — a
+        fake/older client in a test, or an SDK response shape that omits it.
+        """
+        api_usage = getattr(completion, "usage", None)
+        prompt_tokens = getattr(api_usage, "prompt_tokens", None)
+        completion_tokens = getattr(api_usage, "completion_tokens", None)
+        if prompt_tokens is not None and completion_tokens is not None:
+            return TokenUsage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
+        prompt = "\n".join([request.system, request.user, *request.feedback])
+        return TokenUsage(
+            prompt_tokens=estimate_tokens(prompt), completion_tokens=estimate_tokens(text)
+        )
 
 
 __all__ = [
     "DEFAULT_BASE_URL",
     "DEFAULT_MODEL",
+    "MODEL_PRICING_PER_MILLION_USD",
     "VALUE_MODELS",
     "OpenRouterConfigError",
     "OpenRouterProvider",
+    "estimate_cost_usd",
 ]

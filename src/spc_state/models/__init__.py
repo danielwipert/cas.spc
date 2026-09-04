@@ -48,7 +48,13 @@ from .patch import AddObjects, ArchiveObject, SemanticPatch, UpdateObject
 from .projection import IncludedObjects, Projection, ProjectionPolicy
 from .receipt import ConfidenceMap, ReasoningReceipt, ReceiptAudit, ReceiptSummary
 from .state import SCHEMA_VERSION, SemanticState, StateAuditTallies
-from .transform import ConfidenceChange, ModelFingerprint, TransformRecord
+from .transform import (
+    ConfidenceChange,
+    ModelFingerprint,
+    TokenUsage,
+    TransformRecord,
+    sum_token_usage,
+)
 from .validation import ValidationIssue, ValidationReport
 
 __all__ = [
@@ -75,7 +81,9 @@ __all__ = [
     # transform
     "ConfidenceChange",
     "ModelFingerprint",
+    "TokenUsage",
     "TransformRecord",
+    "sum_token_usage",
     # validation
     "ValidationIssue",
     "ValidationReport",

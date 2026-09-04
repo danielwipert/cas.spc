@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .baseline import BaselineResult, run_baseline
+from .cost_ledger import build_cost_ledger, write_cost_ledger
 from .evaluation import EvaluationReport, evaluate, write_report
 from .operators import (
     CriticOperator,
@@ -68,6 +69,7 @@ class DemoResult:
     live: bool
     model: str | None = None
     warnings: list[str] = field(default_factory=list)
+    cost_ledger_path: Path | None = None
 
 
 class LiveCriticUnavailable(RuntimeError):
@@ -194,6 +196,15 @@ def run_full_demo(
         )
         report_md, metrics_json = write_report(paths, evaluation)
 
+    # Only --live-critic ever spends a real token, so only that path gets a
+    # ledger file — the deterministic default writes no new artifact, and
+    # DEMO.md (which only the deterministic run commits) never mentions it.
+    cost_ledger_path: Path | None = None
+    if live_critic:
+        ledger = build_cost_ledger(run_id, result.steps)
+        if ledger.entries:
+            cost_ledger_path = write_cost_ledger(paths, ledger)
+
     return DemoResult(
         paths=paths,
         document=document,
@@ -207,6 +218,7 @@ def run_full_demo(
         live=live_critic,
         model=model,
         warnings=warnings,
+        cost_ledger_path=cost_ledger_path,
     )
 
 

@@ -25,10 +25,12 @@ from ..models import (
     Relation,
     SemanticPatch,
     SemanticState,
+    TokenUsage,
     TransformRecord,
 )
 from ..models.patch import AddObjects, UpdateObject
 from ..models.transform import ConfidenceChange
+from ..tokens import estimate_tokens
 from .base import LLMProvider, ProviderRequest, ProviderResponse
 
 # A critic that finds claim_001 weak lowers its confidence to here.
@@ -54,7 +56,15 @@ class MockProvider(LLMProvider):
     def complete(self, request: ProviderRequest) -> ProviderResponse:
         text = self._script[min(self._calls, len(self._script) - 1)]
         self._calls += 1
-        return ProviderResponse(text=text, fingerprint=self.fingerprint)
+        # No real API usage to report — estimate from the same deterministic
+        # heuristic the §20 metrics use, so tests get a real, non-negative
+        # per-call token count without a network round trip.
+        prompt = "\n".join([request.system, request.user, *request.feedback])
+        usage = TokenUsage(
+            prompt_tokens=estimate_tokens(prompt),
+            completion_tokens=estimate_tokens(text),
+        )
+        return ProviderResponse(text=text, fingerprint=self.fingerprint, usage=usage)
 
     @property
     def call_count(self) -> int:

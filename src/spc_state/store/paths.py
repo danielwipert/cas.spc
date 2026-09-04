@@ -66,6 +66,21 @@ class RunPaths:
     def validation_file(self, ordinal: int) -> Path:
         return self.validation_dir / f"validation_{ordinal:03d}.json"
 
+    # -- per-attempt artifacts (the LLM retry trail) ----------------------
+    # An LLM step may take several attempts before the runtime commits or
+    # gives up. The canonical `patch_*.json` / `validation_*.json` files hold
+    # the final outcome; these hold every attempt that led there. The
+    # `attempt_` prefix keeps them out of the `patch_*` / `validation_*` globs
+    # the §20.8 artifact counts use.
+
+    def patch_attempt_file(self, ordinal: int, attempt: int) -> Path:
+        """The model's raw completion for one attempt, kept verbatim."""
+        return self.patches_dir / f"attempt_{ordinal:03d}_{attempt:02d}.txt"
+
+    def validation_attempt_file(self, ordinal: int, attempt: int) -> Path:
+        """The validation report for one attempt."""
+        return self.validation_dir / f"attempt_{ordinal:03d}_{attempt:02d}.json"
+
     def receipt_file(self, state_version: int) -> Path:
         return self.receipts_dir / f"reasoning_receipt_v{state_version:03d}.md"
 
@@ -81,13 +96,29 @@ class RunPaths:
     def report_file(self, name: str = "pilot_report.md") -> Path:
         return self.report_dir / name
 
+    def cost_ledger_file(self) -> Path:
+        return self.run_dir / "cost_ledger.json"
+
+    def state_db_file(self) -> Path:
+        """Where `SQLiteStateStore` (T6) keeps this run's state versions.
+
+        Deliberately its own file, not inside `state_dir` — a run must never
+        end up with both a file-based and a SQLite state history, and this
+        keeps them from ever colliding on disk.
+        """
+        return self.run_dir / "state.sqlite3"
+
     def input_copy(self) -> Path:
         return self.input_dir / "input.txt"
 
     def ensure_dirs(self) -> None:
+        # `state_dir` is deliberately not pre-created here: the file-based
+        # `StateStore` already creates it lazily on first write (T6 sibling
+        # backends, e.g. `SQLiteStateStore`, don't use it at all — a run on
+        # the SQLite backend must not end up with a stray empty `state/` dir
+        # sitting next to `state.sqlite3`).
         for d in (
             self.input_dir,
-            self.state_dir,
             self.patches_dir,
             self.validation_dir,
             self.receipts_dir,

@@ -12,7 +12,7 @@ patches).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TypeVar
+from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -21,6 +21,23 @@ from ..models import SemanticPatch, SemanticState, ValidationReport
 from .paths import RunPaths
 
 M = TypeVar("M", bound=BaseModel)
+
+
+@runtime_checkable
+class StateStoreProtocol(Protocol):
+    """The interface a state-version backend must implement (T6).
+
+    `Runtime` depends on this, not on the file-based `StateStore` below
+    directly — so a different backend (`sqlite_store.SQLiteStateStore`) can
+    stand in for it without the runtime importing or knowing anything about
+    SQLite. Structural (a `Protocol`), not a base class: any object with
+    these three methods satisfies it, `StateStore` included, with no
+    inheritance required.
+    """
+
+    def write(self, state: SemanticState) -> object: ...
+    def read(self, state_version: int) -> SemanticState: ...
+    def latest_version(self) -> int | None: ...
 
 
 def _write_model(path: Path, model: BaseModel) -> Path:
@@ -70,6 +87,18 @@ class PatchStore:
     def read(self, ordinal: int) -> SemanticPatch:
         return _read_model(self.paths.patch_file(ordinal), SemanticPatch)
 
+    def write_attempt(self, raw_output: str, ordinal: int, attempt: int) -> Path:
+        """Record one LLM attempt's raw completion, exactly as it arrived.
+
+        The completion may not be a patch at all (prose, wrong-shape JSON), so
+        it is stored verbatim rather than through a model — it is the only
+        record of what the model actually proposed.
+        """
+        path = self.paths.patch_attempt_file(ordinal, attempt)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(raw_output, encoding="utf-8")
+        return path
+
 
 class ValidationStore:
     """Reads and writes ValidationReport artifacts for one run."""
@@ -82,6 +111,10 @@ class ValidationStore:
 
     def read(self, ordinal: int) -> ValidationReport:
         return _read_model(self.paths.validation_file(ordinal), ValidationReport)
+
+    def write_attempt(self, report: ValidationReport, ordinal: int, attempt: int) -> Path:
+        """Record one LLM attempt's report, so a retry does not erase the last."""
+        return _write_model(self.paths.validation_attempt_file(ordinal, attempt), report)
 
 
 class DiffStore:
@@ -123,5 +156,6 @@ __all__ = [
     "PatchStore",
     "ReceiptStore",
     "StateStore",
+    "StateStoreProtocol",
     "ValidationStore",
 ]

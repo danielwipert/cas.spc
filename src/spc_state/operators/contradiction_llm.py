@@ -37,14 +37,16 @@ from ..models import (
     SemanticPatch,
     SemanticState,
     Severity,
+    TokenUsage,
     TransformRecord,
+    sum_token_usage,
 )
 from ..models.patch import AddObjects
 from ..projection import ProjectionView, resolve_view
-from ..providers import LLMProvider, ProviderRequest, ProviderResponse
+from ..providers import LLMProvider, ProviderRequest
 from ..runtime.clock import Clock, WallClock
 from ._assembly import LLMAssemblyError, coerce_enum, load_json
-from .llm import LLMOperator
+from .llm import LLMOperator, OperatorCompletion
 
 _TYPES = {t.value: t for t in ContradictionType} | {
     "factual": ContradictionType.FACTUAL_CONFLICT,
@@ -147,28 +149,48 @@ class LLMContradictionOperator(LLMOperator):
         state: SemanticState,
         projection: Projection,
         feedback: list[str],
-    ) -> ProviderResponse:
+    ) -> OperatorCompletion:
         view = resolve_view(projection, state)
         response = self.provider.complete(self.build_request(view, feedback))
         try:
             data = load_json(response.text)
-        except LLMAssemblyError:
-            return ProviderResponse(text=response.text, fingerprint=response.fingerprint)
+        except LLMAssemblyError as exc:
+            # Raw text plus what to ask for next — see `OperatorCompletion`.
+            return OperatorCompletion(
+                text=response.text,
+                fingerprint=response.fingerprint,
+                usage=response.usage,
+                repair_hint=str(exc),
+            )
         # If the model already emitted a full patch, let the runtime judge it.
         if isinstance(data, dict) and ("add_objects" in data or "patch_id" in data):
-            return ProviderResponse(text=response.text, fingerprint=response.fingerprint)
+            return OperatorCompletion(
+                text=response.text, fingerprint=response.fingerprint, usage=response.usage
+            )
         if not isinstance(data, dict):
-            return ProviderResponse(text=response.text, fingerprint=response.fingerprint)
+            return OperatorCompletion(
+                text=response.text,
+                fingerprint=response.fingerprint,
+                usage=response.usage,
+                repair_hint=(
+                    'Your output must be a single JSON object with a '
+                    '"contradictions" array, not an array or a scalar.'
+                ),
+            )
 
         candidates = self._candidates(state, view, data)
         # Adversarial second pass: a skeptic that defaults to "they can coexist"
         # keeps only pairs that are genuinely impossible together. This is the
         # precision gate that a single detection pass cannot enforce on its own.
+        usage = response.usage
         if candidates:
-            candidates = self._verify(view, candidates)
+            candidates, verify_usage = self._verify(view, candidates)
+            usage = sum_token_usage(usage, verify_usage)  # a real second API call
         patch = self._build_patch(state, view, candidates)
-        return ProviderResponse(
-            text=patch.model_dump_json(by_alias=True), fingerprint=response.fingerprint
+        return OperatorCompletion(
+            text=patch.model_dump_json(by_alias=True),
+            fingerprint=response.fingerprint,
+            usage=usage,
         )
 
     def _candidates(
@@ -208,7 +230,7 @@ class LLMContradictionOperator(LLMOperator):
 
     def _verify(
         self, view: ProjectionView, candidates: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], TokenUsage | None]:
         lines = []
         for i, c in enumerate(candidates, start=1):
             lines.append(
@@ -233,19 +255,23 @@ class LLMContradictionOperator(LLMOperator):
                 'that can coexist. If none are genuine, return {"keep": []}.'
             ),
         )
+        verify_response = self.provider.complete(request)
         try:
-            verdict = load_json(self.provider.complete(request).text)
+            verdict = load_json(verify_response.text)
         except LLMAssemblyError:
-            return candidates  # graceful: fall back to the gate-passed set
+            # Graceful: fall back to the gate-passed set. The call still
+            # happened and still cost tokens, so its usage is still counted.
+            return candidates, verify_response.usage
         keep = verdict.get("keep") if isinstance(verdict, dict) else None
         if not isinstance(keep, list):
-            return candidates
+            return candidates, verify_response.usage
         kept_idx = {
             int(n)
             for n in keep
             if isinstance(n, int) or (isinstance(n, str) and n.strip().isdigit())
         }
-        return [c for i, c in enumerate(candidates, start=1) if i in kept_idx]
+        kept = [c for i, c in enumerate(candidates, start=1) if i in kept_idx]
+        return kept, verify_response.usage
 
     def _build_patch(
         self,

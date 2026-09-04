@@ -14,13 +14,16 @@ from .mock import (
 )
 from .openrouter import (
     DEFAULT_MODEL,
+    MODEL_PRICING_PER_MILLION_USD,
     VALUE_MODELS,
     OpenRouterConfigError,
     OpenRouterProvider,
+    estimate_cost_usd,
 )
 
 __all__ = [
     "DEFAULT_MODEL",
+    "MODEL_PRICING_PER_MILLION_USD",
     "PROSE_RESPONSE",
     "VALUE_MODELS",
     "LLMProvider",
@@ -31,4 +34,5 @@ __all__ = [
     "ProviderResponse",
     "build_invalid_critic_payload",
     "build_valid_critic_payload",
+    "estimate_cost_usd",
 ]

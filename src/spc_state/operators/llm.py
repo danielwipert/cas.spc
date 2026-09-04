@@ -22,6 +22,21 @@ from ..providers import LLMProvider, ProviderRequest, ProviderResponse
 from .base import Operator
 
 
+class OperatorCompletion(ProviderResponse):
+    """What an LLM operator hands back to the runtime for one attempt.
+
+    A `ProviderResponse` plus the operator's own note about it. When an
+    operator asks the model for a compact content shape (`{"hypothesis": ...}`)
+    and assembles the patch itself, a completion in the wrong shape produces
+    validation errors about `SemanticPatch` fields the model was never asked
+    for — useless as repair feedback. `repair_hint` carries what the operator
+    actually needs instead, and the runtime prefers it when it retries
+    (spec §15.6).
+    """
+
+    repair_hint: str | None = None
+
+
 class MalformedPatchError(RuntimeError):
     """Raised when an LLM operator's single-shot `propose` cannot be parsed.
 
@@ -54,10 +69,15 @@ class LLMOperator(Operator):
         state: SemanticState,
         projection: Projection,
         feedback: list[str],
-    ) -> ProviderResponse:
+    ) -> OperatorCompletion:
         """Resolve the projection to its slice and ask the provider for a patch."""
         view = resolve_view(projection, state)
-        return self.provider.complete(self.build_request(view, feedback))
+        response = self.provider.complete(self.build_request(view, feedback))
+        # This operator asks for a whole SemanticPatch, so the validator's own
+        # errors are already the right repair feedback — no hint to add.
+        return OperatorCompletion(
+            text=response.text, fingerprint=response.fingerprint, usage=response.usage
+        )
 
     def propose(self, state: SemanticState, projection: Projection) -> SemanticPatch:
         """Single-shot, no-retry convenience. The runtime uses `generate`."""
@@ -110,4 +130,5 @@ __all__ = [
     "LLMOperator",
     "MalformedPatchError",
     "MockLLMCriticOperator",
+    "OperatorCompletion",
 ]

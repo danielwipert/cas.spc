@@ -19,11 +19,14 @@ from ..models import (
     SemanticPatch,
     SemanticState,
     StateStatus,
+    TokenUsage,
     ValidationReport,
+    sum_token_usage,
 )
 from ..projection import build_projection
 from ..router import decide as router_decide
-from ..store import PatchStore, RunPaths, StateStore, ValidationStore
+from ..router import decide_llm as router_decide_llm
+from ..store import PatchStore, RunPaths, StateStore, StateStoreProtocol, ValidationStore
 from ..validation import validate as run_validation
 from ..validation.l1 import parse_patch
 from .clock import Clock, WallClock
@@ -86,10 +89,15 @@ class Runtime:
         paths: RunPaths,
         clock: Clock | None = None,
         audit: AuditLog | None = None,
+        state_store: StateStoreProtocol | None = None,
     ) -> None:
         self.paths = paths
         self.clock = clock or WallClock()
-        self.state_store = StateStore(paths)
+        # File-based by default (AGENTS.md §V); a caller may hand in a
+        # different backend (e.g. `sqlite_store.SQLiteStateStore`, T6) behind
+        # the same `StateStoreProtocol` — the runtime never imports or knows
+        # about that backend's implementation.
+        self.state_store = state_store or StateStore(paths)
         self.patch_store = PatchStore(paths)
         self.validation_store = ValidationStore(paths)
         self.audit = audit or AuditLog(paths.audit_log())
@@ -196,8 +204,8 @@ class Runtime:
         feedback: list[str] = []
         report: ValidationReport | None = None
         decision: RouterDecision | None = None
-        final_text = ""
-        fingerprint = None
+        proposed: SemanticPatch | None = None
+        total_usage: TokenUsage | None = None
         attempts = 0
 
         for attempt in range(1, operator.max_attempts + 1):
@@ -213,8 +221,30 @@ class Runtime:
                 attempt=attempt,
             )
             response = operator.generate(state, projection, feedback)
-            fingerprint = response.fingerprint
-            final_text = response.text
+            # Every attempt is a real, separately billed call — sum them all
+            # into the one TransformRecord this step produces (T5), not just
+            # the attempt that happened to win.
+            total_usage = sum_token_usage(total_usage, response.usage)
+
+            # Keep the raw completion *before* validation judges it — it is
+            # the only record of what the model actually proposed, and it may
+            # not parse into a patch at all. The parsed form (when there is
+            # one) becomes the step's canonical patch after the loop.
+            self.patch_store.write_attempt(response.text, ordinal, attempt)
+            proposed, _ = parse_patch(response.text)
+            if proposed is not None and proposed.transform_record.model_fingerprint is None:
+                # Record which model produced the patch (spec §10.6) — on the
+                # proposal, so a rejected one still names its author.
+                proposed.transform_record.model_fingerprint = response.fingerprint
+            self.audit.append(
+                "patch.proposed",
+                at=self.clock.now(),
+                patch_id=proposed.patch_id if proposed is not None else "unparsed_patch",
+                base_state_version=state.state_version,
+                operator=operator.fully_qualified(),
+                attempt=attempt,
+                token_usage=response.usage.model_dump() if response.usage else None,
+            )
 
             report = run_validation(
                 state=state,
@@ -222,9 +252,14 @@ class Runtime:
                 report_id=f"report_{ordinal:03d}",
                 now=self.clock.now(),
             )
+            # The canonical report holds the final attempt; the attempt file
+            # keeps this one, so a retry never erases what came before.
             self.validation_store.write(report, ordinal)
+            self.validation_store.write_attempt(report, ordinal, attempt)
 
-            decision = router_decide(report)
+            # A model can repair its own output, so the LLM path retries on any
+            # schema failure, not just a JSON decode error (spec §15.6).
+            decision = router_decide_llm(report)
             self.audit.append(
                 "patch.routed",
                 at=self.clock.now(),
@@ -235,26 +270,41 @@ class Runtime:
             )
 
             if decision is RouterDecision.RETRY and attempt < operator.max_attempts:
-                # Feed the validation errors back so the operator can repair.
-                feedback = [f"{i.code}: {i.message}" for i in report.issues]
+                # Prefer the operator's own repair hint: an operator that asked
+                # the model for a compact content shape knows what to ask for
+                # again, where the validator can only report the SemanticPatch
+                # fields it found missing. Otherwise feed the errors back.
+                if response.repair_hint is not None:
+                    feedback = [response.repair_hint]
+                else:
+                    feedback = [f"{i.code}: {i.message}" for i in report.issues]
                 self.audit.append(
                     "patch.retry",
                     at=self.clock.now(),
                     attempt=attempt,
                     next_attempt=attempt + 1,
                     issues=[i.code for i in report.issues],
+                    repair_hint=response.repair_hint,
                 )
                 continue
             break
 
         assert report is not None and decision is not None  # loop ran ≥ once
 
-        patch, _ = parse_patch(final_text)
+        # The final attempt's parse is the step's outcome. Persist it whatever
+        # the router decided: a rejected patch belongs on the record too, the
+        # same way the deterministic `step` keeps one (AGENTS.md §III).
+        patch = proposed
         next_state: SemanticState | None = None
+        if patch is not None:
+            if total_usage is not None and patch.transform_record.token_usage is None:
+                # The cost of every attempt this step took (T5), not just the
+                # one that happened to parse — stamped alongside the
+                # fingerprint, for the same reason: a rejected patch still
+                # cost real tokens.
+                patch.transform_record.token_usage = total_usage
+            self.patch_store.write(patch, ordinal)
         if decision is RouterDecision.COMMIT and patch is not None:
-            # Record which model produced the patch (spec §10.6).
-            if fingerprint is not None and patch.transform_record.model_fingerprint is None:
-                patch.transform_record.model_fingerprint = fingerprint
             patch = patch.model_copy(update={"status": PatchStatus.COMMITTED})
             self.patch_store.write(patch, ordinal)
             next_state = commit_patch(state, patch, now=self.clock.now())

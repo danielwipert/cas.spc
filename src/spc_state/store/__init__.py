@@ -6,6 +6,7 @@ from .store import (
     PatchStore,
     ReceiptStore,
     StateStore,
+    StateStoreProtocol,
     ValidationStore,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "ReceiptStore",
     "RunPaths",
     "StateStore",
+    "StateStoreProtocol",
     "ValidationStore",
 ]

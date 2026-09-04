@@ -25,8 +25,9 @@ the same runtime and the same patch loop:
   Receipt, both projected from committed state. Needs `OPENROUTER_API_KEY`, and
   the run is non-deterministic by nature.
 
-Tasks T0–T3 in [`TASKS.md`](./TASKS.md) are done; T4–T6 are open. Pick a task
-from there and keep the invariants below intact.
+All tasks T0–T7 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
+signed off 2026-09-03 — see §V). The backlog there is currently empty; add a
+task before picking one up, and keep the invariants below intact.
 
 ---
 
@@ -106,17 +107,47 @@ arrive in later phases.
 ## V. Storage Discipline
 
 The pilot is file-based. Do not introduce a database, embedding index, or
-queue in v0.1. State versions live at:
+queue in v0.1 — with one sanctioned, scoped exception (T6, signed off
+2026-09-03): a SQLite backend for state-version storage only, opt-in per
+caller, never the default. State versions live at:
 
 ```text
 runs/<run_id>/state/semantic_state_v000.json
 runs/<run_id>/state/semantic_state_v001.json
+runs/<run_id>/state.sqlite3                        # opt-in alternative (T6) — not both
 runs/<run_id>/patches/patch_<NNN>.json
+runs/<run_id>/patches/attempt_<NNN>_<K>.txt        # LLM steps only
 runs/<run_id>/validation/validation_<NNN>.json
+runs/<run_id>/validation/attempt_<NNN>_<K>.json    # LLM steps only
 runs/<run_id>/audit/audit_log.jsonl
 runs/<run_id>/diffs/diff_v<A>_v<B>.json
 runs/<run_id>/receipts/reasoning_receipt_v<N>.md
+runs/<run_id>/cost_ledger.json                     # LLM-backed runs only
 ```
+
+**The T6 exception, precisely.** `Runtime` depends only on
+`StateStoreProtocol` (`store/store.py` — `write`/`read`/`latest_version`,
+structural, not a base class), never on the file-based `StateStore`
+directly. `store/sqlite_store.py::SQLiteStateStore` implements the same
+protocol against a per-run `.sqlite3` file — same row content
+(`model_dump_json(by_alias=True)`), different medium. Nothing else may use
+this exception without its own sign-off: patches, validation, the audit
+log, diffs, and receipts stay file-based no matter which state backend is
+active. No CLI flag selects it — a caller wanting SQLite constructs
+`SQLiteStateStore(paths)` and passes it to `Runtime(state_store=...)`
+directly; the default remains file-based everywhere nothing opts in.
+
+Every patch a runtime step proposes is written **before** validation judges
+it, so a rejected proposal is still on the record (§III). An LLM step may take
+several attempts (`Runtime.step_llm`), and a completion may not parse into a
+patch at all: the `attempt_<NNN>_<K>` files hold each attempt's raw completion
+and its validation report, while the canonical `patch_<NNN>.json` /
+`validation_<NNN>.json` hold the final outcome. The `attempt_` prefix keeps
+them out of the `patch_*` / `validation_*` globs the §20.8 artifact counts use.
+
+`cost_ledger.json` (T5) sums estimated token spend per `TransformRecord` —
+`src/spc_state/cost_ledger.py`, written only when a run actually called a
+model, so a purely deterministic run adds no new file.
 
 The `runs/` directory is **generated and gitignored**. Every demo run must
 be reproducible from `examples/` plus the engine. Do not commit run output.
@@ -142,12 +173,27 @@ The mock provider (Phase 6) and a live OpenRouter provider (Phase 7) are in the
 tree. Any LLM operator — existing or new:
 
 - must return structured `SemanticPatch` JSON, not prose;
-- on prose or malformed JSON, the runtime routes to RETRY with the validation
-  error passed back (`Runtime.step_llm`). Do not silently repair;
+- on any output the runtime cannot validate as a patch — prose, malformed JSON,
+  or valid JSON in the wrong shape — the runtime routes to RETRY and asks
+  again (`Runtime.step_llm`, routed by `router.decide_llm`). Do not silently
+  repair. A model can fix its own output, so **every** L1 schema failure is
+  retryable on this path; L2 referential failures still REJECT, because a
+  well-formed patch that says something untrue about the state is a judgement,
+  not a shape;
+- if it assembles its own patch from a compact content shape, it returns an
+  `OperatorCompletion` carrying a `repair_hint` when assembly fails. The
+  validator can only report the `SemanticPatch` fields it found missing — which
+  the operator never asked the model for — so the operator supplies the repair
+  feedback instead, phrased for the shape it actually requested;
 - records provider, model, and resolved version in
-  `TransformRecord.model_fingerprint`;
+  `TransformRecord.model_fingerprint`, and (T5) token usage in
+  `TransformRecord.token_usage` — the runtime stamps both once per step,
+  summed across every retry attempt, since a retry is a real billed call;
+  `cost_ledger.py` prices these into `runs/<id>/cost_ledger.json`;
 - chooses a **value-based, per-task** model — never a hardcoded frontier
-  flagship — and keeps the model configurable;
+  flagship — and keeps the model configurable. **Per-operator model
+  routing is just handing different operators differently-configured
+  provider instances** — there is no separate mechanism to opt into;
 - is tested with an **injected client** (no network, no key in CI). A test must
   show that an LLM proposing direct-mutation prose ("the new state is …") is
   **rejected**, not absorbed.

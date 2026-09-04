@@ -40,10 +40,10 @@ from ..models import (
 )
 from ..models.patch import AddObjects
 from ..projection import ProjectionView, resolve_view
-from ..providers import LLMProvider, ProviderRequest, ProviderResponse
+from ..providers import LLMProvider, ProviderRequest
 from ..runtime.clock import Clock, WallClock
 from ._assembly import LLMAssemblyError, clamp_confidence, coerce_enum, load_json
-from .llm import LLMOperator
+from .llm import LLMOperator, OperatorCompletion
 
 #: Back-compat alias — this operator originally defined its own error type.
 ExtractionError = LLMAssemblyError
@@ -141,20 +141,29 @@ class LLMExtractOperator(LLMOperator):
         state: SemanticState,
         projection: Projection,
         feedback: list[str],
-    ) -> ProviderResponse:
+    ) -> OperatorCompletion:
         """Ask the model for an extraction, then assemble a full extract patch.
 
-        On unparseable output we return the model's raw text so the runtime's
-        validator reports `JSON_DECODE` and the retry loop kicks in.
+        On output this operator cannot assemble we return the model's raw text
+        plus a repair hint, so the runtime's retry loop asks for the shape this
+        operator actually wants rather than the one the validator inferred.
         """
         view = resolve_view(projection, state)
         response = self.provider.complete(self.build_request(view, feedback))
         try:
             patch = self._assemble(state, response.text)
-            text = patch.model_dump_json(by_alias=True)
-        except ExtractionError:
-            text = response.text
-        return ProviderResponse(text=text, fingerprint=response.fingerprint)
+        except ExtractionError as exc:
+            return OperatorCompletion(
+                text=response.text,
+                fingerprint=response.fingerprint,
+                usage=response.usage,
+                repair_hint=str(exc),
+            )
+        return OperatorCompletion(
+            text=patch.model_dump_json(by_alias=True),
+            fingerprint=response.fingerprint,
+            usage=response.usage,
+        )
 
     # -- assembly ---------------------------------------------------------
 
@@ -165,10 +174,15 @@ class LLMExtractOperator(LLMOperator):
             return SemanticPatch.model_validate(data)
 
         if not isinstance(data, dict) or not isinstance(data.get("claims"), list):
-            raise ExtractionError("Expected a JSON object with a 'claims' array.")
+            raise ExtractionError(
+                'Your output must be a JSON object with a "claims" array.'
+            )
         raw_claims = [c for c in data["claims"] if isinstance(c, dict)]
         if not raw_claims:
-            raise ExtractionError("No claims found in the extraction.")
+            raise ExtractionError(
+                'Your "claims" array was empty — extract at least one claim '
+                "from the document."
+            )
 
         now = self.clock.now()
         claims: list[Claim] = []
@@ -221,7 +235,9 @@ class LLMExtractOperator(LLMOperator):
 
             text = (rc.get("text") or "").strip()
             if not text:
-                raise ExtractionError(f"Claim {i} has no text.")
+                raise ExtractionError(
+                    f'Claim {i} has no "text" field — every claim needs one.'
+                )
             claims.append(
                 Claim(
                     id=cid,

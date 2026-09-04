@@ -8,12 +8,13 @@ module name.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from pathlib import Path
 
 from spc_state.models import SemanticState
 from spc_state.operators import CriticOperator, ExtractOperator, PlannerOperator
 from spc_state.runtime import FixedClock, Runtime, bootstrap_state
-from spc_state.store import RunPaths
+from spc_state.store import RunPaths, StateStoreProtocol
 
 UTC = dt.UTC
 
@@ -29,8 +30,18 @@ def read_example() -> str:
     ).read_text(encoding="utf-8")
 
 
-def run_demo(root: Path, run_id: str = "demo_001") -> tuple[RunPaths, list[SemanticState]]:
-    """Run the deterministic demo and return (paths, [v0..v3])."""
+def run_demo(
+    root: Path,
+    run_id: str = "demo_001",
+    *,
+    state_store_factory: Callable[[RunPaths], StateStoreProtocol] | None = None,
+) -> tuple[RunPaths, list[SemanticState]]:
+    """Run the deterministic demo and return (paths, [v0..v3]).
+
+    `state_store_factory` (T6) swaps the state-version backend — pass
+    `SQLiteStateStore` to run the same pipeline on SQLite instead of the
+    file-based default; its committed states must come out identical.
+    """
     paths = RunPaths(root=root, run_id=run_id)
     clock = fresh_clock()
     initial = bootstrap_state(
@@ -39,7 +50,8 @@ def run_demo(root: Path, run_id: str = "demo_001") -> tuple[RunPaths, list[Seman
         name="Should the company adopt an AI coding assistant?",
         now=clock.now(),
     )
-    runtime = Runtime(paths=paths, clock=clock)
+    state_store = state_store_factory(paths) if state_store_factory is not None else None
+    runtime = Runtime(paths=paths, clock=clock, state_store=state_store)
     text = read_example()
     result = runtime.run(
         initial_state=initial,
