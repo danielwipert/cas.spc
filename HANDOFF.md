@@ -13,7 +13,7 @@
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. The
-`TASKS.md` backlog is **done through T8** and is empty again.
+`TASKS.md` backlog is **done through T9** and is empty again.
 
 This session was the first to run a **real, non-demo document end to end
 through the live pipeline**. That test found a gap, the gap became T8, and T8
@@ -23,8 +23,8 @@ All four definition-of-done gates pass on a fresh clone:
 
 ```
 ruff check src tests   ->  All checks passed
-python -m mypy         ->  Success: no issues found in 67 source files
-pytest                 ->  252 passed
+python -m mypy         ->  Success: no issues found in 68 source files
+pytest                 ->  265 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -61,7 +61,23 @@ Verified on live output, not just fixtures: re-running the same press release
 with the check active, all 10 spans located on the **first attempt**, no false
 rejections, every offset resolving to a real span.
 
-### 3. Gate fix — `mypy` was environment-dependent
+### 3. T9 — live-run regression harness (record/replay cassettes)
+
+`providers/cassette.py`: `RecordingProvider` captures a live provider's
+completions verbatim, `ReplayProvider` feeds them back offline. A real
+`deepseek/deepseek-chat` five-stage run is committed as
+`tests/fixtures/cassettes/analyze_five_stage.json` (over an authored fixture
+document, not third-party text), so CI regression-tests the whole pipeline
+against genuine model output with no key and no network.
+
+Exhaustion raises rather than repeating; document identity is verified; prompt
+drift is *reported*, not fatal, because a contributor without a key cannot
+re-record. Re-record or inspect drift with `tools/record_cassette.py`.
+
+**If you change an LLM operator's prompt, re-record the cassette** —
+`test_committed_cassette_matches_the_current_prompts` is the signal.
+
+### 4. Gate fix — `mypy` was environment-dependent
 
 `from openai import OpenAI` carried an inline
 `type: ignore[import-not-found]`, required when the optional `openrouter` extra
@@ -74,12 +90,10 @@ the extra. This mattered because working on T8 requires installing that extra.
 
 **The `TASKS.md` backlog is empty.** Nothing is queued. Options, none urgent:
 
-- **A live-run regression harness.** This session found a real defect by
-  running one real document once, by hand. Nothing in CI does that, and it
-  cannot (it needs a key and a network). A recorded-fixture harness — capture a
-  real provider exchange once, replay it offline — would let the LLM path be
-  regression-tested against genuine model output rather than hand-written mock
-  payloads that are, by construction, already well-formed.
+- **A second cassette for a failure path.** The committed one is a clean
+  five-stage success. A recording where the model fabricates a quote, or
+  returns prose, would regression-test the retry/reject paths against real
+  output too — those are currently only mock-driven.
 - **Attempt-level cost accounting** (the T5 follow-on): tokens spent on a step
   that never produced a patch at all are not currently reconciled. T8 makes
   this more likely to matter — a rejected extraction now burns up to 3 billed

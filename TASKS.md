@@ -348,6 +348,70 @@ truncated span; `spc-demo demo` re-run and `DEMO.md` byte-identical.
 
 ---
 
+## T9 — Live-run regression harness (record/replay cassettes) · ✅ DONE
+
+**Why it existed.** Every LLM-path test drove the pipeline with hand-written
+payloads that are, by construction, already well-formed. Real model output is
+not, and T8 was found by running one real document by hand — nothing in the
+suite could have found it. This closes that gap without putting a key or a
+network in CI.
+
+`src/spc_state/providers/cassette.py`: `RecordingProvider` wraps a live
+provider and captures each completion **verbatim**; `ReplayProvider` feeds them
+back in order, offline. `Cassette` is the on-disk format (versioned; provider,
+model, `document_sha256`, and per-exchange `request_sha256` + response +
+fingerprint + `TokenUsage`, so T5 accounting stays exercised on replay).
+
+Three deliberate behaviours:
+
+- **Exhaustion raises**, unlike `MockProvider`'s repeat-the-last. A pipeline
+  that makes an extra call is a real change; handing it a stale completion
+  would hide it.
+- **Document identity is checked.** `ReplayProvider.from_path(..., document=)`
+  refuses a cassette recorded against different text, so editing the fixture
+  without re-recording fails clearly instead of as a confusing quote mismatch.
+- **Prompt drift is reported, never fatal.** Each exchange stores a hash of the
+  request it answered; `drifted_calls` names the ones that no longer match.
+  Hard-failing would break the suite for any contributor without an API key,
+  who cannot re-record. The staleness signal is asserted *in this repo*
+  (`test_committed_cassette_matches_the_current_prompts`), where re-recording
+  is cheap, and inspectable offline via `tools/record_cassette.py check`.
+
+`tools/record_cassette.py` records (needs `OPENROUTER_API_KEY`, ~$0.002) or
+inspects drift offline. Deliberately a script, not a `spc-demo` subcommand:
+re-recording is a maintainer action, not a user-facing feature (same reasoning
+as T6's no-CLI-flag decision).
+
+Fixture: `tests/fixtures/live_document.txt` — an authored announcement, not
+third-party text, deliberately carrying the formatting that breaks exact
+matching (typographic quotes, an em dash, bullets with no terminal period,
+sentences broken mid-line). `tests/fixtures/cassettes/analyze_five_stage.json`
+is a real `deepseek/deepseek-chat` five-stage run over it: 4 exchanges, 11
+claims, 11 evidence, 7 questions.
+
+13 tests in `tests/test_live_replay.py`, 100% coverage of `cassette.py`. The
+pipeline half replays genuine output through all five stages and asserts every
+committed quote locates in the document (the T8 regression guard), that memo
+citations resolve, that the cost ledger counts recorded usage, and that replay
+is deterministic. One guard is worth naming:
+`test_normalization_is_load_bearing_on_real_output` fails if *every* real quote
+is byte-exact — otherwise T8's normalization would be untested dead weight and
+this fixture would be proving nothing. That assertion cannot be written with
+mocks, because a mock author simply writes quotes that match.
+
+**Verified the harness actually fails.** Mutating `locate_span` to exact
+matching (the implementation T8 rejected) turns 7 of the 13 tests red,
+including the full-pipeline, memo-citation and cost-ledger guards. Honest
+boundary: for that particular mutation the T8 unit tests fire too. What is
+unique here is the *class* of coverage — the whole pipeline against real
+completions — and the load-bearing guard above.
+
+**Invariants held.** No operator or runtime change; the providers sit behind
+the existing `LLMProvider` seam. Replay is offline and deterministic.
+`spc-demo demo` re-run, `DEMO.md` byte-identical.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)
