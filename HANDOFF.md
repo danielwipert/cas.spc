@@ -24,7 +24,7 @@ All four definition-of-done gates pass on a fresh clone:
 ```
 ruff check src tests   ->  All checks passed
 python -m mypy         ->  Success: no issues found in 68 source files
-pytest                 ->  265 passed
+pytest                 ->  272 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -64,18 +64,26 @@ rejections, every offset resolving to a real span.
 ### 3. T9 — live-run regression harness (record/replay cassettes)
 
 `providers/cassette.py`: `RecordingProvider` captures a live provider's
-completions verbatim, `ReplayProvider` feeds them back offline. A real
-`deepseek/deepseek-chat` five-stage run is committed as
-`tests/fixtures/cassettes/analyze_five_stage.json` (over an authored fixture
-document, not third-party text), so CI regression-tests the whole pipeline
-against genuine model output with no key and no network.
+completions verbatim, `ReplayProvider` feeds them back offline, so CI
+regression-tests the whole pipeline against genuine model output with no key
+and no network. **Two committed cassettes**, both real
+`deepseek/deepseek-chat` runs over authored fixture documents:
+
+- `analyze_five_stage.json` — the clean path, every stage first time.
+- `analyze_retry_path.json` — the **failure path**. The document is hyphenated
+  at line ends (as PDF extraction of justified text is); the model
+  de-hyphenates when quoting, T8 refuses the spans, and the extractor really
+  retries twice — 10 claims proposed, then 6, then 5 that all locate. Coverage
+  traded for provenance, on real output.
 
 Exhaustion raises rather than repeating; document identity is verified; prompt
 drift is *reported*, not fatal, because a contributor without a key cannot
 re-record. Re-record or inspect drift with `tools/record_cassette.py`.
 
-**If you change an LLM operator's prompt, re-record the cassette** —
-`test_committed_cassette_matches_the_current_prompts` is the signal.
+**If you change an LLM operator's prompt, re-record the cassettes** —
+`test_committed_cassettes_match_the_current_prompts` is the signal, and it is
+the one thing the mock-driven suite provably cannot see (verified by mutation:
+a one-line prompt change is invisible to all 252 other tests).
 
 ### 4. Gate fix — `mypy` was environment-dependent
 
@@ -90,10 +98,19 @@ the extra. This mattered because working on T8 requires installing that extra.
 
 **The `TASKS.md` backlog is empty.** Nothing is queued. Options, none urgent:
 
-- **A second cassette for a failure path.** The committed one is a clean
-  five-stage success. A recording where the model fabricates a quote, or
-  returns prose, would regression-test the retry/reject paths against real
-  output too — those are currently only mock-driven.
+- **Soft-hyphen handling in `provenance.locate_span`.** The failure-path
+  cassette makes a real cost visible: a document hyphenated at line ends cost
+  half its claims (10 proposed -> 5 committed), purely from a formatting
+  artifact. Joining `"impair-\nment"` into `"impairment"` would recover them,
+  but it is a genuine semantic decision, not an obvious win — a hyphen at a
+  line end may be part of a real compound ("pre-tax"), and there is no reliable
+  way to tell without a dictionary. Today's conservative behaviour (reject, ask
+  the model to re-quote) is defensible and now pinned by a test; changing it
+  should be a deliberate call, and the cassette would need re-recording.
+- **A prose or fabrication cassette.** The retry cassette covers rejection by
+  provenance. A model returning prose (JSON_DECODE) or inventing a span
+  outright is still only mock-driven — the OpenRouter provider requests
+  `json_object`, so prose is hard to elicit deliberately.
 - **Attempt-level cost accounting** (the T5 follow-on): tokens spent on a step
   that never produced a patch at all are not currently reconciled. T8 makes
   this more likely to matter — a rejected extraction now burns up to 3 billed

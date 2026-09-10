@@ -382,29 +382,53 @@ inspects drift offline. Deliberately a script, not a `spc-demo` subcommand:
 re-recording is a maintainer action, not a user-facing feature (same reasoning
 as T6's no-CLI-flag decision).
 
-Fixture: `tests/fixtures/live_document.txt` — an authored announcement, not
-third-party text, deliberately carrying the formatting that breaks exact
-matching (typographic quotes, an em dash, bullets with no terminal period,
-sentences broken mid-line). `tests/fixtures/cassettes/analyze_five_stage.json`
-is a real `deepseek/deepseek-chat` five-stage run over it: 4 exchanges, 11
-claims, 11 evidence, 7 questions.
+**Two cassettes**, because a harness that only records success proves only that
+the happy path works. Both are real `deepseek/deepseek-chat` runs over authored
+fixture documents (not third-party text), each document carrying formatting a
+model demonstrably mishandles:
 
-13 tests in `tests/test_live_replay.py`, 100% coverage of `cassette.py`. The
+- `analyze_five_stage.json` over `live_document.txt` — the clean path. 4
+  exchanges, every stage committing first time; typographic quotes, an em dash,
+  bullets with no terminal period, sentences broken mid-line.
+- `analyze_retry_path.json` over `live_document_hyphenated.txt` — the **failure
+  path**, hyphenated at line ends the way PDF extraction of justified text is.
+  The model de-hyphenates when it quotes ("impair-\nment" -> "impairment"), T8
+  refuses the unlocatable spans, and the extractor really retries twice: 10
+  claims proposed with 6 unsourceable, then 6 with 4 unsourceable, then 5 that
+  all locate — COMMIT. 6 exchanges. Coverage traded for provenance, which is the
+  trade this engine exists to make.
+
+Getting a genuine failure took two attempts. An all-uppercase filing was tried
+first, on the theory that a model would re-case its quotes and trip T8's
+deliberate case-sensitivity. It did not — the model quoted the caps faithfully,
+so that fixture was discarded rather than committed. Useful evidence in its own
+right: case-sensitivity is not costing false rejections in practice.
+
+`--allow-uncommitted` was added to the recorder for failure paths, where a run
+that commits nothing is the point rather than a mistake.
+
+20 tests in `tests/test_live_replay.py`, 100% coverage of `cassette.py`. The
 pipeline half replays genuine output through all five stages and asserts every
 committed quote locates in the document (the T8 regression guard), that memo
 citations resolve, that the cost ledger counts recorded usage, and that replay
-is deterministic. One guard is worth naming:
+is deterministic. The failure half asserts the extract step really took three
+attempts, that both rejected proposals stay on the record, that the repair hints
+named real unlocatable spans, that no span rejected on attempt 1 survives into
+committed state, and that all three attempts are billed (T5) — checked against
+the token usage summed straight from the cassette. One guard is worth naming:
 `test_normalization_is_load_bearing_on_real_output` fails if *every* real quote
 is byte-exact — otherwise T8's normalization would be untested dead weight and
 this fixture would be proving nothing. That assertion cannot be written with
 mocks, because a mock author simply writes quotes that match.
 
-**Verified the harness actually fails.** Mutating `locate_span` to exact
-matching (the implementation T8 rejected) turns 7 of the 13 tests red,
-including the full-pipeline, memo-citation and cost-ledger guards. Honest
-boundary: for that particular mutation the T8 unit tests fire too. What is
-unique here is the *class* of coverage — the whole pipeline against real
-completions — and the load-bearing guard above.
+**Verified the harness actually fails, and found what only it catches.**
+Mutating `locate_span` to exact matching turns 7 tests red; disabling T8's
+rejection turns 6 red. For both, the mock-driven suite fires too. The clean
+separation is **prompt drift**: changing one line of the extractor's schema hint
+is caught only here (both staleness guards), and is completely invisible to the
+other 252 tests — fixed mock payloads cannot notice that the question changed.
+Cutting the extractor's retry budget from 3 to 2 turns 6 tests red here against
+1 in the mock suite.
 
 **Invariants held.** No operator or runtime change; the providers sit behind
 the existing `LLMProvider` seam. Replay is offline and deterministic.

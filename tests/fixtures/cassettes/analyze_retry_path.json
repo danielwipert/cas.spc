@@ -1,0 +1,112 @@
+{
+  "document_sha256": "4f7ca704168c51918ec1a0a219b1192bebeffcd1b92f7187728ca5e2c24ae684",
+  "exchanges": [
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "27317e2b351a08e0a7b223f105ebd509ef0c0a14caed5c289e0869924ff53874",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"A material impairment charge is required for Meridian Grid Corporation's western interconnect transmission assets\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 0.95,\n      \"evidence_quote\": \"the audit committee concluded that a material impairment charge is required with respect to the company's western interconnect transmission assets\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The impairment charge will be between $310 million and $340 million and recorded in Q2 2026\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 0.90,\n      \"evidence_quote\": \"The company estimates a pre-tax non-cash charge of between $310 million and $340 million, to be recorded in the second quarter of fiscal 2026\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The impairment charge will not result in future cash expenditures\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"inferred\",\n      \"confidence\": 0.85,\n      \"evidence_quote\": \"The company does not expect the charge to result in future cash expenditures\",\n      \"evidence_reliability\": \"medium\",\n      \"assumption\": \"No unforeseen financial impacts will arise from the impairment\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"The impairment follows a state utility commission's denial of $270 million in deferred capital cost recovery\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 0.95,\n      \"evidence_quote\": \"The impairment follows the state utility commission's May 21 order denying recovery of approximately $270 million in deferred capital costs\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company intends to seek rehearing of the utility commission's order\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 0.90,\n      \"evidence_quote\": \"The company intends to seek rehearing\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"No assurance can be given that the rehearing will be granted\",\n      \"claim_type\": \"analytical_claim\",\n      \"epistemic_status\": \"inferred\",\n      \"confidence\": 0.80,\n      \"evidence_quote\": \"no assurance can be given that such rehearing will be granted\",\n      \"evidence_reliability\": \"medium\",\n      \"assumption\": \"The utility commission's stance will remain unchanged\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"Management reaffirmed full-year adjusted earnings guidance of $3.05 to $3.20 per share, excluding the impairment charge\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 0.90,\n      \"evidence_quote\": \"Management reaffirmed full-year adjusted earnings guidance of $3.05 to $3.20 per share, which excludes the impairment charge\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company's debt covenants are calculated on an adjusted basis and are not expected to be affected by the impairment\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"inferred\",\n      \"confidence\": 0.85,\n      \"evidence_quote\": \"Management also noted that the company's debt covenants are calculated on an adjusted basis and are not expected to be affected\",\n      \"evidence_reliability\": \"medium\",\n      \"assumption\": \"No covenant violations will be triggered by other factors\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"The CFO will depart effective July 31, 2026, and a search for a successor is underway\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 0.95,\n      \"evidence_quote\": \"the company disclosed that its chief financial officer will depart effective July 31, 2026, and that a search for a successor is underway\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The CFO's departure is unrelated to the impairment or any accounting disagreement\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 0.85,\n      \"evidence_quote\": \"The company stated that the departure is unrelated to the impairment or to any disagreement on accounting matters\",\n      \"evidence_reliability\": \"medium\",\n      \"assumption\": \"The company's statement about the CFO's departure is accurate\",\n      \"assumption_impact\": \"medium\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1173,
+        "prompt_tokens": 583
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "a8884494341dc2b4718dcf0a846c113e29f370a6eb33d3ea3370568a4064a1ca",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"A material impairment charge is required for the company's western interconnect transmission assets\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"a material impairment charge is required with respect to the company's western interconnect transmission assets\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company estimates a pre-tax non-cash charge of $310 million to $340 million for Q2 2026\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The company estimates a pre-tax non-cash charge of between $310 million and $340 million, to be recorded in the second quarter of fiscal 2026\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The impairment charge will not result in future cash expenditures\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The company does not expect the charge to result in future cash expenditures\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The impairment follows the state utility commission's denial of $270 million in deferred capital cost recovery\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The impairment follows the state utility commission's May 21 order denying recovery of approximately $270 million in deferred capital costs\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company reaffirmed full-year adjusted earnings guidance of $3.05 to $3.20 per share excluding the impairment\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Management reaffirmed full-year adjusted earnings guidance of $3.05 to $3.20 per share, which excludes the impairment charge\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The CFO will depart effective July 31, 2026, unrelated to the impairment\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"the company disclosed that its chief financial officer will depart effective July 31, 2026\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 695,
+        "prompt_tokens": 713
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "5af39253d28ae6a3e19e21371bda986d19f9ed106b95687583d03762c8928b2d",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"A material impairment charge is required for western interconnect transmission assets\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"a material impair-\\nment charge is required with respect to the company's western intercon-\\nnect transmission assets.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The impairment charge will be between $310 million and $340 million pre-tax and non-cash\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The company estimates a pre-tax non-cash charge of between $310 million\\nand $340 million, to be recorded in the second quarter of fiscal 2026.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The impairment follows a state utility commission order denying cost recovery\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The impairment follows the state utility commission's May 21 order deny-\\ning recovery of approximately $270 million in deferred capital costs.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"Management reaffirmed full-year adjusted earnings guidance excluding the impairment\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Management reaffirmed full-year adjusted earnings guidance of $3.05 to\\n$3.20 per share, which excludes the impairment charge.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The CFO will depart effective July 31, 2026\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"the company disclosed that its chief financial officer will de-\\npart effective July 31, 2026\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 578,
+        "prompt_tokens": 715
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "a2ce9eba7d66740e651483f5a94a52af87de8a2eed15b7d294ac4dddf62ba280",
+      "response_text": "{\n  \"hypothesis\": {\n    \"text\": \"proceed with the material impairment charge for western interconnect transmission assets\",\n    \"confidence\": 1.00,\n    \"supporting_claims\": [\"claim_001\", \"claim_003\"]\n  },\n  \"questions\": [\n    {\n      \"text\": \"what is the exact amount of the impairment charge within the $310M-$340M range?\",\n      \"priority\": \"medium\",\n      \"linked_claims\": [\"claim_002\"]\n    }\n  ],\n  \"dependencies\": []\n}",
+      "usage": {
+        "completion_tokens": 116,
+        "prompt_tokens": 378
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "f5565e5a09bf07494371e9b1aae4bd9b103684cd95e19b8d074851df16585dec",
+      "response_text": "{\n  \"confidence_updates\": [],\n  \"questions\": []\n}",
+      "usage": {
+        "completion_tokens": 15,
+        "prompt_tokens": 225
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "e7f6378a2748ee8aa13ed9db29fc3745d5ec89a7df791a9a9f4b19b4de792337",
+      "response_text": "{\n  \"contradictions\": []\n}",
+      "usage": {
+        "completion_tokens": 10,
+        "prompt_tokens": 530
+      }
+    }
+  ],
+  "model": "deepseek/deepseek-chat",
+  "note": "Failure path: a document hyphenated at line ends (as PDF extraction of justified text produces). The model de-hyphenates when quoting, T8 rejects the unlocatable spans, and the extractor retries twice before committing only the claims it can actually source.",
+  "provider": "openrouter",
+  "recorded_at": "2026-09-10T23:51:45.629551Z",
+  "version": 1
+}

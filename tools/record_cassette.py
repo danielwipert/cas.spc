@@ -60,8 +60,12 @@ def _record(args: argparse.Namespace) -> int:
         result = run_analysis(recorder, document, paths, question=QUESTION)
 
     final = result.run.final_state
-    if final.state_version == 0:
-        print("error: the run committed nothing — not writing a cassette.", file=sys.stderr)
+    if final.state_version == 0 and not args.allow_uncommitted:
+        print(
+            "error: the run committed nothing — not writing a cassette. Pass "
+            "--allow-uncommitted to capture a failure path deliberately.",
+            file=sys.stderr,
+        )
         return 1
 
     out = Path(args.out)
@@ -71,6 +75,12 @@ def _record(args: argparse.Namespace) -> int:
         f"committed state v{final.state_version}: {len(final.claims)} claims, "
         f"{len(final.evidence)} evidence, {len(final.questions)} questions"
     )
+    for step in result.run.steps:
+        flag = " <- RETRIED" if step.attempts > 1 else ""
+        print(
+            f"  step {step.ordinal}: {step.decision.value} "
+            f"after {step.attempts} attempt(s){flag}"
+        )
     return 0
 
 
@@ -105,6 +115,11 @@ def main(argv: list[str] | None = None) -> int:
     rec.add_argument("--out", required=True, help="cassette path to write")
     rec.add_argument("--model", default=None, help="OpenRouter model slug")
     rec.add_argument("--note", default="", help="free-text note stored in the cassette")
+    rec.add_argument(
+        "--allow-uncommitted",
+        action="store_true",
+        help="write the cassette even if the run committed nothing (failure paths)",
+    )
     rec.set_defaults(func=_record)
 
     chk = sub.add_parser("check", help="replay offline and report drift")
