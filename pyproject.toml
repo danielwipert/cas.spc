@@ -84,6 +84,14 @@ files = ["src"]
 warn_unused_ignores = true
 warn_redundant_casts = true
 
+# `openai` ships with the optional `openrouter` extra, so it is present in some
+# checkouts and absent in others. An inline `type: ignore[import-not-found]`
+# cannot serve both: it is required when the extra is missing and flagged as an
+# unused ignore when it is installed. A module override is state-independent.
+[[tool.mypy.overrides]]
+module = ["openai.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
