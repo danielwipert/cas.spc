@@ -54,18 +54,18 @@ def _clock() -> FixedClock:
     return FixedClock([start + dt.timedelta(seconds=30 * i) for i in range(12)])
 
 
-def _run(root: Path, script: list[str]):
+def _run(root: Path, script: list[str], document: str = DOCUMENT):
     paths = RunPaths(root=root, run_id="extract_llm")
     clock = _clock()
     provider = MockProvider(script, provider="fake", model="fake-extract-v0")
-    op = LLMExtractOperator(provider, input_text=DOCUMENT, clock=clock)
+    op = LLMExtractOperator(provider, input_text=document, clock=clock)
     runtime = Runtime(paths=paths, clock=clock)
     result = runtime.run(
         initial_state=bootstrap_state(
             state_id="sr_x", project_id="p", name="Remote work", now=clock.now()
         ),
         operators=[op],
-        input_text=DOCUMENT,
+        input_text=document,
     )
     return result
 
@@ -93,6 +93,13 @@ def test_extract_records_model_fingerprint(tmp_path: Path) -> None:
 
 
 def test_extract_dedupes_shared_assumptions(tmp_path: Path) -> None:
+    # This test is about assumption de-duplication, but every evidence_quote
+    # must still be locatable in the document (T8) — so it brings its own.
+    hiring_doc = (
+        "In the planning review, leadership plans to grow headcount across "
+        "engineering next year. Meanwhile retention has been steady for six "
+        "consecutive quarters."
+    )
     shared = "the labor market stays stable"
     payload = {
         "claims": [
@@ -112,7 +119,7 @@ def test_extract_dedupes_shared_assumptions(tmp_path: Path) -> None:
             },
         ]
     }
-    final = _run(tmp_path, [json.dumps(payload)]).final_state
+    final = _run(tmp_path, [json.dumps(payload)], document=hiring_doc).final_state
     assert set(final.assumptions) == {"assumption_001"}
     assert final.claims["claim_001"].assumptions == ["assumption_001"]
     assert final.claims["claim_002"].assumptions == ["assumption_001"]

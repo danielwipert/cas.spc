@@ -25,9 +25,13 @@ the same runtime and the same patch loop:
   Receipt, both projected from committed state. Needs `OPENROUTER_API_KEY`, and
   the run is non-deterministic by nature.
 
-All tasks T0–T7 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
-signed off 2026-09-03 — see §V). **T8 (evidence-quote provenance check) is
-open** — the one queued task; keep the invariants below intact.
+All tasks T0–T8 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
+signed off 2026-09-03 — see §V). The backlog there is currently empty; add a
+task before picking one up, and keep the invariants below intact.
+
+Note the T8 invariant when touching the LLM extract path: an `Evidence` quote
+must be locatable in the source document (`provenance.locate_span`), or the
+operator asks the model to re-quote rather than committing the citation.
 
 ---
 

@@ -40,6 +40,7 @@ from ..models import (
 )
 from ..models.patch import AddObjects
 from ..projection import ProjectionView, resolve_view
+from ..provenance import locate_span
 from ..providers import LLMProvider, ProviderRequest
 from ..runtime.clock import Clock, WallClock
 from ._assembly import LLMAssemblyError, clamp_confidence, coerce_enum, load_json
@@ -67,7 +68,9 @@ _SCHEMA_HINT = """Return ONLY a single JSON object of this exact shape:
 
 Rules:
 - Extract every substantive claim, including caveats and concerns.
-- `evidence_quote` must be copied verbatim from the document.
+- `evidence_quote` must be copied verbatim from the document. It is
+  checked against the document text; a quote that cannot be found there
+  is rejected, so never paraphrase, shorten mid-span, or invent one.
 - Use `assumption` only for something the document does not establish but the
   claim relies on; otherwise null.
 - No prose, no markdown fences — only the JSON object."""
@@ -86,6 +89,27 @@ _CLAIM_TYPES = {
 _EPISTEMIC = {s.value: s for s in EpistemicStatus}
 _RELIABILITY = {r.value: r for r in Reliability}
 _IMPACT = {i.value: i for i in Impact}
+
+
+def _shorten(quote: str, limit: int = 80) -> str:
+    """A quote short enough to echo back in a repair hint."""
+    collapsed = " ".join(quote.split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[: limit - 3] + "..."
+
+
+def _unlocatable_message(quotes: list[str]) -> str:
+    """The repair hint for quotes that are not in the document (T8)."""
+    shown = "; ".join(f'"{_shorten(q)}"' for q in quotes[:3])
+    if len(quotes) > 3:
+        shown += f"; and {len(quotes) - 3} more"
+    return (
+        f"{len(quotes)} evidence_quote value(s) do not appear in the document: "
+        f"{shown}. Copy each quote character-for-character from the DOCUMENT "
+        "text above — do not paraphrase, summarise, translate, or invent a "
+        "span. If no verbatim span supports a claim, drop that claim."
+    )
 
 
 class LLMExtractOperator(LLMOperator):
@@ -187,6 +211,7 @@ class LLMExtractOperator(LLMOperator):
         now = self.clock.now()
         claims: list[Claim] = []
         evidence: list[Evidence] = []
+        unlocatable: list[str] = []
         assumptions: list[Assumption] = []
         assumption_ids: dict[str, str] = {}
         write_set: list[str] = []
@@ -196,21 +221,32 @@ class LLMExtractOperator(LLMOperator):
             supporting: list[str] = []
             quote = (rc.get("evidence_quote") or "").strip()
             if quote:
-                eid = f"ev_{i:03d}"
-                evidence.append(
-                    Evidence(
-                        id=eid,
-                        source_type="input_document",
-                        source_id=self.source_id,
-                        quote_or_span=quote,
-                        reliability=coerce_enum(
-                            rc.get("evidence_reliability"), _RELIABILITY, Reliability.MEDIUM
-                        ),
-                        extracted_by=self.transform_id,
+                # A citation the document does not contain is the one failure
+                # this operator must never commit: the memo renders it as
+                # provenance. Collect every offender so one retry can fix them
+                # all, rather than surfacing them one attempt at a time.
+                span = locate_span(quote, self.input_text)
+                if span is None:
+                    unlocatable.append(quote)
+                else:
+                    eid = f"ev_{i:03d}"
+                    evidence.append(
+                        Evidence(
+                            id=eid,
+                            source_type="input_document",
+                            source_id=self.source_id,
+                            quote_or_span=quote,
+                            location={"start": span.start, "end": span.end},
+                            reliability=coerce_enum(
+                                rc.get("evidence_reliability"),
+                                _RELIABILITY,
+                                Reliability.MEDIUM,
+                            ),
+                            extracted_by=self.transform_id,
+                        )
                     )
-                )
-                supporting.append(eid)
-                write_set.append(eid)
+                    supporting.append(eid)
+                    write_set.append(eid)
 
             claim_assumptions: list[str] = []
             atext = (rc.get("assumption") or "").strip() if rc.get("assumption") else ""
@@ -255,6 +291,9 @@ class LLMExtractOperator(LLMOperator):
                 )
             )
             write_set.append(cid)
+
+        if unlocatable:
+            raise ExtractionError(_unlocatable_message(unlocatable))
 
         transform_record = TransformRecord(
             id=self.transform_id,
