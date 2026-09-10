@@ -288,6 +288,63 @@ what is left there is typer plumbing and console output, not logic.
 
 ---
 
+## T8 — Verify evidence quotes against the source document · M
+
+**Why.** Every Decision Memo states it "asserts nothing the state does not
+hold", and every finding carries an `[E#]` citation — but nothing checks that
+an `Evidence` quote actually appears in the document it claims to come from.
+`LLMExtractOperator` copies the model's `evidence_quote` straight into
+`quote_or_span` (`operators/extract_llm.py`), and neither L1 nor L2 is ever
+given the source text, so a fabricated span would commit silently and then be
+rendered as a citation in the memo and the receipt.
+
+Measured on a live `analyze` run over a 4-page press release
+(`deepseek/deepseek-chat`, 5/5 stages COMMIT): all 10 spans were substantively
+faithful — no fabrication — but only **2 of 10 were byte-exact substrings** of
+the input. The other 8 differed only in ways a naive `quote in document` check
+would reject: PDF text extraction puts newlines mid-sentence, the model folds
+curly quotes to straight, and on 2 spans it added a terminal period to a
+bullet that has none. So the check is worth having *and* an exact-match
+implementation is the wrong one.
+
+**Scope.** A new `src/spc_state/provenance.py` — pure, deterministic,
+offline — exposing `locate_span(quote, document)` that returns the located
+character offsets or `None` under a **documented** normalization: collapse
+runs of whitespace, fold unicode quotes/dashes/NBSP to ASCII, and tolerate a
+differing trailing terminal punctuation mark. Wire it into
+`LLMExtractOperator` only, which already holds `input_text`: a quote that
+cannot be located becomes feedback on the operator's existing retry loop (the
+same mechanism the T0 follow-on uses for shape-invalid output), giving the
+model a chance to re-quote before the patch is decided.
+
+Do **not** widen `validation.validate()` or `l2.validate_patch()` to take the
+document — they are shared by every operator, and most have no source text to
+check against.
+
+Stretch, if it stays cheap: populate `Evidence.location` (today always `{}`)
+with the offsets `locate_span` already computed, making a committed citation
+machine-checkable after the fact.
+
+**Acceptance test** (`tests/test_provenance.py`, injected provider — no
+network, no key). Unit: a verbatim quote locates; quotes differing only by
+collapsed whitespace, curly quotes, or an added terminal period locate; a
+fabricated quote returns `None`; output is deterministic. Operator: a
+fabricated quote does not pass on the first attempt and yields feedback naming
+the offending span; a quote unlocatable across every attempt never reaches
+committed state as a citation. Assert the retry is visible in the run record
+(`patches/attempt_*.txt`), since a retry is a real billed call in the T5 cost
+ledger.
+
+**Invariants.** No direct `SemanticState` mutation — the extractor still emits
+a `SemanticPatch`. `provenance.py` never calls a model. **Do not apply the
+check to the deterministic `ExtractOperator`**: its `ev_001` quote ends
+"...accelerate routine tasks." while `examples/ai_coding_assistant.txt` reads
+"...accelerate routine tasks, but evidence is weaker for complex architecture
+work." — a legitimate truncated span, and `spc-demo demo` byte-stability is a
+release gate.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

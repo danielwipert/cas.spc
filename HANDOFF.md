@@ -101,11 +101,16 @@ against itself. `sqlite_store.py` is 100% covered.
 
 ## Next up
 
-**The `TASKS.md` backlog is empty.** Nothing is queued. Options for a next
-session, none of them urgent:
+**T8 is queued** — added 2026-09-10 after running a real document through
+the live `analyze` pipeline (a 4-page press release, `deepseek/deepseek-chat`,
+5/5 stages COMMIT, ~$0.0014). That test found no fabricated evidence but
+proved nothing would have caught one: the extractor copies the model's quote
+verbatim and no validation layer ever sees the source document. T8 adds the
+check. Note the measured constraint recorded in the task — only 2 of 10
+quotes were byte-exact substrings of the input, so exact matching is the
+wrong implementation.
 
-- Pick a fresh extension task and add it to `TASKS.md` following the
-  existing format (Why / Scope / Acceptance test / Invariants).
+Other options, none urgent:
 - The two possible follow-ons noted inline in `TASKS.md`: an optional
   LLM-narrated memo (T2, kept off by default — re-prompting risks the drift
   SPC exists to prevent), and giving contradictions an explicit `Relation`

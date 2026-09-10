@@ -26,8 +26,8 @@ the same runtime and the same patch loop:
   the run is non-deterministic by nature.
 
 All tasks T0–T7 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
-signed off 2026-09-03 — see §V). The backlog there is currently empty; add a
-task before picking one up, and keep the invariants below intact.
+signed off 2026-09-03 — see §V). **T8 (evidence-quote provenance check) is
+open** — the one queued task; keep the invariants below intact.
 
 ---
 
