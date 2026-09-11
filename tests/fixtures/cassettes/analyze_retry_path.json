@@ -1,0 +1,95 @@
+{
+  "document_sha256": "c5ffc7b4350c5657a2a75b14d8729726de9664c82d819f40c4b212d20ff24988",
+  "exchanges": [
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "b8fc75c2b9976cd83246a56231aee3727ba4489b4207f6418076ae5f48d6aff2",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Meridian Netz AG will make an extraordinary write-down on transmission facilities in the western grid network.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Der Vorstand der Meridian Netz AG hat heute beschlossen, eine ausserplanmaessige Wertberichtigung auf die Uebertragungsanlagen im westlichen Verbundnetz vorzunehmen.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company expects a non-cash charge between €310 million and €340 million in the second quarter of fiscal year 2026.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"inferred\",\n      \"confidence\": 0.9,\n      \"evidence_quote\": \"Die Gesellschaft rechnet mit einer nicht zahlungswirksamen Belastung zwischen 310 Millionen Euro und 340 Millionen Euro im zweiten Quartal des Geschaeftsjahres 2026.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The write-down is due to the regulatory authority's decision to deny recognition of approximately €270 million in deferred investment costs.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Hintergrund ist die Entscheidung der Regulierungsbehoerde vom 21. Mai, die Anerkennung von rund 270 Millionen Euro abgegrenzter Investitionskosten zu versagen.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company intends to request a review of the regulatory decision, but there is no guarantee it will be granted.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"speculative\",\n      \"confidence\": 0.7,\n      \"evidence_quote\": \"Die Gesellschaft beabsichtigt, eine Ueberpruefung zu beantragen. Eine Zusage, dass diese gewaehrt wird, kann nicht gegeben werden.\",\n      \"evidence_reliability\": \"medium\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company confirms its forecast for adjusted earnings per share of €3.05 to €3.20, excluding the write-down.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Der Vorstand bestaetigt die Prognose fuer das bereinigte Ergebnis je Aktie von 3,05 Euro bis 3,20 Euro. Die Wertberichtigung ist darin nicht enthalten.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The financial covenants of credit agreements are determined on an adjusted basis and are likely unaffected by the write-down.\",\n      \"claim_type\": \"analytical_claim\",\n      \"epistemic_status\": \"inferred\",\n      \"confidence\": 0.8,\n      \"evidence_quote\": \"Die Finanzkennzahlen der Kreditvertraege werden auf bereinigter Basis ermittelt und sind daher voraussichtlich nicht betroffen.\",\n      \"evidence_reliability\": \"medium\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The CFO will leave the company on July 31, 2026, and the succession has not yet been determined.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Der Finanzvorstand wird das Unternehmen zum 31. Juli 2026 verlassen. Die Nachfolge ist noch nicht geregelt.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The CFO's departure is unrelated to the write-down or any disagreements over accounting.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Das Ausscheiden steht nach Angaben der Gesellschaft in keinem Zusammenhang mit der Wertberichtigung oder mit Meinungsverschiedenheiten ueber die Rechnungslegung.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1085,
+        "prompt_tokens": 647
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "bcf53d77949ef1d67e35f0ef7c20badbb2bd69d73d6deffa3640d9e0b2421714",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Meridian Netz AG will perform an extraordinary write-down on transmission facilities in the western grid network.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Der Vorstand der Meridian Netz AG hat heute beschlossen, eine ausserplan-maessige Wertberichtigung auf die Uebertragungsanlagen im westlichen Verbundnetz vorzunehmen.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company expects a non-cash charge between 310 million and 340 million euros in the second quarter of the fiscal year 2026.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"inferred\",\n      \"confidence\": 0.9,\n      \"evidence_quote\": \"Die Gesellschaft rechnet mit einer nicht zahlungswirksamen Belastung zwischen 310 Millionen Euro und 340 Millionen Euro im zweiten Quartal des Geschaeftsjahres 2026.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The write-down is due to the regulatory authority's decision to deny recognition of approximately 270 million euros in deferred investment costs.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Hintergrund ist die Entscheidung der Regulierungsbehoerde vom 21. Mai, die Anerkennung von rund 270 Millionen Euro abgegrenzter Investitionskosten zu versagen.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company intends to request a review of the regulatory decision, but there is no guarantee it will be granted.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Die Gesellschaft beabsichtigt, eine Ueberpruefung zu beantragen. Eine Zusage, dass diese gewaehrt wird, kann nicht gegeben werden.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The board confirms the forecast for adjusted earnings per share of 3.05 to 3.20 euros, excluding the write-down.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Der Vorstand bestaetigt die Prognose fuer das bereinigte Ergebnis je Aktie von 3,05 Euro bis 3,20 Euro. Die Wertberichtigung ist darin nicht enthalten.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The financial metrics of the credit agreements are determined on an adjusted basis and are likely unaffected by the write-down.\",\n      \"claim_type\": \"analytical_claim\",\n      \"epistemic_status\": \"inferred\",\n      \"confidence\": 0.8,\n      \"evidence_quote\": \"Die Finanzkennzahlen der Kreditvertraege werden auf bereinigter Basis ermittelt und sind daher voraussichtlich nicht betroffen.\",\n      \"evidence_reliability\": \"medium\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The CFO will leave the company on July 31, 2026, and the succession has not yet been determined.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Der Finanzvorstand wird das Unternehmen zum 31. Juli 2026 verlassen. Die Nachfolge ist noch nicht geregelt.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The CFO's departure is unrelated to the write-down or disagreements over accounting.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Das Ausscheiden steht nach Angaben der Gesellschaft in keinem Zusammenhang mit der Wertberichtigung oder mit Meinungsverschiedenheiten ueber die Rechnungslegung.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1088,
+        "prompt_tokens": 745
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "c6f665c45ea7ebb38f3910739a886ba6d16a42fb8a940b5fc692f9759d4660c5",
+      "response_text": "{\n  \"hypothesis\": {\n    \"text\": \"Proceed with the extraordinary write-down on transmission facilities and prepare to request a review of the regulatory decision.\",\n    \"confidence\": 1.0,\n    \"supporting_claims\": [\"claim_001\", \"claim_003\", \"claim_004\"]\n  },\n  \"questions\": [\n    {\n      \"text\": \"What is the exact non-cash charge amount expected in the second quarter of fiscal year 2026?\",\n      \"priority\": \"medium\",\n      \"linked_claims\": [\"claim_002\"]\n    }\n  ],\n  \"dependencies\": []\n}",
+      "usage": {
+        "completion_tokens": 130,
+        "prompt_tokens": 532
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "6d218e6f9db85c55a692756df21957f52b41212e893bf7c670f4fb0f325814a4",
+      "response_text": "{\n  \"confidence_updates\": [\n    {\n      \"claim\": \"claim_006\",\n      \"new_confidence\": 0.65,\n      \"reason\": \"The claim about financial metrics being unaffected by the write-down is inferred with moderate confidence (0.80), but lacks direct evidence linking the write-down's exclusion from adjusted metrics.\"\n    }\n  ],\n  \"questions\": [\n    {\n      \"text\": \"How are the financial metrics of the credit agreements adjusted, and what specific exclusions apply?\",\n      \"priority\": \"high\",\n      \"challenges_claim\": \"claim_006\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 131,
+        "prompt_tokens": 307
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "af541af84265a5dae0a31c8fff8ae111583cdb87e3297ad219c7ff3f2a3bf73a",
+      "response_text": "{\"contradictions\": []}",
+      "usage": {
+        "completion_tokens": 8,
+        "prompt_tokens": 658
+      }
+    }
+  ],
+  "model": "deepseek/deepseek-chat",
+  "note": "Failure path: the document carries an in-word hyphen with no line break (\"ausserplan-maessige\"), as text extraction leaves when it strips a newline but keeps the hyphen. The model quotes it joined. That is an alteration, not a transport artifact, so locate_span refuses it and the extractor retries. Pins the boundary of the soft-hyphen leniency.",
+  "provider": "openrouter",
+  "recorded_at": "2026-09-11T00:22:26.800097Z",
+  "version": 1
+}
