@@ -7,127 +7,116 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-11 · **Branch:** `claude/fervent-franklin-k6nffp`
+(its PR is **merged** — see *Starting work* below before you commit anything)
 
 ---
 
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. The
-`TASKS.md` backlog is **done through T11** and is empty again.
+`TASKS.md` backlog is **done through T11** and is empty again. Everything
+below is merged to `main` as
+[PR #2](https://github.com/danielwipert/cas.spc/pull/2) (9 commits).
 
-This session was the first to run a **real, non-demo document end to end
-through the live pipeline**. That test found a gap, the gap became T8, and T8
-shipped and was verified against live model output.
+**The repo now has CI.** Before this session it had none — the gates existed
+only in `TASKS.md` and were only ever run by hand.
 
-All four definition-of-done gates pass on a fresh clone:
+All four definition-of-done gates pass on a fresh clone, and now in CI:
 
 ```
-ruff check src tests   ->  All checks passed
-python -m mypy         ->  Success: no issues found in 68 source files
-pytest                 ->  287 passed
-spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
+ruff check src tests tools  ->  All checks passed
+python -m mypy              ->  Success: no issues found in 68 source files
+pytest                      ->  287 passed
+spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
 ## What the last session did
 
-### 1. First live end-to-end run on a real document
+It began as a one-off: run a real document (a 4-page merger press release,
+supplied as a PDF) through `spc-demo analyze` for the first time. Every task
+below came from what that run, or the next one, actually showed.
 
-A 4-page press release (Paramount/WBD merger announcement, ~3,300 words) run
-through `spc-demo analyze` on `deepseek/deepseek-chat`. All five stages
-COMMIT, no retries: 10 claims, 10 evidence, 4 assumptions, 1 hypothesis, 7
-questions, 0 contradictions (correct — a press release does not argue with
-itself). Whole run: 8,226 tokens, ~$0.0014.
+### 1. First live run on a real document — and the defect it exposed
 
-The PDF needed converting to text first (`analyze` reads UTF-8 text, not PDF).
-`pypdf` did it; note the container's Debian `cryptography` is broken and has to
-be shadowed with `pip install --ignore-installed cffi cryptography` first.
+The pipeline handled it: five stages COMMIT, 10 claims, 10 evidence, ~$0.0014.
+But **nothing checked that the citations were real.** The extractor copied the
+model's `evidence_quote` on trust, and no validation layer is ever handed the
+source text, so a fabricated span would have committed silently and rendered as
+provenance in the memo. Nothing was fabricated that run — only by luck.
 
 ### 2. T8 — evidence quotes verified against the source document
 
-The run's real finding: **nothing checked that an evidence quote was actually
-in the document.** The extractor copied the model's `evidence_quote` on trust
-and no validation layer is ever handed the source text, so a fabricated span
-would have committed silently and rendered as an `[E#]` citation in the memo.
-Nothing was fabricated in that run — but only by luck.
+`provenance.py` (`locate_span`, `normalize`): pure, offline, deterministic;
+returns offsets into the **original** document or `None`.
 
-Measurement that shaped the design: only **2 of 10 spans were byte-exact**
-substrings of the input. PDF extraction breaks lines mid-sentence, the model
-folds typographic quotes to ASCII, and it adds terminal periods to bullets. So
-exact matching would have rejected 8 good quotes. `provenance.locate_span`
-compares under a documented normalization instead, and returns offsets into the
-original document (now stored in `Evidence.location`, previously always `{}`).
+The measurement that shaped it: only **2 of 10** faithful spans were byte-exact
+substrings. PDF extraction breaks lines mid-sentence, the model folds
+typographic quotes to ASCII, and it adds terminal periods to bullets. Exact
+matching would have rejected eight good quotes. Case changes and added,
+dropped or reordered words are deliberately **not** normalized.
 
-Verified on live output, not just fixtures: re-running the same press release
-with the check active, all 10 spans located on the **first attempt**, no false
-rejections, every offset resolving to a real span.
+`Evidence.location` now records `{"start", "end"}` — it was always `{}`.
 
-### 3. T9 — live-run regression harness (record/replay cassettes)
+### 3. T9 — live-run regression harness (record / replay cassettes)
 
-`providers/cassette.py`: `RecordingProvider` captures a live provider's
-completions verbatim, `ReplayProvider` feeds them back offline, so CI
-regression-tests the whole pipeline against genuine model output with no key
-and no network. **Two committed cassettes**, both real
-`deepseek/deepseek-chat` runs over authored fixture documents:
+`providers/cassette.py` — `RecordingProvider` captures a live provider's
+completions verbatim, `ReplayProvider` feeds them back offline. **Three**
+committed cassettes, all real `deepseek/deepseek-chat` runs over authored
+fixture documents (never third-party text):
 
-- `analyze_five_stage.json` — the clean path, every stage first time.
-- `analyze_hyphenated.json` — a document hyphenated at line ends. Since T10
-  every span resolves and nothing is lost; before it, this same document cost
-  half its claims.
-- `analyze_retry_path.json` — the **failure path**: a German filing whose
-  in-word hyphen the model drops when quoting. Refused, retried, then quoted
-  correctly. Pins the boundary of T10's leniency.
+- `analyze_five_stage.json` — the clean path.
+- `analyze_hyphenated.json` — line-end hyphenation; since T10 nothing is lost.
+- `analyze_retry_path.json` — a genuine failure and recovery (see T10).
 
 Exhaustion raises rather than repeating; document identity is verified; prompt
-drift is *reported*, not fatal, because a contributor without a key cannot
-re-record. Re-record or inspect drift with `tools/record_cassette.py`.
+drift is reported, never fatal (a contributor without a key cannot re-record).
+Record or inspect drift with `tools/record_cassette.py`.
 
-**If you change an LLM operator's prompt, re-record the cassettes** —
-`test_committed_cassettes_match_the_current_prompts` is the signal, and it is
-the one thing the mock-driven suite provably cannot see (verified by mutation:
-a one-line prompt change is invisible to all 252 other tests).
+**What only this catches**, verified by mutation: a one-line prompt change
+fails both staleness guards and is invisible to every other test.
 
-### 4. T10 — soft-hyphen handling in `locate_span`
+### 4. T10 — read a line-end hyphen both ways
 
-The failure-path cassette had put a number on it: line-end hyphenation cost a
-document half its claims. `locate_span` now tries three readings of a hyphen
-that sits against a break — as written, joined away, or kept with the break
-closed — because the ambiguity is real (`impair-\nment` vs `pre-\ntax`) and
-undecidable without a dictionary. Applied symmetrically to document and quote;
-`keep` is tried first.
+Hyphenation cost one document **half its claims** (10 proposed, 5 committed).
+The ambiguity is undecidable without a dictionary (`impair-\nment` vs
+`pre-\ntax`), so each reading is tried in turn. Two boundaries, both found
+empirically: a hyphen must be **attached to the preceding word** (an
+adversarial sweep caught a standalone em dash being erased — 4 wrongly accepted
+spans, now 0), and an **in-word hyphen is not forgiven**.
 
-Two boundaries, both found empirically: a hyphen must be **attached to the
-preceding word** (an adversarial sweep caught the join reading erasing a
-standalone em dash — 4 wrongly accepted spans, now 0), and an in-word hyphen on
-a single line is **not** forgiven (dropping it alters the source).
+### 5. T11 — closed the full-patch passthrough
 
-The change invalidated the old retry cassette, which the staleness guard caught
-— exactly what that guard is for. `analyze_hyphenated.json` was re-recorded and
-now proves the recovery on live output; a new German cassette restores
-failure-path coverage and pins the in-word boundary.
+`_assemble` passes a model-authored `SemanticPatch` straight to the validator,
+and T8's check lived in the assembly loop, so that way in never reached it.
 
-### 5. T11 — closed the full-patch passthrough around the provenance check
+**Two halves, because the first alone did not work.** The runtime decides by
+validating whatever text an operator returns, and on rejection the operator
+returns the model's raw output — which on this path *is* a valid patch, so it
+committed anyway. Output that would itself parse as a patch is now returned
+wrapped. Remember this when writing any operator.
 
-Found by re-running the Paramount PDF. `_assemble` passes a model-authored
-`SemanticPatch` straight to the validator, and T8's check lived in the assembly
-loop — so that way in never reached it, and the validator never sees the source
-document. Latent, not observed: every live run so far took the assembled path.
+### 6. CI, and a gate that was environment-dependent
 
-Two halves, and the first alone did not work. Verifying the passed-through
-patch's evidence was not enough, because **the runtime decides by validating
-whatever text the operator returns**, and on rejection the operator returns the
-model's raw output — which on this path *is* a valid patch, so it committed
-anyway. Output that would itself parse as a patch is now returned wrapped, so
-the rejection survives the round trip and the path retries like the assembled
-one. Worth remembering when writing any operator.
+`.github/workflows/gates.yml` runs all four gates on every PR and on `main`,
+matrixed over Python 3.11 and 3.12, plus a second job that type-checks with the
+`openrouter` extra installed. Actions pinned to `checkout@v7` /
+`setup-python@v7` (verified against their release pages — v5/v6 are stale).
 
-### 6. Gate fix — `mypy` was environment-dependent
+That second job exists because `mypy` used to pass or fail depending on whether
+the optional extra happened to be installed. Fixed with a module-scoped
+override; now covered in both directions.
 
-`from openai import OpenAI` carried an inline
-`type: ignore[import-not-found]`, required when the optional `openrouter` extra
-is absent and flagged as an unused ignore when it is installed. Replaced with
-an `ignore_missing_imports` override scoped to `openai.*`, keeping
-`warn_unused_ignores = true` project-wide. Verified clean both with and without
-the extra. This mattered because working on T8 requires installing that extra.
+## Starting work — read this first
+
+**The PR for `claude/fervent-franklin-k6nffp` is merged.** A merged PR is
+finished and cannot track new work. Do not stack commits on that history:
+
+```
+git fetch origin main && git checkout -B claude/fervent-franklin-k6nffp origin/main
+```
+
+This branch has already been reset that way and carries only the commit that
+rewrote this file.
 
 ## Next up
 
@@ -136,21 +125,22 @@ the extra. This mattered because working on T8 requires installing that extra.
 - **A prose or fabrication cassette.** The retry cassette covers rejection by
   provenance (an in-word hyphen the model dropped). A model returning prose
   (JSON_DECODE) or inventing a span outright is still only mock-driven — the
-  OpenRouter provider requests `json_object`, so prose is hard to elicit
-  deliberately.
+  OpenRouter provider requests `json_object`, so prose is hard to elicit.
 - **Cache the normalized document in `locate_span`.** It now normalizes the
   document up to three times per call, once per hyphenation reading, and the
   extractor calls it once per quote. Irrelevant at fixture size; worth a
-  memo-ised form before anyone runs a book-length input through it.
-- **Attempt-level cost accounting** (the T5 follow-on): tokens spent on a step
-  that never produced a patch at all are not currently reconciled. T8 makes
-  this more likely to matter — a rejected extraction now burns up to 3 billed
-  attempts and commits nothing.
+  memoised form before anyone runs a book-length input through it.
 - **Contradictions need an explicit `Relation`** to the claims they conflict
   with, or they stay visually isolated in the T4 state graph. Changes what the
   contradiction operator commits, not just how it renders.
+- **Attempt-level cost accounting** (the T5 follow-on): tokens spent on a step
+  that never produced a patch are not reconciled. T8/T11 make this likelier to
+  matter — a rejected extraction can burn three billed attempts and commit
+  nothing.
 - **`--state-backend sqlite`** if a SQLite-backed end-to-end run is wanted; T6
   proved the seam, this would ship the user-facing switch.
+- Minor: PR #2's body table lists `ruff check src tests`, from before the lint
+  scope widened to include `tools`. Cosmetic, on a merged PR.
 
 ## Gate notes a future session still needs
 
@@ -158,14 +148,15 @@ the extra. This mattered because working on T8 requires installing that extra.
 uv-installed tool in an isolated environment that cannot see pydantic, typer or
 rich; it reports ~17 phantom `import-not-found` errors.
 
-The four gates now run in CI on every PR and on `main`
-(`.github/workflows/gates.yml`), on Python 3.11 and 3.12, plus a second job
-that type-checks with the `openrouter` extra installed so the `openai` import
-cannot regress in either direction. Before this the repo had no CI at all.
+A fresh container has **no dev dependencies installed**: `pip install -e
+".[dev]"`, plus `pip install openai` (or the `openrouter` extra) for any live
+path. For PDFs, `pip install pypdf` — and the container's Debian `cryptography`
+is broken, so shadow it first with `pip install --ignore-installed cffi
+cryptography` or pypdf's import panics.
 
-A fresh container has **no dev dependencies installed** — `pip install -e
-".[dev]"` first, plus `pip install openai` (or the `openrouter` extra) for any
-live path.
+**If you change an LLM operator's prompt, re-record the cassettes**
+(`python tools/record_cassette.py record ...`, needs `OPENROUTER_API_KEY`).
+`test_committed_cassettes_match_the_current_prompts` is the signal.
 
 > ⚠ **Do not "fix" UP042.** It wants `class X(str, Enum)` → `StrEnum` across
 > `models/enums.py`. Verified in a REPL: that changes `str()` and f-string
@@ -174,17 +165,17 @@ live path.
 > ignore is deliberate and documented at the rule.
 
 > ⚠ **`provenance.py`'s fold table is written as unicode escapes, not literal
-> characters.** Several of those characters are invisible or ASCII-lookalikes
-> in an editor, and ruff's RUF001 flags the literals as ambiguous. Keep the
-> escapes.
+> characters.** Several are invisible or ASCII-lookalikes in an editor, and
+> ruff's RUF001 flags the literals as ambiguous. Keep the escapes.
 
 ## Before touching code
 
 Read [`AGENTS.md`](./AGENTS.md). The hard invariant: **no operator mutates
 `SemanticState` directly** — all change flows through a validated
-`SemanticPatch`. Since T8 there is a second one on the LLM extract path: an
+`SemanticPatch`. Since T8 there is a second, on the LLM extract path: an
 `Evidence` quote must be locatable in the source document, or the operator asks
-the model to re-quote rather than committing the citation. The full definition
-of done is in `TASKS.md`; note that `spc-demo demo` rewrites `DEMO.md` in the
-repo root, so run it with the default `--runs-dir` or the run path gets baked
-into the committed file.
+the model to re-quote rather than committing the citation — and since T11 that
+holds on **both** ways in, assembled and passed through. The full definition of
+done is in `TASKS.md`; note that `spc-demo demo` rewrites `DEMO.md` in the repo
+root, so run it with the default `--runs-dir` or the run path gets baked into
+the committed file.
