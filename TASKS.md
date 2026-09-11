@@ -599,6 +599,60 @@ two recorder flags. `spc-demo demo` re-run, `DEMO.md` byte-identical.
 
 ---
 
+## T13 — Attempt-level cost accounting · ✅ DONE
+
+**Why, with the number.** T5 keyed the ledger to `TransformRecord`, so a step
+whose every attempt failed produced no record and its spend appeared nowhere.
+T12 pinned that as a boundary; this closes it. Replaying
+`analyze_truncated.json`, where the extraction loses three attempts to
+truncated replies:
+
+| | tokens |
+|---|---|
+| Reported before | 1,001 |
+| Actually spent | 3,651 |
+
+The failed extraction was the *most expensive step in the run* — three attempts,
+each carrying the whole document — and the ledger called the other four steps
+the total. It understated by 3.6x, and always in the same direction: the worse
+a run goes, the more it under-reports.
+
+**Where the numbers now come from.** `StepOutcome` carries `usage`,
+`fingerprint` and `operator`, set on every LLM step whether or not anything
+committed. That is the fix: the cost was always computed in the loop (summed
+across attempts since T5) and then thrown away when there was no patch to hang
+it on. `build_cost_ledger` reads the step rather than the record, falling back
+to the record for a patch that arrived carrying its own usage. A deterministic
+step still has no fingerprint and still contributes nothing.
+
+**Attribution and reconciliation stay separable**, which is the part worth
+getting right. Each row gains `attempts` (billed calls covered), and
+`committed`; `transform_id` is `None` when nothing committed, because inventing
+a synthetic id would imply a transform that does not exist. The ledger gains
+`uncommitted_tokens` and `uncommitted_estimated_cost_usd`. Filter to committed
+rows to ask what the state cost; sum every row to ask what the provider will
+bill.
+
+Two tests that pinned the old gap were rewritten rather than deleted — that was
+their purpose, and the T12 entry said so.
+
+New/updated tests in `test_cost_ledger.py` and `test_live_replay.py`: a step
+that commits nothing gets a row, marked uncommitted, unnamed, covering both
+its billed calls; a committed step is still named and marked; and on the real
+cassette the row matches the recorded usage **to the token**, with committed
+and uncommitted spend separable from the same ledger. 100% coverage of
+`cost_ledger.py`.
+
+Verified by mutation: reverting to `TransformRecord`-only rows turns 3 tests
+red, and hard-coding `committed` true turns the same 3 red.
+
+**Invariants held.** No operator or validator change; the runtime change is
+three fields on a dataclass, no control flow. `cost_ledger.json` gains fields
+and no run commits it (`runs/` is gitignored); the deterministic demo writes no
+ledger at all, and `DEMO.md` is byte-identical.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

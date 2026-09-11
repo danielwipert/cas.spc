@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 from ..audit import AuditLog
 from ..models import (
+    ModelFingerprint,
     PatchStatus,
     RouterDecision,
     SemanticPatch,
@@ -70,6 +71,15 @@ class StepOutcome:
     decision: RouterDecision
     next_state: SemanticState | None  # None on REJECT / RETRY / FAIL
     attempts: int = 1  # >1 when the validation-feedback retry loop ran
+
+    # What the step actually spent, and on which model — carried here rather
+    # than read back off the patch, because a step whose every attempt failed
+    # to parse has no patch and no `TransformRecord` to hang them on, yet its
+    # calls were still billed (T13). Both are `None` for a deterministic step,
+    # which makes no model call at all.
+    usage: TokenUsage | None = None
+    fingerprint: ModelFingerprint | None = None
+    operator: str = ""
 
 
 @dataclass
@@ -324,6 +334,9 @@ class Runtime:
             decision=decision,
             next_state=next_state,
             attempts=attempts,
+            usage=total_usage,
+            fingerprint=response.fingerprint,
+            operator=operator.name,
         )
 
     # -- a full run -------------------------------------------------------
