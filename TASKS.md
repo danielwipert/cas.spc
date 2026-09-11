@@ -14,7 +14,7 @@ through a validated `SemanticPatch`.
 3. Write the acceptance test first; make it pass.
 4. **Definition of done** for every task:
    - the stated acceptance test passes;
-   - `pytest` is green and `ruff check src tests` + `python -m mypy` are
+   - `pytest` is green and `ruff check src tests tools` + `python -m mypy` are
      clean (**`python -m mypy`, not bare `mypy`** — a uv/pipx-installed mypy
      runs isolated from the project's dependencies and reports ~17 phantom
      import errors);
@@ -22,6 +22,11 @@ through a validated `SemanticPatch`.
      (`spc-demo demo` → identical `DEMO.md`) unless the task explicitly changes
      it;
    - no run output committed (`runs/` is gitignored).
+
+   All four run in CI on every pull request and on `main`
+   (`.github/workflows/gates.yml`), across Python 3.11 and 3.12. They are the
+   same commands you run locally — nothing there is CI-only, so a green run
+   means what a clean working copy means.
 
 Tasks are roughly ordered easiest → hardest. Size is a rough estimate, not a
 promise. A ⚠ marks a task that requires a deliberate decision to relax a

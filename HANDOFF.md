@@ -158,6 +158,11 @@ the extra. This mattered because working on T8 requires installing that extra.
 uv-installed tool in an isolated environment that cannot see pydantic, typer or
 rich; it reports ~17 phantom `import-not-found` errors.
 
+The four gates now run in CI on every PR and on `main`
+(`.github/workflows/gates.yml`), on Python 3.11 and 3.12, plus a second job
+that type-checks with the `openrouter` extra installed so the `openai` import
+cannot regress in either direction. Before this the repo had no CI at all.
+
 A fresh container has **no dev dependencies installed** — `pip install -e
 ".[dev]"` first, plus `pip install openai` (or the `openrouter` extra) for any
 live path.
