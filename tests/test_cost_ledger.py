@@ -191,9 +191,11 @@ def test_deterministic_step_has_no_ledger_entry(tmp_path: Path) -> None:
     assert ledger.total_estimated_cost_usd == 0.0
 
 
-def test_step_with_no_parseable_attempt_has_no_ledger_entry(tmp_path: Path) -> None:
-    """Every attempt was prose: no patch ever assembled, so no TransformRecord
-    exists to attach a cost to — a documented scope boundary, not a bug."""
+def test_a_step_that_committed_nothing_still_appears_in_the_ledger(
+    tmp_path: Path,
+) -> None:
+    """T13: every attempt was prose, so no patch and no `TransformRecord` — but
+    both calls were billed, and a ledger that omits them understates the run."""
     state = _state()
     provider = MockProvider([PROSE_RESPONSE])
     runtime = _runtime(tmp_path, "exhausted")
@@ -203,7 +205,38 @@ def test_step_with_no_parseable_attempt_has_no_ledger_entry(tmp_path: Path) -> N
 
     assert result.steps[0].patch is None
     ledger = build_cost_ledger("exhausted", result.steps)
-    assert ledger.entries == []
+
+    assert len(ledger.entries) == 1
+    entry = ledger.entries[0]
+    assert entry.committed is False
+    assert entry.transform_id is None, "nothing committed, so nothing to name"
+    assert entry.operator == "llm_critic_transform"
+    assert entry.attempts == 2, "both billed calls are covered by this row"
+    assert entry.total_tokens > 0
+    assert entry.estimated_cost_usd > 0.0
+
+    # The run's spend and the spend that bought nothing are both visible, and
+    # here they are the same thing: this run committed no state at all.
+    assert ledger.uncommitted_tokens == ledger.total_tokens
+    assert ledger.uncommitted_estimated_cost_usd == ledger.total_estimated_cost_usd
+
+
+def test_a_committed_step_is_named_and_marked_committed(tmp_path: Path) -> None:
+    """The other side of the same row: attribution still works as before."""
+    state = _state()
+    provider = MockProvider([build_valid_critic_payload(state, now=NOW)])
+    runtime = _runtime(tmp_path, "committed")
+    result = runtime.run(
+        initial_state=state, operators=[LLMCriticOperator(provider, max_attempts=2)]
+    )
+
+    ledger = build_cost_ledger("committed", result.steps)
+    assert len(ledger.entries) == 1
+    entry = ledger.entries[0]
+    assert entry.committed is True
+    assert entry.transform_id is not None
+    assert entry.attempts == 1
+    assert ledger.uncommitted_tokens == 0
 
 
 # ---------------------------------------------------------------------------

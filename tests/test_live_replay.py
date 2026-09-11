@@ -465,22 +465,25 @@ def test_the_recorded_planner_hedged_rather_than_inventing_a_recommendation(
     assert "_Confidence: 0%._" in memo
 
 
-def test_three_billed_attempts_are_missing_from_the_ledger(
+def test_three_billed_attempts_are_counted_even_though_nothing_committed(
     tmp_path: Path, document: str
 ) -> None:
-    """A documented T5 boundary, shown with real money rather than asserted.
+    """T13 on real money: the extraction's three failed calls are in the ledger.
 
-    The ledger has one row per `TransformRecord`, and a step that never
-    committed a patch produces none — so these three real, billed calls appear
-    nowhere. Pinned so that closing the gap (attempt-level accounting) is a
-    deliberate change with a test to update, not a silent one.
+    Until T13 the ledger held one row per `TransformRecord`, so a step that
+    never committed produced none and its spend vanished — this run reported
+    the cost of the other four steps and called it the total. The row now
+    exists, is marked uncommitted, and matches the usage recorded in the
+    cassette exactly.
     """
     _, _, result = _replay_truncated(tmp_path, document)
     ledger = result.cost_ledger
     assert ledger is not None
 
-    operators = {entry.operator for entry in ledger.entries}
-    assert "llm_extract_transform" not in operators
+    extract = next(e for e in ledger.entries if e.operator == "llm_extract_transform")
+    assert extract.committed is False
+    assert extract.transform_id is None, "nothing committed, so nothing to name"
+    assert extract.attempts == 3
 
     spent = sum(
         x.usage.prompt_tokens + x.usage.completion_tokens
@@ -488,8 +491,35 @@ def test_three_billed_attempts_are_missing_from_the_ledger(
         if x.usage is not None
     )
     assert spent > 0, "the attempts really did cost tokens"
-    assert ledger.total_tokens > 0
-    assert spent not in {e.total_tokens for e in ledger.entries}
+    assert extract.total_tokens == spent, "counted to the token, not approximated"
+
+    # The run's total now includes money that bought nothing, and says how much.
+    assert ledger.uncommitted_tokens == spent
+    assert ledger.total_tokens > ledger.uncommitted_tokens > 0
+
+
+def test_committed_and_uncommitted_spend_stay_separable(
+    tmp_path: Path, document: str
+) -> None:
+    """Counting failed calls must not blur what the committed state cost.
+
+    Reconciling against a provider invoice wants every row; attributing cost to
+    the state that exists wants only the committed ones. Both have to be
+    answerable from the same ledger.
+    """
+    _, _, result = _replay_truncated(tmp_path, document)
+    ledger = result.cost_ledger
+    assert ledger is not None
+
+    committed = [e for e in ledger.entries if e.committed]
+    uncommitted = [e for e in ledger.entries if not e.committed]
+    assert committed and uncommitted, "this run has both kinds"
+    assert all(e.transform_id is not None for e in committed)
+
+    assert ledger.total_tokens == sum(e.total_tokens for e in ledger.entries)
+    assert ledger.uncommitted_tokens == sum(e.total_tokens for e in uncommitted)
+    assert ledger.uncommitted_estimated_cost_usd > 0.0
+    assert ledger.total_estimated_cost_usd > ledger.uncommitted_estimated_cost_usd
 
 
 # ---------------------------------------------------------------------------
