@@ -23,6 +23,8 @@ passed through untouched.
 
 from __future__ import annotations
 
+import json
+
 from ..models import (
     Assumption,
     Claim,
@@ -99,6 +101,31 @@ def _shorten(quote: str, limit: int = 80) -> str:
     return collapsed[: limit - 3] + "..."
 
 
+def _parses_as_patch(text: str) -> bool:
+    """Would the runtime read this completion as a committable patch?"""
+    try:
+        SemanticPatch.model_validate_json(text)
+    except ValueError:
+        return False
+    return True
+
+
+def _rejected_completion(raw: str, reason: str) -> str:
+    """The text an operator hands back for output it refuses.
+
+    Usually the model's raw output, unchanged — it cannot be committed because
+    it does not parse as a patch, and keeping it verbatim keeps the attempt
+    record honest. Output that *would* parse is wrapped instead, so the
+    runtime cannot commit what the operator rejected; the original is carried
+    inside, still verbatim.
+    """
+    if not _parses_as_patch(raw):
+        return raw
+    return json.dumps(
+        {"rejected_by_operator": reason, "model_output": raw}, ensure_ascii=False
+    )
+
+
 def _unlocatable_message(quotes: list[str]) -> str:
     """The repair hint for quotes that are not in the document (T8)."""
     shown = "; ".join(f'"{_shorten(q)}"' for q in quotes[:3])
@@ -171,6 +198,13 @@ class LLMExtractOperator(LLMOperator):
         On output this operator cannot assemble we return the model's raw text
         plus a repair hint, so the runtime's retry loop asks for the shape this
         operator actually wants rather than the one the validator inferred.
+
+        One case needs care. The runtime decides by validating the text it gets
+        back, so raw output that *is* a well-formed patch would be committed
+        however the operator judged it — silently undoing a provenance
+        rejection on the passthrough path. Such output is therefore returned
+        wrapped: still verbatim, still the record of what the model proposed,
+        but no longer mistakable for a proposal the operator accepted.
         """
         view = resolve_view(projection, state)
         response = self.provider.complete(self.build_request(view, feedback))
@@ -178,7 +212,7 @@ class LLMExtractOperator(LLMOperator):
             patch = self._assemble(state, response.text)
         except ExtractionError as exc:
             return OperatorCompletion(
-                text=response.text,
+                text=_rejected_completion(response.text, str(exc)),
                 fingerprint=response.fingerprint,
                 usage=response.usage,
                 repair_hint=str(exc),
@@ -191,11 +225,41 @@ class LLMExtractOperator(LLMOperator):
 
     # -- assembly ---------------------------------------------------------
 
+    def _verify_patch_evidence(self, patch: SemanticPatch) -> None:
+        """Hold a model-authored patch to the same provenance rule (T8).
+
+        A patch that arrives fully formed skips the assembly loop, so its
+        `Evidence` would otherwise reach committed state as a citation without
+        anyone checking it against the document. Locatable spans are stamped
+        with their offsets, exactly as the assembled path does; unlocatable ones
+        raise, so the runtime retries with the same repair hint.
+        """
+        unlocatable: list[str] = []
+        for item in patch.add_objects.evidence:
+            # Only spans claiming to come from *this* document are ours to check.
+            if item.source_type != "input_document":
+                continue
+            quote = (item.quote_or_span or "").strip()
+            if not quote:
+                continue
+            span = locate_span(quote, self.input_text)
+            if span is None:
+                unlocatable.append(quote)
+            else:
+                item.location = {"start": span.start, "end": span.end}
+
+        if unlocatable:
+            raise ExtractionError(_unlocatable_message(unlocatable))
+
     def _assemble(self, state: SemanticState, raw: str) -> SemanticPatch:
         data = load_json(raw)
-        # If the model already emitted a full patch, trust the validator with it.
+        # If the model already emitted a full patch, trust the validator with the
+        # patch *shape* — but not with its citations. The validator never sees
+        # the source document, so provenance is checked here on both paths.
         if isinstance(data, dict) and ("add_objects" in data or "patch_id" in data):
-            return SemanticPatch.model_validate(data)
+            patch = SemanticPatch.model_validate(data)
+            self._verify_patch_evidence(patch)
+            return patch
 
         if not isinstance(data, dict) or not isinstance(data.get("claims"), list):
             raise ExtractionError(

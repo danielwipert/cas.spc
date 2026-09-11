@@ -13,7 +13,7 @@
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. The
-`TASKS.md` backlog is **done through T10** and is empty again.
+`TASKS.md` backlog is **done through T11** and is empty again.
 
 This session was the first to run a **real, non-demo document end to end
 through the live pipeline**. That test found a gap, the gap became T8, and T8
@@ -24,7 +24,7 @@ All four definition-of-done gates pass on a fresh clone:
 ```
 ruff check src tests   ->  All checks passed
 python -m mypy         ->  Success: no issues found in 68 source files
-pytest                 ->  281 passed
+pytest                 ->  287 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -105,7 +105,22 @@ The change invalidated the old retry cassette, which the staleness guard caught
 now proves the recovery on live output; a new German cassette restores
 failure-path coverage and pins the in-word boundary.
 
-### 5. Gate fix — `mypy` was environment-dependent
+### 5. T11 — closed the full-patch passthrough around the provenance check
+
+Found by re-running the Paramount PDF. `_assemble` passes a model-authored
+`SemanticPatch` straight to the validator, and T8's check lived in the assembly
+loop — so that way in never reached it, and the validator never sees the source
+document. Latent, not observed: every live run so far took the assembled path.
+
+Two halves, and the first alone did not work. Verifying the passed-through
+patch's evidence was not enough, because **the runtime decides by validating
+whatever text the operator returns**, and on rejection the operator returns the
+model's raw output — which on this path *is* a valid patch, so it committed
+anyway. Output that would itself parse as a patch is now returned wrapped, so
+the rejection survives the round trip and the path retries like the assembled
+one. Worth remembering when writing any operator.
+
+### 6. Gate fix — `mypy` was environment-dependent
 
 `from openai import OpenAI` carried an inline
 `type: ignore[import-not-found]`, required when the optional `openrouter` extra

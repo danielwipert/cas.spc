@@ -25,13 +25,19 @@ the same runtime and the same patch loop:
   Receipt, both projected from committed state. Needs `OPENROUTER_API_KEY`, and
   the run is non-deterministic by nature.
 
-All tasks T0–T10 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
+All tasks T0–T11 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
 signed off 2026-09-03 — see §V). The backlog there is currently empty; add a
 task before picking one up, and keep the invariants below intact.
 
 Note the T8 invariant when touching the LLM extract path: an `Evidence` quote
 must be locatable in the source document (`provenance.locate_span`), or the
-operator asks the model to re-quote rather than committing the citation.
+operator asks the model to re-quote rather than committing the citation. That
+holds on **both** ways in — assembled from compact content, or a full patch
+passed through (T11).
+
+Related trap: the runtime decides by validating the text an operator returns,
+so an operator cannot reject output by handing it back unchanged if that output
+would itself parse as a patch. See `_rejected_completion`.
 
 If you change an LLM operator's **prompt**, re-record the T9 cassette
 (`python tools/record_cassette.py record ...`, needs `OPENROUTER_API_KEY`).

@@ -224,6 +224,67 @@ def _run(root: Path, script: list[str]):
     return paths, result
 
 
+def _full_patch(quote: str, *, source_type: str = "input_document") -> str:
+    """A complete `SemanticPatch`, the shape a model sometimes returns unasked.
+
+    `_assemble` passes such a patch straight through rather than building one,
+    so this is the path that must not skip the provenance check.
+    """
+    now = "2026-06-26T00:00:00Z"
+    return json.dumps(
+        {
+            "patch_id": "patch_001",
+            "base_state_id": "sr_x",
+            "base_state_version": 0,
+            "proposed_by": "llm_extract_transform@0.1.0",
+            "created_at": now,
+            "read_set": [],
+            "add_objects": {
+                "claims": [
+                    {
+                        "id": "claim_001",
+                        "object_type": "claim",
+                        "text": "Remote work raises measured productivity.",
+                        "claim_type": "analytical_claim",
+                        "epistemic_status": "inferred",
+                        "confidence": 0.7,
+                        "status": "active",
+                        "supporting_evidence": ["ev_001"],
+                        "assumptions": [],
+                        "extracted_by": "transform_extract_001",
+                    }
+                ],
+                "evidence": [
+                    {
+                        "id": "ev_001",
+                        "object_type": "evidence",
+                        "source_type": source_type,
+                        "source_id": "doc_001",
+                        "quote_or_span": quote,
+                        "reliability": "high",
+                        "status": "active",
+                        "extracted_by": "transform_extract_001",
+                    }
+                ],
+            },
+            "transform_record": {
+                "id": "transform_extract_001",
+                "transform_type": "extract",
+                "operator": "llm_extract_transform",
+                "operator_version": "llm_extract_transform@0.1.0",
+                "input_state_version": 0,
+                "output_state_version": None,
+                "read_set": [],
+                "write_set": ["claim_001", "ev_001"],
+                "confidence_changes": [],
+                "started_at": now,
+                "finished_at": now,
+            },
+            "status": "proposed",
+        }
+    )
+
+
 GOOD_QUOTE = "Studies show a 13% productivity gain for routine tasks"
 FABRICATED = "Studies show a 40% productivity gain for routine tasks"
 
@@ -276,3 +337,75 @@ def test_located_quote_records_its_offsets(tmp_path: Path) -> None:
     start, end = evidence.location["start"], evidence.location["end"]
     assert isinstance(start, int) and isinstance(end, int)
     assert DOCUMENT[start:end] == GOOD_QUOTE
+
+
+# ---------------------------------------------------------------------------
+# the full-patch passthrough — the same rule, the other way in
+# ---------------------------------------------------------------------------
+
+
+def test_passthrough_patch_with_a_fabricated_quote_never_commits(
+    tmp_path: Path,
+) -> None:
+    """A model-authored patch must not smuggle an unverified citation through.
+
+    `_assemble` trusts such a patch's *shape* to the validator — but the
+    validator is never handed the source document, so without this check the
+    span would commit and render as provenance.
+    """
+    _, result = _run(tmp_path, [_full_patch(FABRICATED)])
+    final = result.final_state
+    assert final.state_version == 0
+    assert final.evidence == {}
+
+
+def test_passthrough_patch_is_retried_then_repaired(tmp_path: Path) -> None:
+    """Rejection feeds the same retry loop, so the model can re-quote."""
+    _, result = _run(tmp_path, [_full_patch(FABRICATED), _full_patch(GOOD_QUOTE)])
+    final = result.final_state
+    assert final.state_version == 1
+    assert [e.quote_or_span for e in final.evidence.values()] == [GOOD_QUOTE]
+
+
+def test_passthrough_patch_records_its_offsets(tmp_path: Path) -> None:
+    """The same guarantee as the assembled path: a citation you can resolve."""
+    _, result = _run(tmp_path, [_full_patch(GOOD_QUOTE)])
+    evidence = next(iter(result.final_state.evidence.values()))
+    start, end = int(evidence.location["start"]), int(evidence.location["end"])
+    assert DOCUMENT[start:end] == GOOD_QUOTE
+
+
+def test_passthrough_leaves_other_sources_alone(tmp_path: Path) -> None:
+    """Only spans claiming to come from *this* document are ours to verify.
+
+    Evidence citing an external source has no text here to check against, so it
+    passes through unverified rather than being rejected for the wrong reason.
+    """
+    _, result = _run(tmp_path, [_full_patch(FABRICATED, source_type="external_source")])
+    final = result.final_state
+    assert final.state_version == 1
+    evidence = next(iter(final.evidence.values()))
+    assert evidence.quote_or_span == FABRICATED
+    assert evidence.location == {}, "no offsets claimed for text we cannot see"
+
+
+def test_repair_hint_summarises_when_many_spans_fail(tmp_path: Path) -> None:
+    """Four offenders name three and count the rest — a hint, not a dump."""
+    quotes = [f"Studies show a {n}% productivity gain" for n in (40, 50, 60, 70)]
+    paths, _ = _run(tmp_path, [_payload(*quotes)])
+    audit = (paths.audit_dir / "audit_log.jsonl").read_text(encoding="utf-8")
+    hint = next(
+        json.loads(line)["repair_hint"]
+        for line in audit.splitlines()
+        if json.loads(line)["event"] == "patch.retry"
+    )
+    assert "4 evidence_quote value(s) do not appear" in hint
+    assert "and 1 more" in hint
+
+
+def test_passthrough_evidence_without_a_quote_is_skipped(tmp_path: Path) -> None:
+    """An empty span has nothing to locate, and is not an unlocatable one."""
+    _, result = _run(tmp_path, [_full_patch("   ")])
+    final = result.final_state
+    assert final.state_version == 1, "an empty quote is not a provenance failure"
+    assert next(iter(final.evidence.values())).location == {}

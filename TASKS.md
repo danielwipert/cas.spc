@@ -485,6 +485,58 @@ change. `spc-demo demo` re-run, `DEMO.md` byte-identical.
 
 ---
 
+## T11 — Close the full-patch passthrough around the provenance check · ✅ DONE
+
+**Why.** `_assemble` has a branch for output that is already a complete
+`SemanticPatch`: it hands the patch to the validator rather than building one.
+T8 put its check inside the assembly loop, so that branch never reached it —
+and the validator is never given the source document. A model returning a
+full patch could therefore commit a citation nobody had checked. Latent, not
+observed: every live run so far has taken the assembled path (its committed
+patch carries the assembler's own transform note).
+
+**Two halves, because the first alone did not work.**
+
+`_verify_patch_evidence` walks a passed-through patch's `add_objects.evidence`,
+locates each span claiming `source_type == "input_document"`, stamps the
+offsets exactly as the assembled path does, and raises `ExtractionError` for
+any that is unlocatable. Evidence citing another source is left alone — there
+is no text here to check it against, and rejecting it would be refusing it for
+the wrong reason. An empty quote is skipped rather than treated as a failure.
+
+That alone still committed the bad patch, which the tests caught. **The runtime
+decides by validating whatever text the operator returns**, and on rejection
+the operator returns the model's raw output — which, on this path, *is* a
+well-formed patch. The rejection was being silently undone. So output that
+would itself parse as a patch is now returned wrapped
+(`{"rejected_by_operator": ..., "model_output": ...}`): still verbatim, still
+the record of what the model proposed, but no longer mistakable for a proposal
+the operator accepted. It then fails L1 and retries, which is exactly how the
+assembled path already behaved — the two paths now agree rather than one being
+special.
+
+Output that does not parse as a patch is returned unchanged, as before, so the
+existing attempt records and the T9 cassettes are untouched.
+
+6 new tests: a fabricated span in a passed-through patch never commits; it
+retries and commits once re-quoted; a located one records resolvable offsets;
+another source type passes through unverified and unstamped; an empty quote is
+not a provenance failure; and a hint for four offenders names three and counts
+the rest. `extract_llm.py` coverage 96% -> 98% (the three lines left were
+already uncovered before this task).
+
+Verified by mutation: dropping the verification turns 3 tests red, and
+returning the rejected patch unwrapped turns 2 red — the second being the
+failure mode that made the naive fix look like it worked.
+
+**Invariants held.** No runtime or validator change; both paths still flow
+through validate -> route -> commit. A live `analyze` re-run over the Paramount
+PDF committed 10 claims, every span locating with offsets recorded, no retries.
+All three T9 cassettes still replay with no drift; `spc-demo demo` re-run,
+`DEMO.md` byte-identical.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)
