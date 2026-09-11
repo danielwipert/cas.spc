@@ -42,7 +42,16 @@ QUESTION = "What does this announcement establish, and what is uncertain?"
 def _record(args: argparse.Namespace) -> int:
     document = Path(args.input).read_text(encoding="utf-8")
     try:
-        live = OpenRouterProvider(model=args.model)
+        # `json_object` off is a real supported configuration, not a hack: the
+        # provider requests structured output because it is *broadly*, not
+        # universally, supported. Turning it off is how the pipeline behaves
+        # against a model that cannot honour it — and the only way to capture
+        # output the JSON_DECODE retry path exists for.
+        live = OpenRouterProvider(
+            model=args.model,
+            json_object=not args.no_json_object,
+            max_tokens=args.max_tokens,
+        )
     except OpenRouterConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -115,6 +124,20 @@ def main(argv: list[str] | None = None) -> int:
     rec.add_argument("--out", required=True, help="cassette path to write")
     rec.add_argument("--model", default=None, help="OpenRouter model slug")
     rec.add_argument("--note", default="", help="free-text note stored in the cassette")
+    rec.add_argument(
+        "--max-tokens",
+        type=int,
+        default=2048,
+        help=(
+            "completion token cap. Lower it to capture a truncated reply, the "
+            "commonest real cause of unparseable model output."
+        ),
+    )
+    rec.add_argument(
+        "--no-json-object",
+        action="store_true",
+        help="do not request structured output (captures unstructured replies)",
+    )
     rec.add_argument(
         "--allow-uncommitted",
         action="store_true",

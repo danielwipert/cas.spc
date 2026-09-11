@@ -11,7 +11,7 @@ invisible to mock-driven tests and obvious the first time a real document went
 through. `test_every_committed_quote_locates_in_the_document` is the guard
 that would have caught it.
 
-Three cassettes, because a harness that only ever records success proves only
+Four cassettes, because a harness that only ever records success proves only
 that the happy path works:
 
 - `analyze_five_stage.json` — a clean run, every stage committing first time.
@@ -24,6 +24,11 @@ that the happy path works:
   break ("ausserplan-maessige"), which the model quotes joined. Dropping a
   hyphen that is part of a word is an alteration, not a transport artifact, so
   it is refused and the extractor retries.
+- `analyze_truncated.json` — a failure that never recovers. Recorded with a low
+  token cap, so the reply is cut off mid-string: truncation is the commonest
+  real cause of output the JSON_DECODE retry path exists for. All three extract
+  attempts fail, that step commits nothing, and the run carries on to project a
+  memo from empty state.
 
 Re-record either with `tools/record_cassette.py` (see that script's docstring).
 """
@@ -58,6 +63,10 @@ HYPHEN_CASSETTE_PATH = FIXTURES / "cassettes" / "analyze_hyphenated.json"
 
 RETRY_DOCUMENT_PATH = FIXTURES / "live_document_german.txt"
 RETRY_CASSETTE_PATH = FIXTURES / "cassettes" / "analyze_retry_path.json"
+
+# Recorded from the same document as the five-stage cassette, so the token cap
+# that truncated it is the only variable between them.
+TRUNCATED_CASSETTE_PATH = FIXTURES / "cassettes" / "analyze_truncated.json"
 
 QUESTION = "What does this announcement establish, and what is uncertain?"
 
@@ -108,8 +117,9 @@ def _replay(
         (CASSETTE_PATH, DOCUMENT_PATH),
         (HYPHEN_CASSETTE_PATH, HYPHEN_DOCUMENT_PATH),
         (RETRY_CASSETTE_PATH, RETRY_DOCUMENT_PATH),
+        (TRUNCATED_CASSETTE_PATH, DOCUMENT_PATH),
     ],
-    ids=["five_stage", "hyphenated", "retry_path"],
+    ids=["five_stage", "hyphenated", "retry_path", "truncated"],
 )
 def test_cassette_is_recorded_from_its_document(
     cassette_path: Path, document_path: Path
@@ -356,6 +366,133 @@ def test_every_retry_attempt_is_billed(tmp_path: Path, retry_document: str) -> N
 
 
 # ---------------------------------------------------------------------------
+# output that never parses: a failure with no recovery
+# ---------------------------------------------------------------------------
+
+
+def _replay_truncated(tmp_path: Path, document: str, run_id: str = "truncated"):
+    return _replay(tmp_path, document, run_id=run_id, cassette=TRUNCATED_CASSETTE_PATH)
+
+
+def test_the_recorded_replies_really_are_unparseable(document: str) -> None:
+    """Guards the fixture itself, not the code.
+
+    If a re-record ever captured parseable output here, every test below would
+    pass while proving nothing. The three extract attempts must genuinely fail
+    to parse.
+    """
+    attempts = Cassette.load(TRUNCATED_CASSETTE_PATH).exchanges[:3]
+    assert len(attempts) == 3
+    for exchange in attempts:
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(exchange.response_text)
+
+
+def test_unparseable_output_exhausts_the_retries_and_commits_nothing(
+    tmp_path: Path, document: str
+) -> None:
+    """The JSON_DECODE path on real output, driven to the end of its rope.
+
+    Mock payloads cover prose that cannot parse. This is a model's own reply,
+    cut off mid-string by the token cap — the commonest way real output fails
+    to parse — and it fails all three times.
+    """
+    provider, _, result = _replay_truncated(tmp_path, document)
+
+    extract = result.run.steps[0]
+    assert extract.attempts == 3, "every attempt was spent"
+    assert extract.next_state is None, "the step committed nothing"
+    assert extract.patch is None, "no attempt even parsed into a patch"
+
+    final = result.run.final_state
+    assert final.claims == {} and final.evidence == {}
+    assert provider.exhausted
+
+
+def test_the_run_survives_an_extraction_that_never_committed(
+    tmp_path: Path, document: str
+) -> None:
+    """A failed first stage must not take the run down with it.
+
+    The later operators still run, against empty state, and commit — so the
+    final version reflects four committed steps rather than five.
+    """
+    _, _, result = _replay_truncated(tmp_path, document)
+    committed = [s for s in result.run.steps if s.next_state is not None]
+    assert len(committed) == 4, "everything except the extraction committed"
+    assert result.run.final_state.state_version == 4
+
+
+def test_the_memo_invents_no_findings_from_an_empty_state(
+    tmp_path: Path, document: str
+) -> None:
+    """What the *code* guarantees when the extraction produced nothing.
+
+    The writer projects only what state holds, so with no claims and no
+    evidence it must render neither — and say so — rather than filling the
+    sections from anywhere else. These strings all come from `memo.py`.
+    """
+    _, _, result = _replay_truncated(tmp_path, document)
+    assert result.memo_path is not None
+    memo = result.memo_path.read_text(encoding="utf-8")
+
+    assert "0 claims, 0 evidence spans" in memo
+    assert "- _No claims were extracted._" in memo
+    assert "- _No evidence spans were recorded._" in memo
+    # No citation can appear when no evidence exists.
+    assert "[E1]" not in memo
+
+
+def test_the_recorded_planner_hedged_rather_than_inventing_a_recommendation(
+    tmp_path: Path, document: str
+) -> None:
+    """What the *model* did, which is a separate thing and worth pinning apart.
+
+    Handed an empty state, the planner proposed "no recommended course of
+    action due to insufficient data" at zero confidence. That hedge is the
+    model's, not a guarantee of this code: the recommendation line renders
+    whatever hypothesis was committed. Pinned so that a re-record which starts
+    asserting something confident out of nothing is visible rather than
+    silently shipped in a memo.
+    """
+    _, _, result = _replay_truncated(tmp_path, document)
+    memo = result.memo_path.read_text(encoding="utf-8") if result.memo_path else ""
+
+    lead = max(result.run.final_state.hypotheses.values(), key=lambda h: h.confidence)
+    assert lead.confidence == 0.0
+    assert lead.supporting_claims == []
+    assert "insufficient data" in lead.text
+    assert "_Confidence: 0%._" in memo
+
+
+def test_three_billed_attempts_are_missing_from_the_ledger(
+    tmp_path: Path, document: str
+) -> None:
+    """A documented T5 boundary, shown with real money rather than asserted.
+
+    The ledger has one row per `TransformRecord`, and a step that never
+    committed a patch produces none — so these three real, billed calls appear
+    nowhere. Pinned so that closing the gap (attempt-level accounting) is a
+    deliberate change with a test to update, not a silent one.
+    """
+    _, _, result = _replay_truncated(tmp_path, document)
+    ledger = result.cost_ledger
+    assert ledger is not None
+
+    operators = {entry.operator for entry in ledger.entries}
+    assert "llm_extract_transform" not in operators
+
+    spent = sum(
+        x.usage.prompt_tokens + x.usage.completion_tokens
+        for x in Cassette.load(TRUNCATED_CASSETTE_PATH).exchanges[:3]
+        if x.usage is not None
+    )
+    assert spent > 0, "the attempts really did cost tokens"
+    assert ledger.total_tokens > 0
+    assert spent not in {e.total_tokens for e in ledger.entries}
+
+
+# ---------------------------------------------------------------------------
 # cassette mechanics
 # ---------------------------------------------------------------------------
 
@@ -388,8 +525,9 @@ def test_drift_is_reported_but_not_fatal(document: str) -> None:
         (CASSETTE_PATH, DOCUMENT_PATH),
         (HYPHEN_CASSETTE_PATH, HYPHEN_DOCUMENT_PATH),
         (RETRY_CASSETTE_PATH, RETRY_DOCUMENT_PATH),
+        (TRUNCATED_CASSETTE_PATH, DOCUMENT_PATH),
     ],
-    ids=["five_stage", "hyphenated", "retry_path"],
+    ids=["five_stage", "hyphenated", "retry_path", "truncated"],
 )
 def test_committed_cassettes_match_the_current_prompts(
     tmp_path: Path, cassette_path: Path, document_path: Path
