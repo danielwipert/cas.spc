@@ -1,0 +1,78 @@
+{
+  "document_sha256": "4f7ca704168c51918ec1a0a219b1192bebeffcd1b92f7187728ca5e2c24ae684",
+  "exchanges": [
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "27317e2b351a08e0a7b223f105ebd509ef0c0a14caed5c289e0869924ff53874",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"The audit committee concluded that a material impairment charge is required for the company's western interconnect transmission assets.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"On May 29, 2026, the audit committee concluded that a material impairment charge is required with respect to the company's western interconnect transmission assets.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company estimates a pre-tax non-cash charge of between $310 million and $340 million for the second quarter of fiscal 2026.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The company estimates a pre-tax non-cash charge of between $310 million and $340 million, to be recorded in the second quarter of fiscal 2026.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The impairment charge will not result in future cash expenditures.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The company does not expect the charge to result in future cash expenditures.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The impairment follows the state utility commission's denial of recovery of approximately $270 million in deferred capital costs.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The impairment follows the state utility commission's May 21 order denying recovery of approximately $270 million in deferred capital costs.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company intends to seek rehearing, but there is no assurance it will be granted.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"speculative\",\n      \"confidence\": 0.7,\n      \"evidence_quote\": \"The company intends to seek rehearing, and no assurance can be given that such rehearing will be granted.\",\n      \"evidence_reliability\": \"medium\",\n      \"assumption\": \"The rehearing process will follow standard legal procedures.\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"Management reaffirmed full-year adjusted earnings guidance of $3.05 to $3.20 per share, excluding the impairment charge.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Management reaffirmed full-year adjusted earnings guidance of $3.05 to $3.20 per share, which excludes the impairment charge.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company's debt covenants are calculated on an adjusted basis and are not expected to be affected by the impairment.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Management also noted that the company's debt covenants are calculated on an adjusted basis and are not expected to be affected.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The company's chief financial officer will depart effective July 31, 2026, and a search for a successor is underway.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Separately, the company disclosed that its chief financial officer will depart effective July 31, 2026, and that a search for a successor is underway.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The CFO's departure is unrelated to the impairment or any disagreement on accounting matters.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The company stated that the departure is unrelated to the impairment or to any disagreement on accounting matters.\",\n      \"evidence_reliability\": \"high\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1092,
+        "prompt_tokens": 582
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "ec8727b5e12aaad087c3d3c5af6a07b209ec6e347d28685c25a99d58dc4b9f11",
+      "response_text": "{\n  \"hypothesis\": {\n    \"text\": \"Proceed with the material impairment charge for the western interconnect transmission assets as concluded by the audit committee.\",\n    \"confidence\": 1.00,\n    \"supporting_claims\": [\"claim_001\", \"claim_003\"]\n  },\n  \"questions\": [\n    {\n      \"text\": \"What is the exact amount of the pre-tax non-cash charge for the second quarter of fiscal 2026?\",\n      \"priority\": \"medium\",\n      \"linked_claims\": [\"claim_002\"]\n    }\n  ],\n  \"dependencies\": [\n    { \"claim\": \"claim_005\", \"assumption\": \"assumption_001\" }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 150,
+        "prompt_tokens": 562
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "39fa5e9aa0e248ee145a6ad3eecc6cebd449865dc53f84b4fb316cb824bea49c",
+      "response_text": "{\n  \"confidence_updates\": [\n    {\n      \"claim\": \"claim_005\",\n      \"new_confidence\": 0.50,\n      \"reason\": \"The claim is speculative and lacks concrete evidence to support the assertion.\"\n    }\n  ],\n  \"questions\": [\n    {\n      \"text\": \"What factors influence the likelihood of rehearing being granted?\",\n      \"priority\": \"medium\",\n      \"challenges_claim\": \"claim_005\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 102,
+        "prompt_tokens": 255
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "ceb710a77cc9dcc9e06fa394fcaeb326edfdd54dfe110de3f54fc9fa48b6f0ed",
+      "response_text": "{\n  \"contradictions\": []\n}",
+      "usage": {
+        "completion_tokens": 10,
+        "prompt_tokens": 670
+      }
+    }
+  ],
+  "model": "deepseek/deepseek-chat",
+  "note": "Hyphenated at line ends (PDF artifact). The model de-hyphenates when quoting; locate_span reads the hyphen both ways, so every span still resolves.",
+  "provider": "openrouter",
+  "recorded_at": "2026-09-11T00:21:03.251657Z",
+  "version": 1
+}

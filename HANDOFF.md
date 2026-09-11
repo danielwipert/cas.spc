@@ -6,14 +6,14 @@
 > never append. The durable record lives in git history, `ROADMAP.md`, and
 > `TASKS.md` — not here.
 
-**Last session:** 2026-09-10 · **Branch:** `claude/fervent-franklin-k6nffp`
+**Last session:** 2026-09-11 · **Branch:** `claude/fervent-franklin-k6nffp`
 
 ---
 
 ## Where things stand
 
 Roadmap complete through **Phase 9**; all three milestones shipped. The
-`TASKS.md` backlog is **done through T9** and is empty again.
+`TASKS.md` backlog is **done through T10** and is empty again.
 
 This session was the first to run a **real, non-demo document end to end
 through the live pipeline**. That test found a gap, the gap became T8, and T8
@@ -24,7 +24,7 @@ All four definition-of-done gates pass on a fresh clone:
 ```
 ruff check src tests   ->  All checks passed
 python -m mypy         ->  Success: no issues found in 68 source files
-pytest                 ->  272 passed
+pytest                 ->  281 passed
 spc-demo demo          ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -70,11 +70,12 @@ and no network. **Two committed cassettes**, both real
 `deepseek/deepseek-chat` runs over authored fixture documents:
 
 - `analyze_five_stage.json` — the clean path, every stage first time.
-- `analyze_retry_path.json` — the **failure path**. The document is hyphenated
-  at line ends (as PDF extraction of justified text is); the model
-  de-hyphenates when quoting, T8 refuses the spans, and the extractor really
-  retries twice — 10 claims proposed, then 6, then 5 that all locate. Coverage
-  traded for provenance, on real output.
+- `analyze_hyphenated.json` — a document hyphenated at line ends. Since T10
+  every span resolves and nothing is lost; before it, this same document cost
+  half its claims.
+- `analyze_retry_path.json` — the **failure path**: a German filing whose
+  in-word hyphen the model drops when quoting. Refused, retried, then quoted
+  correctly. Pins the boundary of T10's leniency.
 
 Exhaustion raises rather than repeating; document identity is verified; prompt
 drift is *reported*, not fatal, because a contributor without a key cannot
@@ -85,7 +86,26 @@ re-record. Re-record or inspect drift with `tools/record_cassette.py`.
 the one thing the mock-driven suite provably cannot see (verified by mutation:
 a one-line prompt change is invisible to all 252 other tests).
 
-### 4. Gate fix — `mypy` was environment-dependent
+### 4. T10 — soft-hyphen handling in `locate_span`
+
+The failure-path cassette had put a number on it: line-end hyphenation cost a
+document half its claims. `locate_span` now tries three readings of a hyphen
+that sits against a break — as written, joined away, or kept with the break
+closed — because the ambiguity is real (`impair-\nment` vs `pre-\ntax`) and
+undecidable without a dictionary. Applied symmetrically to document and quote;
+`keep` is tried first.
+
+Two boundaries, both found empirically: a hyphen must be **attached to the
+preceding word** (an adversarial sweep caught the join reading erasing a
+standalone em dash — 4 wrongly accepted spans, now 0), and an in-word hyphen on
+a single line is **not** forgiven (dropping it alters the source).
+
+The change invalidated the old retry cassette, which the staleness guard caught
+— exactly what that guard is for. `analyze_hyphenated.json` was re-recorded and
+now proves the recovery on live output; a new German cassette restores
+failure-path coverage and pins the in-word boundary.
+
+### 5. Gate fix — `mypy` was environment-dependent
 
 `from openai import OpenAI` carried an inline
 `type: ignore[import-not-found]`, required when the optional `openrouter` extra
@@ -98,19 +118,15 @@ the extra. This mattered because working on T8 requires installing that extra.
 
 **The `TASKS.md` backlog is empty.** Nothing is queued. Options, none urgent:
 
-- **Soft-hyphen handling in `provenance.locate_span`.** The failure-path
-  cassette makes a real cost visible: a document hyphenated at line ends cost
-  half its claims (10 proposed -> 5 committed), purely from a formatting
-  artifact. Joining `"impair-\nment"` into `"impairment"` would recover them,
-  but it is a genuine semantic decision, not an obvious win — a hyphen at a
-  line end may be part of a real compound ("pre-tax"), and there is no reliable
-  way to tell without a dictionary. Today's conservative behaviour (reject, ask
-  the model to re-quote) is defensible and now pinned by a test; changing it
-  should be a deliberate call, and the cassette would need re-recording.
 - **A prose or fabrication cassette.** The retry cassette covers rejection by
-  provenance. A model returning prose (JSON_DECODE) or inventing a span
-  outright is still only mock-driven — the OpenRouter provider requests
-  `json_object`, so prose is hard to elicit deliberately.
+  provenance (an in-word hyphen the model dropped). A model returning prose
+  (JSON_DECODE) or inventing a span outright is still only mock-driven — the
+  OpenRouter provider requests `json_object`, so prose is hard to elicit
+  deliberately.
+- **Cache the normalized document in `locate_span`.** It now normalizes the
+  document up to three times per call, once per hyphenation reading, and the
+  extractor calls it once per quote. Irrelevant at fixture size; worth a
+  memo-ised form before anyone runs a book-length input through it.
 - **Attempt-level cost accounting** (the T5 follow-on): tokens spent on a step
   that never produced a patch at all are not currently reconciled. T8 makes
   this more likely to matter — a rejected extraction now burns up to 3 billed

@@ -25,7 +25,7 @@ the same runtime and the same patch loop:
   Receipt, both projected from committed state. Needs `OPENROUTER_API_KEY`, and
   the run is non-deterministic by nature.
 
-All tasks T0–T9 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
+All tasks T0–T10 in [`TASKS.md`](./TASKS.md) are done, T6 included (⚠
 signed off 2026-09-03 — see §V). The backlog there is currently empty; add a
 task before picking one up, and keep the invariants below intact.
 

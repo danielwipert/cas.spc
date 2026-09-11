@@ -436,6 +436,55 @@ the existing `LLMProvider` seam. Replay is offline and deterministic.
 
 ---
 
+## T10 — Soft-hyphen handling in `locate_span` · ✅ DONE
+
+**Why.** The T9 failure-path cassette put a number on a boundary T8 had left
+open: a document hyphenated at line ends — what PDF extraction of justified
+text produces — cost **half its claims** (10 proposed, 5 committed) because the
+model de-hyphenates when it quotes and `locate_span` refused every such span.
+
+**Tried both ways rather than guessed.** A hyphen before a break is genuinely
+ambiguous: a soft one splitting a word (`impair-\nment` -> `impairment`) or a
+real one in a compound that happened to wrap (`pre-\ntax` -> `pre-tax`).
+Nothing short of a dictionary separates them, so `locate_span` now seeks a
+quote under each reading in turn — `keep` (as written), `join` (hyphen and
+break dropped), `rejoin` (hyphen kept, break closed) — applied symmetrically to
+document and quote, `keep` first so an unambiguous quote pays nothing for the
+ambiguity. Any reading that resolves is a faithful rendering of the same text;
+none drops, adds, or reorders a word. U+00AD is folded away outright, being a
+discretionary break rather than part of a word.
+
+**Two boundaries, both found empirically and both tested.**
+
+- *A hyphen must be attached to the preceding word.* An adversarial sweep over
+  the three fixture documents (102 altered spans: dropped, swapped, added
+  words, changed digits) found 4 wrongly accepted — all a standalone em dash
+  between spaces, erased by the join reading, so a quote could drop or move it.
+  Requiring a word character against the hyphen closed all 4; the sweep is now
+  clean, and the case is pinned by a test.
+- *A hyphen inside a word on one line is not forgiven.* Quoting
+  `ausserplanmaessige` for `ausserplan-maessige` drops a character the source
+  contains. A real model did exactly this, and it is now the T9 failure-path
+  cassette.
+
+**Cassette fallout, which is the harness working.** The change made the old
+retry cassette misaligned — the extract step no longer needs its two rejected
+attempts, so replay handed later stages the wrong recordings, and the staleness
+guard caught it. `analyze_hyphenated.json` was re-recorded and now proves the
+recovery on fresh live output (9 claims, first attempt, no retry, every span
+resolving). A new German-language cassette restores the failure-path coverage
+the change removed, and pins the in-word-hyphen boundary above.
+
+7 new tests (4 unit, 3 replay), 100% coverage of `provenance.py` retained. A
+now-unreachable empty-needle branch was removed rather than left uncovered.
+Verified by mutation: collapsing the readings back to `keep` alone turns 5
+tests red across both layers.
+
+**Invariants held.** Pure, offline, deterministic; no operator or runtime
+change. `spc-demo demo` re-run, `DEMO.md` byte-identical.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

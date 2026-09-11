@@ -69,6 +69,65 @@ def test_quote_truncated_at_a_comma_locates() -> None:
     assert DOCUMENT[match.start : match.end].endswith("routine tasks")
 
 
+def test_line_end_hyphenation_locates_however_it_is_quoted() -> None:
+    """PDF extraction of justified text splits words at line ends.
+
+    The same document text must be findable whether the model joins the word,
+    copies the hyphen and break literally, or copies it with the break already
+    collapsed to a space.
+    """
+    document = "a material impair-\nment charge was recorded"
+    for quote in (
+        "a material impairment charge",
+        "a material impair-\nment charge",
+        "a material impair- ment charge",
+    ):
+        match = locate_span(quote, document)
+        assert match is not None, quote
+        # Offsets point at the document's own text, hyphen and break intact.
+        assert document[match.start : match.end] == "a material impair-\nment charge"
+
+
+def test_a_real_hyphen_that_wrapped_still_locates() -> None:
+    """The ambiguous case that rules out simply joining every line-end hyphen.
+
+    "pre-\ntax" is a compound that happened to wrap, not a split word, and a
+    model quotes it "pre-tax". Both readings are tried, so both resolve.
+    """
+    assert locate_span("a pre-tax non-cash charge", "a pre-\ntax non-cash charge") is not None
+    assert locate_span("a pretax non-cash charge", "a pre-\ntax non-cash charge") is not None
+
+
+def test_soft_hyphen_character_is_ignored() -> None:
+    """U+00AD is a discretionary break, never part of the word."""
+    assert locate_span("impairment charge", "impair\u00adment charge") is not None
+
+
+def test_a_standalone_dash_is_never_erased() -> None:
+    """A hyphen must be attached to a word to count as a line-end split.
+
+    Found by an adversarial sweep: without this, the join reading erased a
+    standalone dash, so a quote that dropped or moved it still matched. A dash
+    between spaces separates clauses and is content.
+    """
+    document = "MERIDIAN GRID CORPORATION - CURRENT REPORT filed today"
+    assert locate_span("MERIDIAN GRID CORPORATION CURRENT REPORT", document) is None
+    assert locate_span("MERIDIAN GRID - CORPORATION CURRENT REPORT", document) is None
+    assert locate_span("MERIDIAN GRID CORPORATION - CURRENT REPORT", document) is not None
+
+
+def test_an_in_word_hyphen_is_not_dropped() -> None:
+    """The boundary: leniency covers breaks, not hyphens inside a word.
+
+    Nothing marks "ausserplan-maessige" as split — no break follows the hyphen —
+    so quoting it joined drops a character the source contains. A real recorded
+    model did exactly this; see `tests/test_live_replay.py`.
+    """
+    document = "eine ausserplan-maessige Wertberichtigung"
+    assert locate_span("eine ausserplanmaessige Wertberichtigung", document) is None
+    assert locate_span("eine ausserplan-maessige Wertberichtigung", document) is not None
+
+
 def test_fabricated_quote_does_not_locate() -> None:
     assert locate_span("Studies show a 40% productivity gain", DOCUMENT) is None
     assert locate_span("Leadership plans to grow headcount", DOCUMENT) is None
@@ -102,6 +161,16 @@ def test_locate_span_answers_presence_only() -> None:
 def test_case_change_does_not_locate() -> None:
     """Case is content, not transport — deliberately not normalized."""
     assert locate_span("STUDIES SHOW A 13% PRODUCTIVITY GAIN", DOCUMENT) is None
+
+
+def test_a_quote_that_is_only_a_dangling_hyphen() -> None:
+    """Under the join reading this normalizes to nothing, which must never match.
+
+    It still resolves against a document that really contains a dash — the
+    presence-only boundary documented above, the same as a lone ".".
+    """
+    assert locate_span("- ", "a document with no dashes at all") is None
+    assert locate_span("- ", "a document with a - dash in it") is not None
 
 
 def test_empty_quote_never_locates() -> None:

@@ -11,14 +11,19 @@ invisible to mock-driven tests and obvious the first time a real document went
 through. `test_every_committed_quote_locates_in_the_document` is the guard
 that would have caught it.
 
-Two cassettes, because a harness that only ever records success proves only
+Three cassettes, because a harness that only ever records success proves only
 that the happy path works:
 
 - `analyze_five_stage.json` — a clean run, every stage committing first time.
-- `analyze_retry_path.json` — a real failure and recovery. The document is
-  hyphenated at line ends (what PDF extraction of justified text produces), the
-  model de-hyphenates when it quotes, T8 refuses the unlocatable spans, and the
-  extractor retries twice before committing only the claims it can source.
+- `analyze_hyphenated.json` — a document hyphenated at line ends, the way PDF
+  extraction of justified text is. The model de-hyphenates when it quotes;
+  `locate_span` reads such a hyphen both ways, so every span still resolves.
+  Before that rule existed this same document cost half its claims.
+- `analyze_retry_path.json` — a real failure and recovery, and the **boundary**
+  of that leniency. A German filing carries an in-word hyphen with no line
+  break ("ausserplan-maessige"), which the model quotes joined. Dropping a
+  hyphen that is part of a word is an alteration, not a transport artifact, so
+  it is refused and the extractor retries.
 
 Re-record either with `tools/record_cassette.py` (see that script's docstring).
 """
@@ -48,7 +53,10 @@ FIXTURES = Path(__file__).parent / "fixtures"
 DOCUMENT_PATH = FIXTURES / "live_document.txt"
 CASSETTE_PATH = FIXTURES / "cassettes" / "analyze_five_stage.json"
 
-RETRY_DOCUMENT_PATH = FIXTURES / "live_document_hyphenated.txt"
+HYPHEN_DOCUMENT_PATH = FIXTURES / "live_document_hyphenated.txt"
+HYPHEN_CASSETTE_PATH = FIXTURES / "cassettes" / "analyze_hyphenated.json"
+
+RETRY_DOCUMENT_PATH = FIXTURES / "live_document_german.txt"
 RETRY_CASSETTE_PATH = FIXTURES / "cassettes" / "analyze_retry_path.json"
 
 QUESTION = "What does this announcement establish, and what is uncertain?"
@@ -62,6 +70,11 @@ def document() -> str:
 @pytest.fixture
 def retry_document() -> str:
     return RETRY_DOCUMENT_PATH.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def hyphen_document() -> str:
+    return HYPHEN_DOCUMENT_PATH.read_text(encoding="utf-8")
 
 
 def _clock() -> FixedClock:
@@ -93,9 +106,10 @@ def _replay(
     ("cassette_path", "document_path"),
     [
         (CASSETTE_PATH, DOCUMENT_PATH),
+        (HYPHEN_CASSETTE_PATH, HYPHEN_DOCUMENT_PATH),
         (RETRY_CASSETTE_PATH, RETRY_DOCUMENT_PATH),
     ],
-    ids=["five_stage", "retry_path"],
+    ids=["five_stage", "hyphenated", "retry_path"],
 )
 def test_cassette_is_recorded_from_its_document(
     cassette_path: Path, document_path: Path
@@ -196,6 +210,69 @@ def test_cost_ledger_counts_the_recorded_usage(tmp_path: Path, document: str) ->
 
 
 # ---------------------------------------------------------------------------
+# hyphenation: the artifact that once cost half a document's claims
+# ---------------------------------------------------------------------------
+
+
+def _replay_hyphenated(tmp_path: Path, document: str, run_id: str = "hyphen"):
+    return _replay(tmp_path, document, run_id=run_id, cassette=HYPHEN_CASSETTE_PATH)
+
+
+def test_line_end_hyphenation_no_longer_costs_claims(
+    tmp_path: Path, hyphen_document: str
+) -> None:
+    """The soft-hyphen rule, measured on real output rather than asserted.
+
+    This document is hyphenated at line ends the way PDF extraction of
+    justified text is. Before `locate_span` read such a hyphen both ways, a
+    recorded run over it proposed 10 claims, was rejected twice, and committed
+    5. Now the extraction commits first time with nothing dropped.
+    """
+    provider, _, result = _replay_hyphenated(tmp_path, hyphen_document)
+
+    extract = result.run.steps[0]
+    assert extract.attempts == 1, "no retry: every span resolves on the first pass"
+    assert result.run.final_state.state_version == 5
+    assert provider.exhausted
+
+    proposed = json.loads(
+        Cassette.load(HYPHEN_CASSETTE_PATH).exchanges[0].response_text
+    )["claims"]
+    assert len(result.run.final_state.claims) == len(proposed), (
+        "every proposed claim should survive — none lost to hyphenation"
+    )
+
+
+def test_dehyphenated_quotes_resolve_to_the_hyphenated_source(
+    tmp_path: Path, hyphen_document: str
+) -> None:
+    """The rule is load-bearing here, and the offsets still point at real text.
+
+    At least one committed quote must differ from the document by exactly the
+    hyphenation — otherwise this fixture is not exercising the rule at all, and
+    the guard above would pass for the wrong reason.
+    """
+    _, _, result = _replay_hyphenated(tmp_path, hyphen_document)
+    evidence = list(result.run.final_state.evidence.values())
+    assert evidence
+
+    dehyphenated = 0
+    for item in evidence:
+        assert locate_span(item.quote_or_span, hyphen_document) is not None
+        start, end = item.location["start"], item.location["end"]
+        span = hyphen_document[int(start) : int(end)]
+        # The recorded span is the *document's* text, hyphen and line break intact.
+        if "-\n" in span:
+            dehyphenated += 1
+            assert "-\n" not in item.quote_or_span, "the model quoted it joined"
+
+    assert dehyphenated, (
+        "no committed quote spans a line-end hyphen — re-record against a "
+        "document whose hyphenation a model actually joins, or this proves nothing"
+    )
+
+
+# ---------------------------------------------------------------------------
 # the failure path: real rejection, real repair
 # ---------------------------------------------------------------------------
 
@@ -204,41 +281,50 @@ def _replay_retry(tmp_path: Path, document: str, run_id: str = "retry"):
     return _replay(tmp_path, document, run_id=run_id, cassette=RETRY_CASSETTE_PATH)
 
 
-def test_retry_loop_runs_on_real_rejected_output(
-    tmp_path: Path, retry_document: str
-) -> None:
-    """The recorded model really did fail T8 twice before quoting the document.
+def test_in_word_hyphen_is_not_forgiven(tmp_path: Path, retry_document: str) -> None:
+    """The boundary of the soft-hyphen rule, on output a model really produced.
 
-    Mock payloads exercise the retry loop only with failures someone wrote on
-    purpose. This is a model failing on its own, at a formatting artifact
-    (hyphenation at line ends) nobody would think to hand-write.
+    A hyphen against a line break is a transport artifact and is read both ways.
+    A hyphen inside a word on a single line is part of the word: quoting
+    "ausserplanmaessige" for "ausserplan-maessige" drops a character the source
+    contains, so it is refused — and the model, told which span failed, quotes
+    it correctly on the retry.
     """
     provider, _, result = _replay_retry(tmp_path, retry_document)
 
     extract = result.run.steps[0]
-    assert extract.attempts == 3, "two rejected attempts, then one that committed"
-    assert extract.next_state is not None, "the third attempt committed"
-    assert result.run.final_state.state_version == 5, "the run still completed"
+    assert extract.attempts == 2, "one rejected attempt, then one that committed"
+    assert extract.next_state is not None
+    assert result.run.final_state.state_version == 5
     assert provider.exhausted
 
+    # The offending span really is present in the first attempt and gone after.
+    first = json.loads(
+        Cassette.load(RETRY_CASSETTE_PATH).exchanges[0].response_text
+    )["claims"]
+    rejected = [
+        c["evidence_quote"]
+        for c in first
+        if locate_span(c["evidence_quote"], retry_document) is None
+    ]
+    assert rejected, "attempt 1 must really have contained an unlocatable span"
+    committed = {e.quote_or_span for e in result.run.final_state.evidence.values()}
+    assert not (committed & set(rejected))
 
-def test_rejected_attempts_stay_on_the_record(
+
+def test_rejected_attempt_stays_on_the_record(
     tmp_path: Path, retry_document: str
 ) -> None:
     """A rejected proposal is evidence of how the state got here (AGENTS.md III)."""
     _, paths, _ = _replay_retry(tmp_path, retry_document)
     attempts = sorted(p.name for p in paths.patches_dir.glob("attempt_001_*.txt"))
-    assert attempts == [
-        "attempt_001_01.txt",
-        "attempt_001_02.txt",
-        "attempt_001_03.txt",
-    ]
-    # The first attempt's de-hyphenated quotes are preserved verbatim, not erased.
-    first = paths.patch_attempt_file(1, 1).read_text(encoding="utf-8")
-    assert "impairment charge is required" in first
+    assert attempts == ["attempt_001_01.txt", "attempt_001_02.txt"]
+    assert "ausserplanmaessige" in paths.patch_attempt_file(1, 1).read_text(
+        encoding="utf-8"
+    ), "the model's joined spelling is preserved verbatim, not erased"
 
 
-def test_the_repair_hint_named_real_unlocatable_spans(
+def test_the_repair_hint_named_a_real_unlocatable_span(
     tmp_path: Path, retry_document: str
 ) -> None:
     """What the model was actually told, on output it actually produced."""
@@ -249,50 +335,18 @@ def test_the_repair_hint_named_real_unlocatable_spans(
         for line in audit.splitlines()
         if json.loads(line)["event"] == "patch.retry"
     ]
-    assert len(retries) == 2
-    for entry in retries:
-        assert "do not appear in the document" in entry["repair_hint"]
-
-
-def test_only_sourceable_claims_survive_the_failure_path(
-    tmp_path: Path, retry_document: str
-) -> None:
-    """The point of T8, shown end to end: fewer claims, every one verifiable.
-
-    The model first proposed 10 claims and committed 5. Coverage was traded for
-    provenance — which is the trade this engine exists to make.
-    """
-    _, _, result = _replay_retry(tmp_path, retry_document)
-    final = result.run.final_state
-
-    proposed = json.loads(
-        Cassette.load(RETRY_CASSETTE_PATH).exchanges[0].response_text
-    )["claims"]
-    assert len(final.claims) < len(proposed), "unsourceable claims must not survive"
-    assert final.evidence, "what did commit still carries citations"
-    for eid, item in final.evidence.items():
-        assert locate_span(item.quote_or_span, retry_document) is not None, eid
-
-    # The spans rejected on attempt 1 are absent from committed state.
-    committed = {e.quote_or_span for e in final.evidence.values()}
-    rejected = {
-        c["evidence_quote"]
-        for c in proposed
-        if locate_span(c["evidence_quote"], retry_document) is None
-    }
-    assert rejected, "attempt 1 must really have contained unlocatable spans"
-    assert not (committed & rejected)
+    assert len(retries) == 1
+    assert "do not appear in the document" in retries[0]["repair_hint"]
 
 
 def test_every_retry_attempt_is_billed(tmp_path: Path, retry_document: str) -> None:
-    """T5: a retry is a real call. All three attempts must reach the ledger."""
+    """T5: a retry is a real call. Both attempts must reach the ledger."""
     _, _, result = _replay_retry(tmp_path, retry_document)
     ledger = result.cost_ledger
     assert ledger is not None
     extract = next(e for e in ledger.entries if e.operator == "llm_extract_transform")
 
-    # The three recorded extract attempts, summed straight from the cassette.
-    recorded = Cassette.load(RETRY_CASSETTE_PATH).exchanges[:3]
+    recorded = Cassette.load(RETRY_CASSETTE_PATH).exchanges[:2]
     expected = sum(
         (x.usage.prompt_tokens + x.usage.completion_tokens)
         for x in recorded
@@ -332,9 +386,10 @@ def test_drift_is_reported_but_not_fatal(document: str) -> None:
     ("cassette_path", "document_path"),
     [
         (CASSETTE_PATH, DOCUMENT_PATH),
+        (HYPHEN_CASSETTE_PATH, HYPHEN_DOCUMENT_PATH),
         (RETRY_CASSETTE_PATH, RETRY_DOCUMENT_PATH),
     ],
-    ids=["five_stage", "retry_path"],
+    ids=["five_stage", "hyphenated", "retry_path"],
 )
 def test_committed_cassettes_match_the_current_prompts(
     tmp_path: Path, cassette_path: Path, document_path: Path
