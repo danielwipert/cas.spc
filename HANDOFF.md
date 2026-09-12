@@ -7,112 +7,100 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-12 · **Branch:** `claude/fervent-franklin-k6nffp`
-(its PR is merged — see *Starting work* before you commit anything)
+(carries unmerged T15 work — see *Starting work* before you do anything else)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T14**, with
-**T15 queued and unstarted**. Everything is merged to `main` (PRs #2–#7).
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T15** and
+empty again. T14 and everything before it is merged to `main` (PRs #2–#8);
+**T15 is the uncommitted work in this branch.**
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
-python -m mypy              ->  Success: no issues found in 69 source files
-pytest                      ->  322 passed   (was 297 at the start of the session)
+python -m mypy              ->  Success: no issues found in 70 source files
+pytest                      ->  339 passed   (was 297 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
 ## What the last session did
 
-One task, from one question: after the previous session's live run recommended
-proceeding at 90% confidence on a promotional press release, what in the
-pipeline was supposed to push back, and why didn't it?
+Two tasks, from one question: after a live run recommended proceeding at 90%
+confidence on a promotional press release, what in the pipeline was supposed to
+push back, and why didn't it?
 
 ### T14 — evidence reliability comes from the source, not from the model
 
-**The answer: the Retriever was supposed to, and it had been told there was
-nothing to ask about.** `Evidence.reliability` is the number the rest of the
-pipeline is sceptical by — the Retriever questions an under-confident claim
-that rests on no `HIGH` span, the memo flags a finding supported only by `LOW`
-ones — and it was arriving from the model, as an `evidence_reliability` field
-in the extraction schema. That asks a model to grade a document's
+**The Retriever was supposed to, and had been told there was nothing to ask
+about.** `Evidence.reliability` is the number the rest of the pipeline is
+sceptical by, and it was arriving from the model, as an `evidence_reliability`
+field in the extraction schema. That asks a model to grade a document's
 trustworthiness from inside that document, and lets the extraction that most
 wants scrutiny exempt itself. Read back off the pre-change cassettes, the model
-graded **6 of 11**, **8 of 9** and **7 of 8** of its own spans `high` — on
-three documents that are all an interested party's own announcement. On the
-live Paramount/WBD release it was 10 of 10.
+graded **6 of 11**, **8 of 9** and **7 of 8** of its own spans `high`, on three
+documents that are each an interested party's own announcement. On the live
+Paramount/WBD release it was 10 of 10.
 
-**The fix.** `source_types.py`: a coarse taxonomy plus the mapping. `HIGH` only
-where someone is accountable for the statement being true — a legal duty of
-accuracy or an independent check (regulatory filing, audited financials, court
-record, official statistics, peer review). `LOW` where the author has a stake
-and nobody checked it (press release, marketing, opinion, social media).
-`MEDIUM` for the disinterested-but-unverified middle. The prompt no longer asks
-for the field at all; `LLMExtractOperator(source_type=...)` stamps the derived
-value on **both** routes in, including the full-patch passthrough where a
-model-authored `high` would otherwise have survived. `spc-demo analyze
---source-type` exposes it.
+`source_types.py` holds a coarse taxonomy and the mapping: `HIGH` only where
+someone is accountable for the statement being true (a legal duty of accuracy
+or an independent check); `LOW` where the author has a stake and nobody checked
+it; `MEDIUM` for the disinterested-but-unverified middle, and for an undeclared
+source — not `LOW`, which asserts something nobody established, and never
+`HIGH`. The prompt no longer asks; `spc-demo analyze --source-type` declares it.
+All four cassettes were re-recorded, since removing the field is exactly the
+prompt drift the staleness guard exists to catch.
 
-**Undeclared is `MEDIUM`, deliberately.** `LOW` would assert something about the
-source nobody established; `HIGH` is the free promotion being removed. Nothing
-reaches `HIGH` without someone saying where the text came from.
+### T15 — hold a recommendation to what it rests on
 
-**Measured on one recording, only the declaration differing:**
+**T14 fixed the input and the headline still lied.** Declared
+`press_release`, the Paramount memo flagged all ten findings *Weakly
+supported* — and opened at *Confidence: 90%*, unchanged. Two structural causes,
+both in the run record: nothing re-derived a hypothesis after the critic moved
+the claims beneath it (the critic had just cut `claim_006` from 0.80 to 0.65
+and the recommendation citing it did not move), and the `CRITIC` slice carries
+no hypotheses at all, so the recommendation was the one object nobody read.
 
-| declared as | evidence-gap questions | findings flagged weakly supported |
-|---|---|---|
-| `regulatory_filing` | 0 | 0 |
-| *(undeclared)* | 4 | 0 |
-| `press_release` | 4 | 8 |
+`operators/calibration.py` — deterministic, model-free, runs last. A
+weakest-link ceiling over the supporting claims, damped by the best evidence
+each cites, that **only ever lowers** and records every cap as a
+`ConfidenceChange` naming the claim that bound it. Hypotheses were added to the
+`VERIFIER` slice, whose stated job already includes "confidence sanity".
 
-**Stated honestly:** replaying the *old* recordings under old and new rules
-gives the same gap count on all three. The self-graded `HIGH` spans happened to
-support claims the model was already confident about, and the Retriever does not
-question those whatever their evidence. The gate is real, but on those three
-documents what the self-grading was actually costing was the memo's
-weak-support flag and any ability to tell a filing from a press release.
+Measured on one recorded run, only the declaration differing: as a
+`regulatory_filing` the proposed 0.85 stands; as the `press_release` it is it
+commits at **0.60**. Live over the Paramount PDF the planner proposed **0.95**
+and the memo now opens at **60%**.
 
-**All four cassettes were re-recorded**, because removing the prompt field is
-exactly the drift `test_committed_cassettes_match_the_current_prompts` exists
-to catch. Each still shows the property it was made for. One assertion was
-loosened in the process: the new recording hedges with "insufficient
-information" where the old said "insufficient data", and pinning the synonym
-was pinning the model's prose style rather than its refusal to invent.
+`analyze` is six stages now (…verify -> calibrate), so committed state reaches
+v6. The cassettes did **not** need re-recording — the new stage makes no
+provider call.
 
 ## Starting work — read this first
 
-**This branch's PRs are all merged.** A merged PR is finished and cannot track
-new work; never stack commits on that history. Reset from `main` first:
+**This branch carries unmerged T15 work.** Push it and open its PR before
+starting anything else. Only once that PR is merged does the reset below apply:
 
 ```
 git fetch origin main && git checkout -B claude/fervent-franklin-k6nffp origin/main
 ```
 
-This branch has already been reset that way and carries only the commit that
-rewrote this file.
+A merged PR is finished and cannot track new work — never stack commits on that
+history.
 
 ## Next up
 
-**Start with T15 — it is written up and ready.** It came out of the run above:
-declared `press_release`, the Paramount memo flagged all ten of its findings
-weakly supported and then opened with **"Proceed… Confidence: 90%."** — the
-same number as before T14, untouched by anything. Two structural causes, both
-confirmed in the run record: nothing re-derives a hypothesis after the critic
-moves the claims beneath it, and the `CRITIC` projection contains no hypotheses
-at all, so the recommendation is the one object in committed state that no
-operator ever scrutinises. T15 specifies a deterministic weakest-link ceiling,
-in the mould of the Retriever.
+**The backlog is empty.** The clear next piece of work is the one T15 names and
+deliberately does not touch:
 
-That is the general shape of what is left: T8–T11 made the plumbing honest and
-T14 made one judgement *input* honest; what the pipeline does with that input
-is still unconstrained. After T15, in rough order:
-
-- **The extractor's own confidences.** Four of the five claims the Paramount
-  recommendation rests on sit at **1.00** — off a press release. T15
-  deliberately does not touch this; it is the same disease one layer down.
+- **The extractor's own claim confidences.** T15's cap is only as good as the
+  numbers it reads, and on the Paramount run the binding limb is `claim_001` at
+  **1.00** — certainty, off a press release. The model sets these the same way
+  it used to set reliability, and nothing constrains them: a `predictive_claim`
+  about 2030 is held to the same standard as a reported figure. Same disease as
+  T14 and T15, one layer down; worth writing up as a task the way those were.
 - **The Retriever's gate is narrow.** It questions a claim only when confidence
   is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
   resting on a press release is never questioned. Widening it is a design
@@ -173,7 +161,10 @@ holds on **both** ways in, assembled and passed through. Since T14 a third:
 **an operator does not take a model's word for a fact about the world outside
 the document.** Reliability is derived from the declared source; if you find
 yourself adding a prompt field for something the caller knows and the model
-cannot see, that is the same mistake. The full definition of done is in
+cannot see, that is the same mistake. Since T15 a fourth: **a confidence a
+model chose is re-derived, not accepted** — a recommendation is capped at what
+its support can carry, only ever downward, and every cap names the claim that
+bound it. The full definition of done is in
 `TASKS.md`; note that `spc-demo demo` rewrites `DEMO.md` in the repo root, so
 run it with the default `--runs-dir` or the run path gets baked into the
 committed file.

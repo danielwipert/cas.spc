@@ -750,108 +750,99 @@ analysis".
 
 ---
 
-## T15 — Hold a recommendation to what it rests on · M
+## T15 — Hold a recommendation to what it rests on · ✅ DONE
 
-**Why, with the numbers.** T14 made the pipeline honest about its *sources*: a
-press release now commits as `low`-reliability evidence, the Retriever asks
-what stronger source would confirm the weak claims, and the memo flags the
-findings resting on it. Run `paramount_006` — the Paramount/WBD merger release,
-declared `--source-type press_release` — produced a memo whose every one of ten
-findings carries a **Weakly supported** marker.
+**The defect, with the numbers.** T14 made the pipeline honest about its
+*sources*. Run `paramount_006` — the Paramount/WBD merger release, declared
+`--source-type press_release` — committed all ten spans as low-reliability,
+opened three evidence-gap questions, and flagged every one of its ten findings
+**Weakly supported**. It still opened at *Confidence: 90%*, unchanged from the
+run before T14.
 
-It still opened with:
+Two structural causes, both confirmed in that run's own record:
 
-> **Proceed with the acquisition of Warner Bros. Discovery…**
-> _Confidence: 90%._
+1. **Nothing re-derived a hypothesis after its support moved.** The planner
+   writes it at step 2; the critic adjusts claims at step 3. In that run the
+   critic lowered `claim_006` from 0.80 to 0.65 — "a high estimate" — and the
+   recommendation citing it did not move. Stale by construction precisely when
+   the critic did its job.
+2. **Nothing related it to its support at all.** The `CRITIC` slice carries no
+   hypotheses; the critique transform's `read_set` was four claim ids. The
+   recommendation was the one object in committed state no operator read.
 
-Unchanged from the run before T14, and untouched by anything in the pipeline.
-What it rests on:
-
-| supporting claim | confidence | evidence |
-|---|---|---|
-| `claim_001` | 1.00 | low |
-| `claim_005` | 1.00 | low |
-| `claim_006` | **0.65** | low |
-| `claim_007` | 1.00 | low |
-| `claim_008` | 1.00 | low |
-
-The critic had *just lowered* `claim_006` from 0.80 to 0.65, recording "$6
-billion in synergies is a high estimate; integration challenges may reduce
-achievable synergies." The recommendation that cites it stayed at 90%.
-
-**Two distinct defects, both structural.**
-
-1. **Nothing re-derives a hypothesis after its support moves.** The planner
-   writes `hyp_001` at step 2; the critic adjusts claims at step 3. Nothing
-   revisits the hypothesis, so its confidence is stale by construction whenever
-   the critic does its job.
-2. **Nothing relates a hypothesis's confidence to its support at all.** The
-   `CRITIC` projection (`projection/builder.py`, the `Perspective.CRITIC`
-   branch) selects weak claims, weak evidence, assumptions, inferences,
-   questions and contradictions — **no hypotheses**. Confirmed in the run
-   record: the critique transform's `read_set` is
-   `['claim_003', 'claim_004', 'claim_006', 'claim_010']`. The recommendation
-   is the one object in committed state that no operator ever scrutinises.
-
-**Scope.** A new deterministic operator — no model, no cost, reproducible, in
-the mould of `RetrieverOperator` — that runs **after** the critic so it sees
-the adjusted confidences, and proposes a patch lowering any hypothesis whose
-confidence exceeds what its support can carry.
-
-The ceiling is a **weakest-link** rule, because a recommendation is only as
-good as the shakiest thing it depends on:
+**The fix.** `operators/calibration.py` — `CalibrationOperator`, deterministic,
+model-free, free to run and identical on replay, in the mould of
+`RetrieverOperator`. It runs **last**, so the critic has already moved the
+claims beneath it, and proposes a patch capping any hypothesis above what its
+support can carry:
 
 ```
 ceiling(h) = min over c in h.supporting_claims of
-                 claim_confidence(c) * reliability_factor(c)
+                 c.confidence * reliability_factor(c)
 ```
 
-where `reliability_factor` is the best reliability among that claim's evidence
-(`HIGH` → 1.0, `MEDIUM` → 0.8, `LOW` → 0.6), and a claim citing no evidence at
-all contributes its confidence times the `LOW` factor. A hypothesis with no
-supporting claims gets a ceiling of 0.0 — a recommendation grounded in nothing
-should not read as a finding.
+Weakest link across claims, because four confident restatements of a press
+release must not outvote the one claim that was actually questioned — an
+average would have read 0.79 where the weakest link reads 0.39. **Best span
+within** a claim, because one solid source is enough to ground it. Factors
+`HIGH` 1.0, `MEDIUM` 0.8, `LOW` 0.6; a claim citing no evidence is treated as
+the lowest tier rather than as zero (three buckets cannot express a finer
+distinction, and the Retriever already opens a *high* priority gap for exactly
+those). A hypothesis citing no claims gets 0.0. Results are floored to two
+places, so the rounding never resolves in the recommendation's favour.
 
-Two rules that are not negotiable, whatever the constants end up being:
+Two rules hold whatever the constants become: **it only ever lowers** — raising
+a confidence because the support looks strong would be inventing certainty,
+which is the failure mode — and **every change is recorded** as an
+`UpdateObject` plus a matching `ConfidenceChange` naming the binding claim, the
+same mechanism the critic uses.
 
-- **It only ever lowers.** Raising a confidence because the support looks
-  strong would be inventing certainty, which is the failure mode this exists to
-  fix. A hypothesis already at or below its ceiling is left alone.
-- **Every change is recorded.** Use the mechanism the critic already uses —
-  `UpdateObject` with `from`/`to`/`reason` plus a matching `ConfidenceChange`
-  — with a reason naming the binding claim and why
-  (`"capped at 0.39: rests on claim_006 (0.65) on low-reliability evidence"`).
-  A number that changes without a reason in the receipt is the thing this repo
-  exists not to do.
+**The projection gap is closed** by adding hypotheses to the `VERIFIER` slice,
+whose stated job (§14.2) is already "claim/evidence alignment, provenance,
+**confidence sanity**" and which already carries every claim and every span the
+ceiling needs. No new perspective invented; the contradiction operator's
+`read_set` is `sorted(view.claims)` and is unaffected.
 
-The constants are a documented starting point, not a result. Pin them in the
-tests so changing them is a deliberate edit, and state the rule in the module
-docstring the way `provenance.py` states its normalization.
+**Measured.** Same recorded run, same claims, only the declaration differing:
 
-Also fix the projection gap: the operator needs its own perspective (or the
-`CRITIC` slice needs hypotheses). Whichever way, it must read through a
-projection like every other operator — no reaching into raw state.
+| declared as | planner proposed | committed |
+|---|---|---|
+| `regulatory_filing` | 0.85 | **0.85** — uncapped |
+| `press_release` | 0.85 | **0.60** |
 
-**Explicitly out of scope.** The extractor's own claim confidences — four of
-the five claims above sit at **1.00** off a press release, which is its own
-problem with its own fix. Do not widen this task into it; note it and leave it.
+And live, `paramount_007` over the same PDF as `paramount_006`: the planner
+proposed **0.95**, the memo now opens at **60%**, and the receipt carries
+`changed hypothesis hyp_001: confidence 0.85 → 0.6` beside the reason
+naming `claim_001`.
 
-**Acceptance test** (`tests/test_calibration.py`, deterministic — no provider
-needed for the operator itself). Unit: the ceiling is the weakest link, not an
-average; a hypothesis at or below its ceiling is untouched; one above it is
-lowered with a reason naming the binding claim; a hypothesis with no supporting
-claims goes to 0.0; confidence is never raised. Pipeline: replay
-`analyze_five_stage.json` declared `press_release` and assert the recommendation
-commits **below** what the planner proposed, with the `ConfidenceChange` visible
-in the receipt; declared `regulatory_filing`, assert it is **not** capped — the
-same contrast that proves T14's declaration is load-bearing. Assert the
-operator reads only its projection.
+`tests/test_calibration.py` (17 tests): the ceiling is the weakest link and not
+an average; reliability damps it, pinned per tier; the best span within a claim
+carries it; an unsourced claim is the lowest tier; a recommendation citing
+nothing is 0.0, and one citing a claim outside committed state is too;
+confidence is never raised; a hypothesis already within its ceiling is
+untouched and writes nothing; every cap names the claim that bound it and not
+the ones that did not; the operator declares only ids its projection holds; it
+records no usage or fingerprint and replays byte-identically. Against the
+recorded cassette: the press-release run commits below what was proposed and
+the memo opens with the capped number, the same run read as a filing is left
+alone, and the move is visible in the receipt.
 
-**Invariants.** Deterministic and model-free, so it costs nothing and replays
-identically. No direct `SemanticState` mutation — it proposes a `SemanticPatch`
-like everything else. **Do not add it to `spc-demo demo`**, for the same reason
-T1 kept the Retriever out: the frozen pilot artifacts are a release gate and
-`DEMO.md` must stay byte-identical.
+Verified by mutation: an average instead of the weakest link turns 3 tests red;
+letting it raise as well as lower, 2; ignoring reliability, 7; an unsupported
+hypothesis reading 1.0, 1; taking the weakest span within a claim, 1; a generic
+reason that does not name the binding claim, 3; dropping hypotheses back out of
+the `VERIFIER` slice, 13.
+
+**Explicitly still open.** The extractor's own claim confidences — `claim_001`
+above is the binding limb at **1.00** off a press release, and the cap is only
+as good as that number. That is the same disease one layer down and wants its
+own task.
+
+**Invariants held.** No direct `SemanticState` mutation; no validator or
+runtime change. The operator is not in `spc-demo demo` (same reason T1 kept the
+Retriever out), so `DEMO.md` is byte-identical. `analyze` is now six stages, so
+committed state reaches v6 — the cassettes needed no re-recording, since the
+new stage makes no provider call.
 
 ---
 

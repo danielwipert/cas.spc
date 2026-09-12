@@ -173,11 +173,17 @@ def _select(
 
     elif perspective == Perspective.VERIFIER:
         # Claim/evidence alignment, provenance, confidence sanity.
+        #
+        # Hypotheses are here for the "confidence sanity" half: a recommendation
+        # is the one object whose confidence nobody re-derived, because the
+        # critic slice carries none (T15). Checking it needs the hypothesis
+        # beside the claims and evidence under it, which this slice already has.
         sel = {
             "claims": list(claims),
             "evidence": list(evidence),
             "assumptions": list(assumptions),
             "inferences": list(inferences),
+            "hypotheses": list(hypotheses),
             "contradictions": list(contradictions),
         }
         policy = ProjectionPolicy(

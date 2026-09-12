@@ -104,14 +104,16 @@ def analyze(
 ) -> None:
     """Analyze a real document into provenance-tracked semantic state + memo.
 
-    Runs the full live pipeline over ANY document (not just the demo), five
+    Runs the full live pipeline over ANY document (not just the demo), six
     stages each emitting a validated patch:
 
-      extract  -> claims committed with their supporting quote
-      plan     -> a recommendation plus open questions
-      critique -> weak confidence adjusted
-      retrieve -> evidence gaps opened as questions (deterministic, no model)
-      verify   -> conflicting claim pairs committed as unresolved contradictions
+      extract   -> claims committed with their supporting quote
+      plan      -> a recommendation plus open questions
+      critique  -> weak confidence adjusted
+      retrieve  -> evidence gaps opened as questions (deterministic, no model)
+      verify    -> conflicting claim pairs committed as unresolved contradictions
+      calibrate -> the recommendation capped to what its support can carry
+                   (deterministic, no model)
 
     Pass `--source-type` to say what kind of document this is: a press release
     and a regulatory filing are not equally trustworthy, and the pipeline acts
@@ -133,7 +135,7 @@ def analyze(
     stages = (
         "extract"
         if extract_only
-        else "extract -> plan -> critique -> retrieve -> verify"
+        else "extract -> plan -> critique -> retrieve -> verify -> calibrate"
     )
     _console.print(
         f"[yellow]live analysis via OpenRouter:[/yellow] {provider.model} "

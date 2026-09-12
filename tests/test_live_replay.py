@@ -134,13 +134,15 @@ def test_cassette_is_recorded_from_its_document(
         ReplayProvider.from_path(cassette_path, document=text + " tampered")
 
 
-def test_real_model_output_drives_all_five_stages(tmp_path: Path, document: str) -> None:
+def test_real_model_output_drives_all_six_stages(tmp_path: Path, document: str) -> None:
     """The end-to-end guard: genuine completions still commit every stage."""
     provider, _, result = _replay(tmp_path, document)
 
     committed = [s for s in result.run.steps if s.next_state is not None]
-    assert len(committed) == 5, "extract -> plan -> critique -> retrieve -> verify"
-    assert result.run.final_state.state_version == 5
+    assert len(committed) == 6, (
+        "extract -> plan -> critique -> retrieve -> verify -> calibrate"
+    )
+    assert result.run.final_state.state_version == 6
     assert provider.exhausted, "every recorded exchange should have been consumed"
 
     final = result.run.final_state
@@ -242,7 +244,7 @@ def test_line_end_hyphenation_no_longer_costs_claims(
 
     extract = result.run.steps[0]
     assert extract.attempts == 1, "no retry: every span resolves on the first pass"
-    assert result.run.final_state.state_version == 5
+    assert result.run.final_state.state_version == 6
     assert provider.exhausted
 
     proposed = json.loads(
@@ -305,7 +307,7 @@ def test_in_word_hyphen_is_not_forgiven(tmp_path: Path, retry_document: str) -> 
     extract = result.run.steps[0]
     assert extract.attempts == 2, "one rejected attempt, then one that committed"
     assert extract.next_state is not None
-    assert result.run.final_state.state_version == 5
+    assert result.run.final_state.state_version == 6
     assert provider.exhausted
 
     # The offending span really is present in the first attempt and gone after.
@@ -415,12 +417,12 @@ def test_the_run_survives_an_extraction_that_never_committed(
     """A failed first stage must not take the run down with it.
 
     The later operators still run, against empty state, and commit — so the
-    final version reflects four committed steps rather than five.
+    final version reflects five committed steps rather than six.
     """
     _, _, result = _replay_truncated(tmp_path, document)
     committed = [s for s in result.run.steps if s.next_state is not None]
-    assert len(committed) == 4, "everything except the extraction committed"
-    assert result.run.final_state.state_version == 4
+    assert len(committed) == 5, "everything except the extraction committed"
+    assert result.run.final_state.state_version == 5
 
 
 def test_the_memo_invents_no_findings_from_an_empty_state(
