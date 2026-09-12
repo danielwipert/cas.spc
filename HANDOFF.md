@@ -7,15 +7,14 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-12 · **Branch:** `claude/fervent-franklin-k6nffp`
-(carries unmerged T16 work — see *Starting work* before you do anything else)
+(its PRs are merged — see *Starting work* before you commit anything)
 
 ---
 
 ## Where things stand
 
 Roadmap complete through **Phase 9**. `TASKS.md` is **done through T16** and
-empty again. Everything through T15 is merged to `main` (PRs #2–#10);
-**T16 is the uncommitted work in this branch.**
+empty again. Everything is merged to `main` (PRs #2–#11).
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
@@ -28,9 +27,33 @@ spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 
 ## What the last session did
 
-Two tasks, from one question: after a live run recommended proceeding at 90%
+Three tasks, from one question: after a live run recommended proceeding at 90%
 confidence on a promotional press release, what in the pipeline was supposed to
 push back, and why didn't it?
+
+The answer turned out to be the same confusion three times, one layer lower
+each time — **the model was being asked to judge its own work**, and it always
+judged favourably. Each task replaced one of those judgements with something
+structural:
+
+| | the model was judging | now derived from |
+|---|---|---|
+| T14 | how trustworthy its own source is | the declared source type |
+| T15 | how confident its own recommendation should be | the claims beneath it |
+| T16 | how certain its own claims are | the source beneath each one |
+
+Measured end to end on the document that started it — the same Paramount/WBD
+press release, the same model, the same pipeline (five stages until T15 added
+calibrate):
+
+| run | evidence reliability | claims at 1.00 | recommendation |
+|---|---|---|---|
+| `005` (before T14) | model self-graded `high` x10 | 7 of 10 | **90%** |
+| `006` (T14) | derived `low` x10 | 7 of 10 | 90% |
+| `007` (T15) | `low` x10 | 7 of 10 | 60% |
+| `009` (T16) | `low` x10 | **0 of 10** | **42%** |
+
+Every number that moved says in the receipt what moved it.
 
 ### T14 — evidence reliability comes from the source, not from the model
 
@@ -108,26 +131,24 @@ six claims at 1.00 and the operator writes nothing.
 
 ## Starting work — read this first
 
-**This branch carries unmerged T16 work.** Push it and open its PR before
-starting anything else. Only once that PR is merged does the reset below apply:
+**This branch's PRs are all merged.** A merged PR is finished and cannot track
+new work; never stack commits on that history. Reset from `main` first:
 
 ```
 git fetch origin main && git checkout -B claude/fervent-franklin-k6nffp origin/main
 ```
 
-A merged PR is finished and cannot track new work — never stack commits on that
-history.
+This branch has already been reset that way and carries only the commit that
+rewrote this file.
 
 ## Next up
 
-**The backlog is empty**, and the arc that filled this session is finished:
-every judgement the model was making *about itself* is now derived from
-something structural instead — reliability from the declared source (T14), a
-recommendation from the claims beneath it (T15), a claim from the source
-beneath it (T16).
+**The backlog is empty**, and the arc above is finished: no number in committed
+state is now the model's opinion of its own work.
 
-What is left is the thing none of those three can reach, and it is a modelling
-problem rather than an arithmetic one:
+What is left is the thing none of those three tasks can reach, and it is a
+modelling problem rather than an arithmetic one. Everything below it is
+smaller, and none of it is urgent:
 
 - **⚠ `observed` means two different things.** No reliability factor makes
   "Paramount **will acquire** WBD" stop being typed as an *observation*, or
@@ -136,6 +157,12 @@ problem rather than an arithmetic one:
   the source" and warranted belief lives on its own field. That is a
   state-model change — write it up as a ⚠ task and get sign-off before
   starting, per the `TASKS.md` convention.
+- **A 42% recommendation still reads as "Proceed".** The memo now reports
+  honestly how little the recommendation is worth — 42%, ten weakly-supported
+  findings, antitrust and regulatory questions open — but the pipeline never
+  declines to recommend. Whether a recommendation below some threshold should
+  render as one at all is a **product** judgement, not a calibration one, so it
+  is noted here rather than queued: it needs a decision before it needs code.
 - **The Retriever's gate is narrow.** It questions a claim only when confidence
   is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
   resting on a press release is never questioned. Widening it is a design
