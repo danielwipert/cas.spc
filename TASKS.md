@@ -846,6 +846,107 @@ new stage makes no provider call.
 
 ---
 
+## T16 — A claim is not certain because the document says so · M
+
+**Why, with the numbers.** T14 stopped the model grading its own sources; T15
+stopped it grading its own recommendation. The layer between them is still
+ungoverned: the extractor sets `Claim.confidence` itself, and it sets it high.
+Across five real runs — three committed cassettes plus two live Paramount/WBD
+runs — **32 of 48 claims (67%) committed at exactly 1.00**:
+
+| | 1.00 | 0.90 | 0.85 | 0.80 | 0.75 | 0.70 | 0.60 |
+|---|---|---|---|---|---|---|---|
+| claims | 32 | 5 | 3 | 3 | 1 | 2 | 2 |
+
+Not a spread with a heavy tail — a spike at absolute certainty.
+
+**The mechanism is visible and it is one confusion.** In every cassette the set
+of claims marked `observed` and the set at 1.00 are *the same set*: 6 of 6, 6 of
+6, 7 of 7. The model is using `observed` to mean "I can quote this", and then
+treating quotability as certainty. But a verbatim span establishes that **the
+document says so**, which is a fact about the document, not about the world —
+the same confusion T14 removed one layer up, where the model read a document's
+trustworthiness off the document itself.
+
+What that produces, from `paramount_007` (the Paramount/WBD release, declared
+`press_release`), extraction stage, before any critique:
+
+| claim | conf | status | type |
+|---|---|---|---|
+| "Paramount **will acquire** Warner Bros. Discovery…" | 1.00 | observed | factual_claim |
+| "The combined company **will own** a film library of more than 15,000 titles…" | 1.00 | observed | factual_claim |
+| "The combined company **will hold** one of the industry's **most compelling** portfolios of sports rights" | 1.00 | observed | factual_claim |
+
+Three different failures in three rows. A future event contingent on approvals,
+committed as an observation at certainty. A property of a company that does not
+yet exist, likewise. And a piece of the seller's own evaluative language —
+"most compelling" is not a proposition with a truth value — committed as
+observed fact.
+
+The source document itself says the deal requires "regulatory clearances and
+approval by WBD shareholders". That sentence was not extracted as a claim at
+all, so committed state asserts the acquisition **will** happen, at certainty,
+and holds nothing about what it depends on.
+
+For contrast, the hand-written deterministic `ExtractOperator` uses 0.74, 0.85,
+0.83 and 0.58 — no 1.00 anywhere. The model is the less calibrated of the two.
+
+**Why this matters now.** T15's cap reads these numbers. On `paramount_007` the
+binding limb was `claim_001` at 1.00, so the recommendation's ceiling was set
+entirely by the evidence factor. The cap works, but it is only ever as good as
+the confidences underneath it, and right now two thirds of those are the same
+number.
+
+**Scope.** Extend the damping that already exists, one layer down: a claim is
+no more certain than the source it rests on. Cap `Claim.confidence` by the
+reliability of its own best evidence, using the same factors T15 pins
+(`operators/calibration.py`, `RELIABILITY_FACTOR`) — so a claim drawn from a
+press release cannot commit at 1.00 whatever the model says, and one drawn from
+a regulatory filing can.
+
+**Decide, and write down, where the damping happens.** T15 currently computes
+`claim.confidence * reliability_factor(claim)`. If claims are damped at
+extraction too, a press-release recommendation is discounted twice
+(0.6 × 0.6 = 0.36), which is not a considered position, just an accident of two
+rules meeting. The recommended resolution is to damp **once, at the claim**,
+and simplify T15's ceiling to `min(claim.confidence)` over the supporting
+claims — the same result, computed where the fact lives, and a simplification of
+T15 rather than a complication. Take the other branch only with a reason
+recorded here.
+
+Prefer doing this **structurally**, in the mould of T15: deterministic, from
+committed fields, no prompt change (which would also cost a cassette
+re-record). Do not ask the model to be better calibrated about itself — that is
+the move T14 and T15 both walked away from.
+
+**Explicitly out of scope, and worth naming.** Two rows above are wrong in ways
+no reliability factor fixes: `will acquire` is not an *observation*, and "most
+compelling portfolio" is not a *claim*. Catching those means reading the claim
+text — a heuristic, not a structural check — or splitting the model so
+`observed` means "observed in the source" and warranted belief lives on its own
+field. The second is the honest fix and it is a state-model change: raise it as
+its own ⚠ task with sign-off, do not smuggle it in here.
+
+**Acceptance test** (`tests/test_claim_calibration.py`, deterministic). Unit:
+a claim cited to `LOW`-reliability evidence cannot commit above the `LOW`
+factor, whatever confidence was proposed; the same claim cited to a filing
+keeps its number; a claim already below its ceiling is untouched; confidence is
+never raised; every cap is recorded with a reason naming the evidence that
+bound it, as T15 does. Composition: on the `analyze_five_stage` cassette
+declared `press_release`, assert the recommendation's committed confidence is
+**not** discounted twice — pin the arithmetic that the decision above settles.
+Replay: assert no claim in a press-release run commits at 1.00, and that the
+same run declared `regulatory_filing` still can.
+
+**Invariants.** No direct `SemanticState` mutation. Deterministic and
+model-free, so it costs nothing and replays identically. The deterministic
+`ExtractOperator` must stay untouched and `DEMO.md` byte-identical — its
+confidences are hand-written and already calibrated. If the change lands as a
+separate operator rather than inside the extractor, keep it out of `spc-demo
+demo` for the same reason T1 and T15 did.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

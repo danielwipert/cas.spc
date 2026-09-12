@@ -7,15 +7,15 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-12 · **Branch:** `claude/fervent-franklin-k6nffp`
-(carries unmerged T15 work — see *Starting work* before you do anything else)
+(its PRs are merged — see *Starting work* before you commit anything)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T15** and
-empty again. T14 and everything before it is merged to `main` (PRs #2–#8);
-**T15 is the uncommitted work in this branch.**
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T15**, with
+**T16 queued and unstarted**. Everything through T15 is merged to `main`
+(PRs #2–#9).
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
@@ -80,27 +80,28 @@ provider call.
 
 ## Starting work — read this first
 
-**This branch carries unmerged T15 work.** Push it and open its PR before
-starting anything else. Only once that PR is merged does the reset below apply:
+**This branch's PRs are all merged.** A merged PR is finished and cannot track
+new work; never stack commits on that history. Reset from `main` first:
 
 ```
 git fetch origin main && git checkout -B claude/fervent-franklin-k6nffp origin/main
 ```
 
-A merged PR is finished and cannot track new work — never stack commits on that
-history.
+This branch has already been reset that way and carries only the commit that
+queued T16 and rewrote this file.
 
 ## Next up
 
-**The backlog is empty.** The clear next piece of work is the one T15 names and
-deliberately does not touch:
-
-- **The extractor's own claim confidences.** T15's cap is only as good as the
-  numbers it reads, and on the Paramount run the binding limb is `claim_001` at
-  **1.00** — certainty, off a press release. The model sets these the same way
-  it used to set reliability, and nothing constrains them: a `predictive_claim`
-  about 2030 is held to the same standard as a reported figure. Same disease as
-  T14 and T15, one layer down; worth writing up as a task the way those were.
+**Start with T16 — it is written up and ready**, and it is the layer T15's cap
+depends on. Across five real runs, **32 of 48 claims (67%) committed at exactly
+1.00**, and in every cassette the claims marked `observed` and the claims at
+1.00 are the *same set*: the model reads "I can quote this" as "this is
+certain". So committed state says Paramount **will** acquire WBD, at certainty,
+while the source says the deal needs regulatory clearances and a shareholder
+vote — a sentence the extraction did not take at all. T16 proposes damping a
+claim by its own evidence the way T15 damps a recommendation, and names the one
+real decision: do that **once**, at the claim, or a press-release run is
+discounted twice by two rules that never agreed to meet.
 - **The Retriever's gate is narrow.** It questions a claim only when confidence
   is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
   resting on a press release is never questioned. Widening it is a design
