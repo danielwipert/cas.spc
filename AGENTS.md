@@ -224,10 +224,11 @@ tree. Any LLM operator — existing or new:
   **rejected**, not absorbed.
 
 LLMs are processors, not authorities. The runtime decides what commits — and
-a number a model chose is not exempt from that. Since T15 a recommendation's
-confidence is re-derived from the claims it cites and the evidence under them
-(`operators/calibration.py`), capped when it claims more than its support can
-carry, and never raised: strong support is not a licence to invent certainty.
+a number a model chose is not exempt from that. Since T15/T16 confidence is
+re-derived rather than accepted (`operators/calibration.py`): a claim is
+discounted by the source it cites, and a recommendation is capped at the
+weakest claim it depends on. Never raised — strong support is not a licence to
+invent certainty — and never silently: every change records what moved it.
 
 ---
 

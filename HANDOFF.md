@@ -7,22 +7,22 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-12 · **Branch:** `claude/fervent-franklin-k6nffp`
-(its PRs are merged — see *Starting work* before you commit anything)
+(carries unmerged T16 work — see *Starting work* before you do anything else)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T15**, with
-**T16 queued and unstarted**. Everything through T15 is merged to `main`
-(PRs #2–#9).
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T16** and
+empty again. Everything through T15 is merged to `main` (PRs #2–#10);
+**T16 is the uncommitted work in this branch.**
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
 python -m mypy              ->  Success: no issues found in 70 source files
-pytest                      ->  339 passed   (was 297 at the start of the session)
+pytest                      ->  354 passed   (was 297 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -78,30 +78,64 @@ and the memo now opens at **60%**.
 v6. The cassettes did **not** need re-recording — the new stage makes no
 provider call.
 
+### T16 — a claim is not certain because the document says so
+
+**The same confusion, one more layer down.** The extractor set
+`Claim.confidence` itself, and across five real runs **32 of 48 claims (67%)
+committed at exactly 1.00**. In every cassette the claims marked `observed` and
+the claims at 1.00 were the *same set* — the model read "I can quote this" as
+"this is certain". So state asserted Paramount **will** acquire WBD, at
+certainty, while the source said the deal needs regulatory clearances and a
+shareholder vote, a sentence the extraction never took.
+
+`CalibrationOperator` gained a first pass: a claim is damped by the best source
+it cites, using the factors it already applied one layer up. **The damping now
+happens once** — the hypothesis rule reads the claims *after* their discount and
+takes the minimum rather than multiplying again, so the committed
+recommendation is arithmetically identical to what T15 alone produced. That
+identity is pinned as a test, since it is what a careless future edit breaks.
+
+**It is a discount, not a ceiling**, deliberately: a claim at 0.40 on a press
+release carries 0.24, because the model's number is about the *content* and the
+factor is about the *source*, and those compose. The cost, stated plainly, is
+that every claim from a non-`HIGH` source moves, not only the overconfident
+ones.
+
+Live on `paramount_008` (same PDF, declared `press_release`): five of ten claims
+proposed at 1.00, **none committed above 0.60**, and the memo opens at **45%**
+against a proposed 90%. Read as a `regulatory_filing` the same recording keeps
+six claims at 1.00 and the operator writes nothing.
+
 ## Starting work — read this first
 
-**This branch's PRs are all merged.** A merged PR is finished and cannot track
-new work; never stack commits on that history. Reset from `main` first:
+**This branch carries unmerged T16 work.** Push it and open its PR before
+starting anything else. Only once that PR is merged does the reset below apply:
 
 ```
 git fetch origin main && git checkout -B claude/fervent-franklin-k6nffp origin/main
 ```
 
-This branch has already been reset that way and carries only the commit that
-queued T16 and rewrote this file.
+A merged PR is finished and cannot track new work — never stack commits on that
+history.
 
 ## Next up
 
-**Start with T16 — it is written up and ready**, and it is the layer T15's cap
-depends on. Across five real runs, **32 of 48 claims (67%) committed at exactly
-1.00**, and in every cassette the claims marked `observed` and the claims at
-1.00 are the *same set*: the model reads "I can quote this" as "this is
-certain". So committed state says Paramount **will** acquire WBD, at certainty,
-while the source says the deal needs regulatory clearances and a shareholder
-vote — a sentence the extraction did not take at all. T16 proposes damping a
-claim by its own evidence the way T15 damps a recommendation, and names the one
-real decision: do that **once**, at the claim, or a press-release run is
-discounted twice by two rules that never agreed to meet.
+**The backlog is empty**, and the arc that filled this session is finished:
+every judgement the model was making *about itself* is now derived from
+something structural instead — reliability from the declared source (T14), a
+recommendation from the claims beneath it (T15), a claim from the source
+beneath it (T16).
+
+What is left is the thing none of those three can reach, and it is a modelling
+problem rather than an arithmetic one:
+
+- **⚠ `observed` means two different things.** No reliability factor makes
+  "Paramount **will acquire** WBD" stop being typed as an *observation*, or
+  "one of the industry's most compelling portfolios" stop being a *claim* at
+  all. The honest fix is splitting the model so `observed` means "observed in
+  the source" and warranted belief lives on its own field. That is a
+  state-model change — write it up as a ⚠ task and get sign-off before
+  starting, per the `TASKS.md` convention.
 - **The Retriever's gate is narrow.** It questions a claim only when confidence
   is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
   resting on a press release is never questioned. Widening it is a design
@@ -165,7 +199,8 @@ yourself adding a prompt field for something the caller knows and the model
 cannot see, that is the same mistake. Since T15 a fourth: **a confidence a
 model chose is re-derived, not accepted** — a recommendation is capped at what
 its support can carry, only ever downward, and every cap names the claim that
-bound it. The full definition of done is in
+bound it; since T16 the same holds one layer down, where a claim is discounted
+by the source it cites. The full definition of done is in
 `TASKS.md`; note that `spc-demo demo` rewrites `DEMO.md` in the repo root, so
 run it with the default `--runs-dir` or the run path gets baked into the
 committed file.

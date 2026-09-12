@@ -107,6 +107,17 @@ def _lead(state: SemanticState) -> Hypothesis:
     return state.hypotheses["hyp_001"]
 
 
+def _hypothesis_change(record):
+    """The one confidence change on a hypothesis.
+
+    Since T16 the same patch also caps claims, so a caller after *the
+    recommendation's* change has to say so rather than unpacking a singleton.
+    """
+    changes = [c for c in record.confidence_changes if c.object_id.startswith("hyp_")]
+    assert len(changes) == 1, f"expected one hypothesis cap, got {len(changes)}"
+    return changes[0]
+
+
 # ---------------------------------------------------------------------------
 # the rule: weakest link, damped by the evidence under it
 # ---------------------------------------------------------------------------
@@ -252,7 +263,12 @@ def test_confidence_is_never_raised(tmp_path: Path) -> None:
 def test_a_hypothesis_already_within_its_ceiling_is_untouched(
     tmp_path: Path,
 ) -> None:
-    """Exactly at the ceiling is within it — no cosmetic rewrite."""
+    """Exactly at the ceiling is within it — no cosmetic rewrite.
+
+    The claim beneath it is capped in the same patch (T16: 1.00 on a low
+    -reliability span cannot stand), which is what sets the hypothesis's
+    ceiling at 0.6 — and having reached it, the hypothesis is left alone.
+    """
     state = _state(
         hypothesis_confidence=0.6,
         claims=[_claim("claim_001", 1.0, ["ev_001"])],
@@ -260,7 +276,7 @@ def test_a_hypothesis_already_within_its_ceiling_is_untouched(
     )
     result = _calibrate(tmp_path, state)
     assert _lead(result.final_state).confidence == 0.6
-    assert result.final_state.transform_log[-1].write_set == []
+    assert result.final_state.transform_log[-1].write_set == ["claim_001"]
 
 
 def test_every_cap_records_the_claim_that_bound_it(tmp_path: Path) -> None:
@@ -280,8 +296,7 @@ def test_every_cap_records_the_claim_that_bound_it(tmp_path: Path) -> None:
     result = _calibrate(tmp_path, state)
     record = result.final_state.transform_log[-1]
 
-    (change,) = record.confidence_changes
-    assert change.object_id == "hyp_001"
+    change = _hypothesis_change(record)
     assert change.from_value == 0.9
     assert change.to_value == 0.39
     reason = change.reason or ""
@@ -290,8 +305,10 @@ def test_every_cap_records_the_claim_that_bound_it(tmp_path: Path) -> None:
     assert "claim_001" not in reason, "the claims that did not bind it are not blamed"
 
     # The update is on the record as a patch field too, not only as a tally.
-    (update,) = result.steps[0].patch.update_objects
-    assert (update.object_id, update.field) == ("hyp_001", "confidence")
+    update = next(
+        u for u in result.steps[0].patch.update_objects if u.object_id == "hyp_001"
+    )
+    assert update.field == "confidence"
     assert (update.from_value, update.to_value) == (0.9, 0.39)
 
 
@@ -357,7 +374,7 @@ def test_a_press_release_recommendation_commits_below_what_was_proposed(
     result = _replay(tmp_path, SourceType.PRESS_RELEASE)
     calibrate = result.run.steps[-1]
     assert calibrate.patch is not None
-    (change,) = calibrate.patch.transform_record.confidence_changes
+    change = _hypothesis_change(calibrate.patch.transform_record)
 
     assert change.to_value < change.from_value == 0.85
     assert change.to_value == 0.6
@@ -407,5 +424,4 @@ def test_the_cap_is_visible_in_the_reasoning_receipt(tmp_path: Path) -> None:
 
     record = result.run.final_state.transform_log[-1]
     assert record.operator == "calibration_transform"
-    (change,) = record.confidence_changes
-    assert "Capped at 0.60" in (change.reason or "")
+    assert "Capped at 0.60" in (_hypothesis_change(record).reason or "")

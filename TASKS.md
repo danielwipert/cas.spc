@@ -846,104 +846,98 @@ new stage makes no provider call.
 
 ---
 
-## T16 — A claim is not certain because the document says so · M
+## T16 — A claim is not certain because the document says so · ✅ DONE
 
-**Why, with the numbers.** T14 stopped the model grading its own sources; T15
-stopped it grading its own recommendation. The layer between them is still
-ungoverned: the extractor sets `Claim.confidence` itself, and it sets it high.
-Across five real runs — three committed cassettes plus two live Paramount/WBD
-runs — **32 of 48 claims (67%) committed at exactly 1.00**:
+**The defect, with the numbers.** T14 stopped the model grading its own
+sources; T15 stopped it grading its own recommendation. The extractor still set
+`Claim.confidence` itself, and across five real runs **32 of 48 claims (67%)
+committed at exactly 1.00** — not a heavy tail, a spike at certainty. The
+mechanism was one confusion, visible in the data: in every cassette the claims
+marked `observed` and the claims at 1.00 were the **same set** (6 of 6, 6 of 6,
+7 of 7). The model read "I can quote this" as "this is certain", but a verbatim
+span establishes that the *document* says so.
 
-| | 1.00 | 0.90 | 0.85 | 0.80 | 0.75 | 0.70 | 0.60 |
-|---|---|---|---|---|---|---|---|
-| claims | 32 | 5 | 3 | 3 | 1 | 2 | 2 |
+What that produced on `paramount_007`, all at 1.00 and `observed`: "Paramount
+**will acquire** Warner Bros. Discovery" (a future event contingent on
+approvals), "the combined company **will own** a film library of more than
+15,000 titles" (a company that does not exist yet), and "one of the industry's
+**most compelling** portfolios of sports rights" (the seller's own evaluative
+language). The source says the deal needs "regulatory clearances and approval
+by WBD shareholders"; that sentence was never extracted, so state asserted the
+acquisition **will** happen, at certainty, and held nothing about what it
+depends on.
 
-Not a spread with a heavy tail — a spike at absolute certainty.
+**The fix.** `CalibrationOperator` (T15) gained a first pass: a claim is damped
+by the best source it cites, using the factors it already applied one layer up.
 
-**The mechanism is visible and it is one confusion.** In every cassette the set
-of claims marked `observed` and the set at 1.00 are *the same set*: 6 of 6, 6 of
-6, 7 of 7. The model is using `observed` to mean "I can quote this", and then
-treating quotability as certainty. But a verbatim span establishes that **the
-document says so**, which is a fact about the document, not about the world —
-the same confusion T14 removed one layer up, where the model read a document's
-trustworthiness off the document itself.
+```
+ceiling(c) = c.confidence * reliability_factor(c)
+ceiling(h) = min over c in h.supporting_claims of ceiling(c)
+```
 
-What that produces, from `paramount_007` (the Paramount/WBD release, declared
-`press_release`), extraction stage, before any critique:
+**The damping happens once**, which is the decision T16 forced and settles. The
+hypothesis rule no longer multiplies by the factor itself — it reads the claims
+*after* their own discount and takes the minimum. Applying it at both layers
+would discount a press-release recommendation twice (0.6 x 0.6 = 0.36), which
+is not a position anyone took. Composed this way the committed recommendation
+is **arithmetically identical** to what T15 alone produced; what is new is that
+the claims' own numbers are corrected, and recorded, too. That identity is
+pinned as a test, since it is exactly what a careless future edit would break.
 
-| claim | conf | status | type |
-|---|---|---|---|
-| "Paramount **will acquire** Warner Bros. Discovery…" | 1.00 | observed | factual_claim |
-| "The combined company **will own** a film library of more than 15,000 titles…" | 1.00 | observed | factual_claim |
-| "The combined company **will hold** one of the industry's **most compelling** portfolios of sports rights" | 1.00 | observed | factual_claim |
+**It is a discount, not a ceiling**, and that was a real choice. The factor
+scales rather than clips, so a claim stated at 0.40 on a press release carries
+0.24 and not 0.40-because-it-was-already-low. The two numbers measure
+independent things — the model's confidence is about the *content*, the factor
+is about the *source* — so they compose: a company's own estimate of an
+uncertain outcome is worth less than a disinterested party's identical
+estimate. The cost, stated plainly, is that **every** claim from a non-`HIGH`
+source moves, not only the overconfident ones. The alternative (`min(conf,
+factor)`) is a coherent position; it is not this one, and swapping it turns 7
+tests red rather than passing quietly.
 
-Three different failures in three rows. A future event contingent on approvals,
-committed as an observation at certainty. A property of a company that does not
-yet exist, likewise. And a piece of the seller's own evaluative language —
-"most compelling" is not a proposition with a truth value — committed as
-observed fact.
+**Measured, live.** `paramount_008`, the same PDF as `paramount_007`, declared
+`press_release`:
 
-The source document itself says the deal requires "regulatory clearances and
-approval by WBD shareholders". That sentence was not extracted as a claim at
-all, so committed state asserts the acquisition **will** happen, at certainty,
-and holds nothing about what it depends on.
+| | proposed by the extractor | committed |
+|---|---|---|
+| claims at 1.00 | 5 of 10 | **0 of 10** |
+| highest claim confidence | 1.00 | **0.60** |
+| recommendation | 0.90 | **0.45** |
 
-For contrast, the hand-written deterministic `ExtractOperator` uses 0.74, 0.85,
-0.83 and 0.58 — no 1.00 anywhere. The model is the less calibrated of the two.
+with `claim_001: 1.00 -> 0.60 — "low-reliability evidence carries 60% of a
+claim's stated confidence"` and `hyp_001: 0.90 -> 0.45 — "it rests on claim_004
+(confidence 0.45 once calibrated…)"` on the record. Read as a
+`regulatory_filing` instead, the same recorded run keeps six claims at 1.00 and
+the operator writes nothing at all: a source-sensitive discount, not a blanket
+haircut.
 
-**Why this matters now.** T15's cap reads these numbers. On `paramount_007` the
-binding limb was `claim_001` at 1.00, so the recommendation's ceiling was set
-entirely by the evidence factor. The cap works, but it is only ever as good as
-the confidences underneath it, and right now two thirds of those are the same
-number.
+New `tests/test_claim_calibration.py` (14 tests): certainty survives only where
+the source can carry it, pinned per tier; an accountable source leaves a claim
+untouched; an already-modest claim is still discounted (the design decision,
+argued in the test); confidence is never raised; an unsourced claim is damped
+like the weakest source; the best span a claim cites decides its factor; claims
+are discounted independently of one another; every change records the source
+and the factor that moved it; the factor is applied exactly once; the
+recommendation reads the *capped* claim, not the proposed one; and against the
+recorded cassette — no press-release claim commits at certainty, the same
+recording read as a filing keeps its 1.00s, and the committed recommendation is
+unchanged from T15 at both declarations.
 
-**Scope.** Extend the damping that already exists, one layer down: a claim is
-no more certain than the source it rests on. Cap `Claim.confidence` by the
-reliability of its own best evidence, using the same factors T15 pins
-(`operators/calibration.py`, `RELIABILITY_FACTOR`) — so a claim drawn from a
-press release cannot commit at 1.00 whatever the model says, and one drawn from
-a regulatory filing can.
+Verified by mutation: not capping claims at all turns 18 tests red; applying
+the factor twice, 15; reading pre-cap claim values for the hypothesis, 10;
+making the claim rule `min()` instead of a product, 7; sending an unsourced
+claim to zero, 2.
 
-**Decide, and write down, where the damping happens.** T15 currently computes
-`claim.confidence * reliability_factor(claim)`. If claims are damped at
-extraction too, a press-release recommendation is discounted twice
-(0.6 × 0.6 = 0.36), which is not a considered position, just an accident of two
-rules meeting. The recommended resolution is to damp **once, at the claim**,
-and simplify T15's ceiling to `min(claim.confidence)` over the supporting
-claims — the same result, computed where the fact lives, and a simplification of
-T15 rather than a complication. Take the other branch only with a reason
-recorded here.
+**Still open, and unchanged.** No reliability factor makes `will acquire` stop
+being typed as an *observation*, or marketing language stop being a *claim*.
+The honest fix is splitting the model so `observed` means "observed in the
+source" and warranted belief lives on its own field — a state-model change that
+wants its own ⚠ task with sign-off.
 
-Prefer doing this **structurally**, in the mould of T15: deterministic, from
-committed fields, no prompt change (which would also cost a cassette
-re-record). Do not ask the model to be better calibrated about itself — that is
-the move T14 and T15 both walked away from.
-
-**Explicitly out of scope, and worth naming.** Two rows above are wrong in ways
-no reliability factor fixes: `will acquire` is not an *observation*, and "most
-compelling portfolio" is not a *claim*. Catching those means reading the claim
-text — a heuristic, not a structural check — or splitting the model so
-`observed` means "observed in the source" and warranted belief lives on its own
-field. The second is the honest fix and it is a state-model change: raise it as
-its own ⚠ task with sign-off, do not smuggle it in here.
-
-**Acceptance test** (`tests/test_claim_calibration.py`, deterministic). Unit:
-a claim cited to `LOW`-reliability evidence cannot commit above the `LOW`
-factor, whatever confidence was proposed; the same claim cited to a filing
-keeps its number; a claim already below its ceiling is untouched; confidence is
-never raised; every cap is recorded with a reason naming the evidence that
-bound it, as T15 does. Composition: on the `analyze_five_stage` cassette
-declared `press_release`, assert the recommendation's committed confidence is
-**not** discounted twice — pin the arithmetic that the decision above settles.
-Replay: assert no claim in a press-release run commits at 1.00, and that the
-same run declared `regulatory_filing` still can.
-
-**Invariants.** No direct `SemanticState` mutation. Deterministic and
-model-free, so it costs nothing and replays identically. The deterministic
-`ExtractOperator` must stay untouched and `DEMO.md` byte-identical — its
-confidences are hand-written and already calibrated. If the change lands as a
-separate operator rather than inside the extractor, keep it out of `spc-demo
-demo` for the same reason T1 and T15 did.
+**Invariants held.** No direct `SemanticState` mutation; no validator, runtime
+or state-model change. The deterministic `ExtractOperator` is untouched and the
+operator is not in `spc-demo demo`, so `DEMO.md` is byte-identical. No prompt
+change, so the cassettes needed no re-recording.
 
 ---
 
