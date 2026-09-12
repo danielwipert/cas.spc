@@ -135,11 +135,12 @@ assumptions drive the conclusion?), all answered from committed state.
 The pipeline also runs a deterministic Retriever that flags under-evidenced
 claims as `needs_evidence` questions, a verifier that records genuine conflicts
 between claims as first-class `Contradiction` objects (surfaced in the memo's
-risks), and a deterministic **Calibrator** that holds the recommendation to
-what it rests on — a recommendation is capped at the confidence of the weakest
-claim it cites, discounted by that claim's evidence, and the cap is recorded
-with the claim that bound it. Over a merger press release the planner proposed
-95%; the memo opens at 60%. Remaining refinements (planner retry-on-shape, an optional
+risks), and a deterministic **Calibrator** that holds every number to what it
+rests on — each claim discounted by the source it cites, and the recommendation
+capped at the weakest claim it depends on, each change recorded with the reason
+that moved it. Over a merger press release the model proposed five of ten
+claims at absolute certainty and a 90% recommendation; committed state holds no
+claim above 60% and the memo opens at 45%. Remaining refinements (planner retry-on-shape, an optional
 LLM-narrated memo) are tracked in [`TASKS.md`](TASKS.md).
 
 ## Pilot scope
