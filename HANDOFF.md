@@ -13,8 +13,8 @@
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. The `TASKS.md` backlog is **done through
-T14** and is empty again. Everything is merged to `main` (PRs #2–#6).
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T14**, with
+**T15 queued and unstarted**. Everything is merged to `main` (PRs #2–#7).
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
@@ -96,21 +96,27 @@ rewrote this file.
 
 ## Next up
 
-**The `TASKS.md` backlog is empty again.** Nothing is queued. Options, none
-urgent, roughly in order of how much they would change the output:
+**Start with T15 — it is written up and ready.** It came out of the run above:
+declared `press_release`, the Paramount memo flagged all ten of its findings
+weakly supported and then opened with **"Proceed… Confidence: 90%."** — the
+same number as before T14, untouched by anything. Two structural causes, both
+confirmed in the run record: nothing re-derives a hypothesis after the critic
+moves the claims beneath it, and the `CRITIC` projection contains no hypotheses
+at all, so the recommendation is the one object in committed state that no
+operator ever scrutinises. T15 specifies a deterministic weakest-link ceiling,
+in the mould of the Retriever.
 
-- **The judgement layer is still the weak part.** T8–T11 made the plumbing
-  honest (every citation resolves, every attempt is billed, nothing commits
-  unverified) and T14 made one judgement input honest. What the model *does*
-  with that input is not yet constrained: confidence values are still the
-  model's own, and nothing checks that a `predictive_claim` about 2030 is held
-  to a different standard than a reported figure. That is the next real
-  frontier, not more plumbing.
+That is the general shape of what is left: T8–T11 made the plumbing honest and
+T14 made one judgement *input* honest; what the pipeline does with that input
+is still unconstrained. After T15, in rough order:
+
+- **The extractor's own confidences.** Four of the five claims the Paramount
+  recommendation rests on sit at **1.00** — off a press release. T15
+  deliberately does not touch this; it is the same disease one layer down.
 - **The Retriever's gate is narrow.** It questions a claim only when confidence
   is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
-  resting on a press release is never questioned — visible in the table above,
-  where `press_release` produced 8 weak-support flags but no extra questions
-  beyond the undeclared case. Widening it is a design decision, not a bug fix.
+  resting on a press release is never questioned. Widening it is a design
+  decision, not a bug fix.
 - **Cache the normalized document in `locate_span`.** It normalizes the document
   up to three times per call, once per hyphenation reading, and the extractor
   calls it once per quote. Irrelevant at fixture size; worth a memoised form
