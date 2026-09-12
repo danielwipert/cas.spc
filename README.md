@@ -133,9 +133,13 @@ graph, so you can also interrogate it with `spc-demo followups --run-id
 my_analysis` (what did the critic change? which claims are weakest? which
 assumptions drive the conclusion?), all answered from committed state.
 The pipeline also runs a deterministic Retriever that flags under-evidenced
-claims as `needs_evidence` questions, and a verifier that records genuine
-conflicts between claims as first-class `Contradiction` objects (surfaced in the
-memo's risks). Remaining refinements (planner retry-on-shape, an optional
+claims as `needs_evidence` questions, a verifier that records genuine conflicts
+between claims as first-class `Contradiction` objects (surfaced in the memo's
+risks), and a deterministic **Calibrator** that holds the recommendation to
+what it rests on — a recommendation is capped at the confidence of the weakest
+claim it cites, discounted by that claim's evidence, and the cap is recorded
+with the claim that bound it. Over a merger press release the planner proposed
+95%; the memo opens at 60%. Remaining refinements (planner retry-on-shape, an optional
 LLM-narrated memo) are tracked in [`TASKS.md`](TASKS.md).
 
 ## Pilot scope

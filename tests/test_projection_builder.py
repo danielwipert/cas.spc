@@ -95,17 +95,24 @@ def test_retriever_sees_open_questions_and_all_evidence(demo_history) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Verifier — claims + evidence + provenance, no hypotheses/questions.
+# Verifier — claims + evidence + provenance + the recommendations to sanity-check.
 # ---------------------------------------------------------------------------
 
 
-def test_verifier_sees_claims_and_evidence_not_hypotheses(demo_history) -> None:
+def test_verifier_sees_claims_evidence_and_hypotheses(demo_history) -> None:
+    """The slice that carries everything a confidence check needs (T15).
+
+    "Confidence sanity" is half this perspective's stated job, and the object
+    whose confidence nothing re-derived is the hypothesis — so it belongs here,
+    beside the claims and evidence that decide what it may carry. Questions
+    stay out: they are not part of checking whether a number is earned.
+    """
     state = _final(demo_history)
     inc = build_projection(state, perspective=Perspective.VERIFIER, goal=GOAL).included_objects
 
     assert set(inc.claims) == {"claim_001", "claim_002", "claim_003"}
     assert set(inc.evidence) == {"ev_001", "ev_002", "ev_003"}
-    assert inc.hypotheses == []
+    assert set(inc.hypotheses) == {"hyp_001"}
     assert inc.questions == []
 
 

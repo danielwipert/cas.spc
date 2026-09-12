@@ -103,33 +103,37 @@ def _full_script() -> MockProvider:
 # ---------------------------------------------------------------------------
 
 
-def test_five_stage_run_reaches_v5(tmp_path: Path) -> None:
+def test_six_stage_run_reaches_v6(tmp_path: Path) -> None:
     paths = RunPaths(root=tmp_path / "runs", run_id="full")
     analysis = run_analysis(_full_script(), DOCUMENT, paths, clock=_clock())
 
-    assert analysis.run.final_state.state_version == 5
-    assert len(analysis.run.steps) == 5
+    assert analysis.run.final_state.state_version == 6
+    assert len(analysis.run.steps) == 6
     operators = [s.patch.transform_record.operator for s in analysis.run.steps]
+    # Calibration runs last on purpose: it holds each recommendation to what
+    # its support can carry, and the critic has by then moved those claims.
     assert operators == [
         "llm_extract_transform",
         "llm_planner_transform",
         "llm_critic_transform",
         "retriever_transform",
         "contradiction_transform",
+        "calibration_transform",
     ]
     # Every stage committed — nothing rejected or stuck in retry.
     assert all(s.decision.value == "COMMIT" for s in analysis.run.steps)
 
 
-def test_five_stage_run_writes_one_patch_and_report_per_stage(tmp_path: Path) -> None:
+def test_six_stage_run_writes_one_patch_and_report_per_stage(tmp_path: Path) -> None:
     paths = RunPaths(root=tmp_path / "runs", run_id="artifacts")
     run_analysis(_full_script(), DOCUMENT, paths, clock=_clock())
 
-    assert len(list(paths.patches_dir.glob("patch_*.json"))) == 5
-    assert len(list(paths.validation_dir.glob("validation_*.json"))) == 5
+    assert len(list(paths.patches_dir.glob("patch_*.json"))) == 6
+    assert len(list(paths.validation_dir.glob("validation_*.json"))) == 6
     # One attempt file per LLM stage (extract, plan, critique, verify) — every
-    # attempt is kept, even a first-try commit. The retriever stage is
-    # deterministic (`Runtime.step`, not `step_llm`), so it leaves none.
+    # attempt is kept, even a first-try commit. The retriever and calibration
+    # stages are deterministic (`Runtime.step`, not `step_llm`), so they leave
+    # none.
     assert len(list(paths.patches_dir.glob("attempt_*.txt"))) == 4
 
 

@@ -1,7 +1,7 @@
 """The live five-stage analysis pipeline: `spc-demo analyze` over ANY document.
 
-`run_analysis` runs extract -> plan -> critique -> retrieve -> verify against
-a real `LLMProvider`, each stage a validated, committed patch
+`run_analysis` runs extract -> plan -> critique -> retrieve -> verify ->
+calibrate against a real `LLMProvider`, each stage a validated, committed patch
 (`Runtime.step_llm` / `Runtime.step`), then projects the Reasoning Receipt and
 Decision Memo from the committed state. It never re-prompts a model once the
 pipeline has run — both documents are faithful projections of state.
@@ -20,6 +20,7 @@ from pathlib import Path
 from .cost_ledger import CostLedger, build_cost_ledger, write_cost_ledger
 from .memo import write_memo
 from .operators import (
+    CalibrationOperator,
     LLMContradictionOperator,
     LLMExtractOperator,
     LLMPlannerOperator,
@@ -61,11 +62,16 @@ def build_analysis_operators(
     extract_only: bool = False,
     source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
 ) -> list[Operator]:
-    """The five-stage operator list (four when `extract_only`).
+    """The six-stage operator list (one when `extract_only`).
 
-    extract -> plan -> critique -> retrieve -> verify. Retrieve is
-    deterministic (`RetrieverOperator`, no model call); the rest are
-    LLM-backed and share `provider`.
+    extract -> plan -> critique -> retrieve -> verify -> calibrate. Retrieve
+    and calibrate are deterministic (`RetrieverOperator`,
+    `CalibrationOperator`, no model call); the rest are LLM-backed and share
+    `provider`.
+
+    Calibrate runs **last** on purpose: it holds each recommendation to the
+    confidence its support can carry, and the critic has by then already moved
+    the claims underneath it (T15).
 
     `source_type` says what kind of document this is. It sets the reliability
     of every span the extraction records, and so how hard the Retriever looks
@@ -81,6 +87,7 @@ def build_analysis_operators(
         operators.append(LLMReviewCriticOperator(provider, clock=clock))
         operators.append(RetrieverOperator(clock=clock))
         operators.append(LLMContradictionOperator(provider, clock=clock))
+        operators.append(CalibrationOperator(clock=clock))
     return operators
 
 

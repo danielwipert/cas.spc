@@ -7,6 +7,7 @@ land in Phase 6 (mock) and Phase 7 (live).
 
 from ._assembly import LLMAssemblyError
 from .base import Operator
+from .calibration import CalibrationOperator
 from .contradiction_llm import LLMContradictionOperator
 from .critic import CriticOperator
 from .critic_llm import LLMReviewCriticOperator
@@ -23,6 +24,7 @@ from .planner_llm import LLMPlannerOperator
 from .retriever import RetrieverOperator
 
 __all__ = [
+    "CalibrationOperator",
     "CriticOperator",
     "ExtractOperator",
     "ExtractionError",

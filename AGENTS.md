@@ -223,7 +223,11 @@ tree. Any LLM operator — existing or new:
   show that an LLM proposing direct-mutation prose ("the new state is …") is
   **rejected**, not absorbed.
 
-LLMs are processors, not authorities. The runtime decides what commits.
+LLMs are processors, not authorities. The runtime decides what commits — and
+a number a model chose is not exempt from that. Since T15 a recommendation's
+confidence is re-derived from the claims it cites and the evidence under them
+(`operators/calibration.py`), capped when it claims more than its support can
+carry, and never raised: strong support is not a licence to invent certainty.
 
 ---
 
