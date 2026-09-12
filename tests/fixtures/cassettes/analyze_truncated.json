@@ -11,11 +11,11 @@
           "temperature": 0.0
         }
       },
-      "request_sha256": "d43a60c693541c74dbca223b3d4d93a5c08755df8ba40c7dcee5d38b27becfcf",
+      "request_sha256": "af50c41d9400ddfc8b78986cee77b4885266bf7823bc3328c5e44b185a2f04bb",
       "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Northwind Logistics will acquire Harbor Freight Systems for $18.50 per share in cash, valuing Harbor at $4.2 billion enterprise value.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Northwind Logistics, Inc. (NASDAQ: NW",
       "usage": {
         "completion_tokens": 90,
-        "prompt_tokens": 762
+        "prompt_tokens": 748
       }
     },
     {
@@ -28,11 +28,11 @@
           "temperature": 0.0
         }
       },
-      "request_sha256": "281ae3942069131de2baed5a086995979337b1a7217fb7ac12258ec544456894",
+      "request_sha256": "bce24986cde810e27fc71ad1734f4f1b8ee592b7c278823daba9e026afe26d3d",
       "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Northwind Logistics will acquire Harbor Freight Systems for $18.50 per share in cash, valuing Harbor at $4.2 billion enterprise value\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Northwind Logistics, Inc. (NASDAQ: NW",
       "usage": {
         "completion_tokens": 90,
-        "prompt_tokens": 809
+        "prompt_tokens": 795
       }
     },
     {
@@ -45,11 +45,11 @@
           "temperature": 0.0
         }
       },
-      "request_sha256": "ec95935f7c82fbcf0bf86ab9a252cb8c38467516598a38641833f858993977eb",
-      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Northwind Logistics will acquire Harbor Freight Systems for $18.50 per share in cash, valuing Harbor at $4.2 billion enterprise value\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Northwind Logistics, Inc. (NASDAQ: NW",
+      "request_sha256": "6f2b0f2f169afc8c6beea172437f31f22cd2249e64f23e142f3bc8222eb372bc",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Northwind Logistics will acquire Harbor Freight Systems for $18.50 per share in cash\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"observed\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Northwind Logistics, Inc. (NASDAQ: NWLG) “Northwind” and Harbor Freight Systems",
       "usage": {
         "completion_tokens": 90,
-        "prompt_tokens": 809
+        "prompt_tokens": 795
       }
     },
     {
@@ -63,9 +63,9 @@
         }
       },
       "request_sha256": "43912b21d152732073c373afe5232110fa1c4ab1ab15da404287b70011899791",
-      "response_text": "{\n  \"hypothesis\": {\n    \"text\": \"no recommended course of action due to insufficient data\",\n    \"confidence\": 0.0,\n    \"supporting_claims\": []\n  },\n  \"questions\": [],\n  \"dependencies\": []\n}",
+      "response_text": "{\n  \"hypothesis\": {\n    \"text\": \"no recommended course of action due to insufficient information\",\n    \"confidence\": 0.0,\n    \"supporting_claims\": []\n  },\n  \"questions\": [\n    {\n      \"text\": \"what are the available options for the decision?\",\n      \"priority\": \"high\",\n      \"linked_claims\": []\n    }\n  ],\n  \"dependencies\": []\n}",
       "usage": {
-        "completion_tokens": 55,
+        "completion_tokens": 90,
         "prompt_tokens": 257
       }
     },
@@ -107,6 +107,6 @@
   "model": "deepseek/deepseek-chat",
   "note": "Unparseable output: recorded with max_tokens=90, so the extraction is cut off mid-string. Truncation is the commonest real cause of output the JSON_DECODE retry path exists for. All three extract attempts fail, the step never commits, and the later stages run on against empty state. Recorded from the same document as analyze_five_stage.json, so the token cap is the only variable.",
   "provider": "openrouter",
-  "recorded_at": "2026-09-11T22:29:50.547663Z",
+  "recorded_at": "2026-09-12T01:46:36.062340Z",
   "version": 1
 }

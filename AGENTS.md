@@ -209,6 +209,16 @@ tree. Any LLM operator — existing or new:
   flagship — and keeps the model configurable. **Per-operator model
   routing is just handing different operators differently-configured
   provider instances** — there is no separate mechanism to opt into;
+- **never asks the model for a fact about the world outside the document**
+  (T14). The model contributes semantic *content* — what the claims are, which
+  span supports each. Facts about the source itself belong to the caller, who
+  knows them, and the operator derives from that: `Evidence.reliability` comes
+  from the declared `source_type` (`source_types.py`), not from an
+  `evidence_reliability` field the model fills in. A model asked to grade the
+  trustworthiness of a document from inside that document will grade its own
+  extraction generously — measured, it rated 6 of 11 spans of a corporate press
+  release `high`. If you find yourself adding a prompt field for something the
+  caller already knows and the model cannot see, that is the same mistake;
 - is tested with an **injected client** (no network, no key in CI). A test must
   show that an LLM proposing direct-mutation prose ("the new state is …") is
   **rejected**, not absorbed.

@@ -6,150 +6,119 @@
 > never append. The durable record lives in git history, `ROADMAP.md`, and
 > `TASKS.md` — not here.
 
-**Last session:** 2026-09-11 · **Branch:** `claude/fervent-franklin-k6nffp`
-(four merged PRs — see *Starting work* before you commit anything)
+**Last session:** 2026-09-12 · **Branch:** `claude/fervent-franklin-k6nffp`
+(reset from `main` at the start of the session — see *Starting work*)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**; all three milestones shipped. The
-`TASKS.md` backlog is **done through T13** and is empty again. Everything below
-is merged to `main` (PRs #2, #3 and #4).
+Roadmap complete through **Phase 9**. The `TASKS.md` backlog is **done through
+T14**. Everything through T13 is merged to `main` (PRs #2–#5); **T14 is the
+uncommitted/unmerged work in this branch.**
 
-**The repo has CI**, added this session — before it, the gates lived only in
-`TASKS.md` and were run by hand.
-
-All four definition-of-done gates pass on a fresh clone, and in CI on every PR:
+All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
-python -m mypy              ->  Success: no issues found in 68 source files
-pytest                      ->  297 passed   (was 236 at the start of the session)
+python -m mypy              ->  Success: no issues found in 69 source files
+pytest                      ->  322 passed   (was 297 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
 ## What the last session did
 
-It began as a one-off: run a real document — a 4-page merger press release,
-supplied as a PDF — through `spc-demo analyze` for the first time. Every task
-below came from what that run, or the next one, actually showed.
+One task, from one question: after the previous session's live run recommended
+proceeding at 90% confidence on a promotional press release, what in the
+pipeline was supposed to push back, and why didn't it?
 
-### 1. The first live run, and the defect it exposed
+### T14 — evidence reliability comes from the source, not from the model
 
-Five stages COMMIT, 10 claims, ~$0.0014. But **nothing checked that the
-citations were real.** The extractor copied the model's `evidence_quote` on
-trust and no validation layer is ever handed the source text, so a fabricated
-span would have committed silently and rendered as provenance in the memo.
-Nothing was fabricated that run — only by luck.
+**The answer: the Retriever was supposed to, and it had been told there was
+nothing to ask about.** `Evidence.reliability` is the number the rest of the
+pipeline is sceptical by — the Retriever questions an under-confident claim
+that rests on no `HIGH` span, the memo flags a finding supported only by `LOW`
+ones — and it was arriving from the model, as an `evidence_reliability` field
+in the extraction schema. That asks a model to grade a document's
+trustworthiness from inside that document, and lets the extraction that most
+wants scrutiny exempt itself. Read back off the pre-change cassettes, the model
+graded **6 of 11**, **8 of 9** and **7 of 8** of its own spans `high` — on
+three documents that are all an interested party's own announcement. On the
+live Paramount/WBD release it was 10 of 10.
 
-### 2. T8 — evidence quotes verified against the source document
+**The fix.** `source_types.py`: a coarse taxonomy plus the mapping. `HIGH` only
+where someone is accountable for the statement being true — a legal duty of
+accuracy or an independent check (regulatory filing, audited financials, court
+record, official statistics, peer review). `LOW` where the author has a stake
+and nobody checked it (press release, marketing, opinion, social media).
+`MEDIUM` for the disinterested-but-unverified middle. The prompt no longer asks
+for the field at all; `LLMExtractOperator(source_type=...)` stamps the derived
+value on **both** routes in, including the full-patch passthrough where a
+model-authored `high` would otherwise have survived. `spc-demo analyze
+--source-type` exposes it.
 
-`provenance.py` (`locate_span`, `normalize`): pure, offline, deterministic;
-returns offsets into the **original** document or `None`.
+**Undeclared is `MEDIUM`, deliberately.** `LOW` would assert something about the
+source nobody established; `HIGH` is the free promotion being removed. Nothing
+reaches `HIGH` without someone saying where the text came from.
 
-Only **2 of 10** faithful spans were byte-exact substrings, so exact matching
-would have rejected eight good quotes. Comparison runs under a documented
-normalization instead. Case changes and added, dropped or reordered words are
-deliberately **not** normalized. `Evidence.location` now records the offsets;
-it was always `{}`.
+**Measured on one recording, only the declaration differing:**
 
-### 3. T9 — live-run regression harness (record / replay cassettes)
+| declared as | evidence-gap questions | findings flagged weakly supported |
+|---|---|---|
+| `regulatory_filing` | 0 | 0 |
+| *(undeclared)* | 4 | 0 |
+| `press_release` | 4 | 8 |
 
-`providers/cassette.py` — `RecordingProvider` captures a live provider's
-completions verbatim, `ReplayProvider` feeds them back offline. **Four**
-committed cassettes, all real `deepseek/deepseek-chat` runs over authored
-fixture documents (never third-party text):
+**Stated honestly:** replaying the *old* recordings under old and new rules
+gives the same gap count on all three. The self-graded `HIGH` spans happened to
+support claims the model was already confident about, and the Retriever does not
+question those whatever their evidence. The gate is real, but on those three
+documents what the self-grading was actually costing was the memo's
+weak-support flag and any ability to tell a filing from a press release.
 
-| cassette | what it covers |
-|---|---|
-| `analyze_five_stage.json` | the clean path |
-| `analyze_hyphenated.json` | line-end hyphenation; since T10 nothing is lost |
-| `analyze_retry_path.json` | a rejection the model recovers from (T10's boundary) |
-| `analyze_truncated.json` | output that never parses; the step commits nothing |
-
-Exhaustion raises; document identity is verified; prompt drift is reported but
-never fatal, since a contributor without a key cannot re-record. Record or
-inspect drift with `tools/record_cassette.py`.
-
-**What only this catches**, verified by mutation: a one-line prompt change
-fails both staleness guards and is invisible to every other test.
-
-### 4. T10 — read a line-end hyphen both ways
-
-Hyphenation cost one document **half its claims**. The ambiguity is undecidable
-without a dictionary (`impair-\nment` vs `pre-\ntax`), so each reading is tried
-in turn. Two boundaries found empirically: a hyphen must be **attached to the
-preceding word** (an adversarial sweep caught a standalone em dash being erased
-— 4 wrongly accepted spans, now 0), and an **in-word hyphen is not forgiven**.
-
-### 5. T11 — closed the full-patch passthrough
-
-`_assemble` passes a model-authored patch straight to the validator, and T8's
-check lived in the assembly loop, so that way in never reached it.
-
-Two halves, and the first alone did not work. **The runtime decides by
-validating whatever text an operator returns**, and on rejection the operator
-returns the model's raw output — which on this path *is* a valid patch, so it
-committed anyway. Output that would itself parse as a patch is now returned
-wrapped. Remember this when writing any operator.
-
-### 6. T12 — a cassette for output that never parses
-
-Recorded with a low token cap, so the reply is cut off mid-string. Chasing
-*prose* was a dead end (see *Next up*). It pins that a failed first stage does
-not take the run down, and separates **what the code guarantees** (a memo from
-empty state invents no findings, sources or citations) from **what the model
-happened to do** (the planner hedged at zero confidence — not a property of
-this code).
-
-### 7. T13 — attempt-level cost accounting
-
-The ledger was keyed to `TransformRecord`, so a step where every attempt failed
-spent real money that appeared nowhere. On the truncated cassette it reported
-**1,001 tokens against 3,651 actually spent** — understating by 3.6x, and
-always in that direction, since the worse a run goes the more it under-reports.
-
-The cost was never missing, only discarded: the loop had summed it across
-attempts since T5 and dropped it when there was no patch to stamp. Rows now
-come off `StepOutcome` and carry `attempts` and `committed`, with
-`transform_id` `None` when nothing committed, so attribution (what the state
-cost) and reconciliation (what the provider will bill) stay separable.
-
-### 8. CI, and a gate that was environment-dependent
-
-`.github/workflows/gates.yml` runs all four gates on every PR and on `main`,
-over Python 3.11 and 3.12, plus a second job that type-checks with the
-`openrouter` extra installed. Actions pinned to `checkout@v7` /
-`setup-python@v7` — verified against their release pages, since v5/v6 are
-stale.
-
-That second job exists because `mypy` used to pass or fail depending on whether
-the optional extra happened to be installed.
+**All four cassettes were re-recorded**, because removing the prompt field is
+exactly the drift `test_committed_cassettes_match_the_current_prompts` exists
+to catch. Each still shows the property it was made for. One assertion was
+loosened in the process: the new recording hedges with "insufficient
+information" where the old said "insufficient data", and pinning the synonym
+was pinning the model's prose style rather than its refusal to invent.
 
 ## Starting work — read this first
 
-**This branch's PRs are all merged.** A merged PR is finished and cannot track
-new work. Do not stack commits on that history:
+**This branch carries unmerged T14 work.** Commit and push it, or open its PR,
+before starting anything else. Only once its PR is merged does the reset below
+apply:
 
 ```
 git fetch origin main && git checkout -B claude/fervent-franklin-k6nffp origin/main
 ```
 
-This branch has already been reset that way and carries only the commit that
-rewrote this file.
+A merged PR is finished and cannot track new work — never stack commits on that
+history.
 
 ## Next up
 
-**The `TASKS.md` backlog is empty.** Nothing is queued. Options, none urgent:
+**The `TASKS.md` backlog is empty again.** Nothing is queued. Options, none
+urgent, roughly in order of how much they would change the output:
 
-- **Cache the normalized document in `locate_span`.** It normalizes the
-  document up to three times per call, once per hyphenation reading, and the
-  extractor calls it once per quote. Irrelevant at fixture size; worth a
-  memoised form before anyone runs a book-length input through it.
+- **The judgement layer is still the weak part.** T8–T11 made the plumbing
+  honest (every citation resolves, every attempt is billed, nothing commits
+  unverified) and T14 made one judgement input honest. What the model *does*
+  with that input is not yet constrained: confidence values are still the
+  model's own, and nothing checks that a `predictive_claim` about 2030 is held
+  to a different standard than a reported figure. That is the next real
+  frontier, not more plumbing.
+- **The Retriever's gate is narrow.** It questions a claim only when confidence
+  is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
+  resting on a press release is never questioned — visible in the table above,
+  where `press_release` produced 8 weak-support flags but no extra questions
+  beyond the undeclared case. Widening it is a design decision, not a bug fix.
+- **Cache the normalized document in `locate_span`.** It normalizes the document
+  up to three times per call, once per hyphenation reading, and the extractor
+  calls it once per quote. Irrelevant at fixture size; worth a memoised form
+  before anyone runs a book-length input through it.
 - **Contradictions need an explicit `Relation`** to the claims they conflict
-  with, or they stay visually isolated in the T4 state graph. Changes what the
-  contradiction operator commits, not just how it renders.
+  with, or they stay visually isolated in the T4 state graph.
 - **`--state-backend sqlite`** if a SQLite-backed end-to-end run is wanted; T6
   proved the seam, this would ship the user-facing switch.
 - **Do not go hunting for a prose cassette.** T12 tried three ways to make a
@@ -174,13 +143,16 @@ cryptography` or pypdf's import panics.
 **If you change an LLM operator's prompt, re-record the cassettes**
 (`python tools/record_cassette.py record ...`, needs `OPENROUTER_API_KEY`).
 `test_committed_cassettes_match_the_current_prompts` is the signal, and it is
-the one thing the mock-driven suite provably cannot see.
+the one thing the mock-driven suite provably cannot see. Budget a few retries:
+`deepseek/deepseek-chat` returns upstream 429s intermittently and a plain retry
+a minute later works.
 
 > ⚠ **Do not "fix" UP042.** It wants `class X(str, Enum)` → `StrEnum` across
 > `models/enums.py`. Verified in a REPL: that changes `str()` and f-string
 > output from `ObjectType.CLAIM` to `claim`, which would silently alter every
 > rendered receipt and memo and break the byte-stable demo artifacts. The
-> ignore is deliberate and documented at the rule.
+> ignore is deliberate and documented at the rule. `SourceType` in
+> `source_types.py` is the same shape and the same reasoning applies.
 
 > ⚠ **`provenance.py`'s fold table is written as unicode escapes, not literal
 > characters.** Several are invisible or ASCII-lookalikes in an editor, and
@@ -193,7 +165,11 @@ Read [`AGENTS.md`](./AGENTS.md). The hard invariant: **no operator mutates
 `SemanticPatch`. Since T8 there is a second, on the LLM extract path: an
 `Evidence` quote must be locatable in the source document, or the operator asks
 the model to re-quote rather than committing the citation — and since T11 that
-holds on **both** ways in, assembled and passed through. The full definition of
-done is in `TASKS.md`; note that `spc-demo demo` rewrites `DEMO.md` in the repo
-root, so run it with the default `--runs-dir` or the run path gets baked into
-the committed file.
+holds on **both** ways in, assembled and passed through. Since T14 a third:
+**an operator does not take a model's word for a fact about the world outside
+the document.** Reliability is derived from the declared source; if you find
+yourself adding a prompt field for something the caller knows and the model
+cannot see, that is the same mistake. The full definition of done is in
+`TASKS.md`; note that `spc-demo demo` rewrites `DEMO.md` in the repo root, so
+run it with the default `--runs-dir` or the run path gets baked into the
+committed file.

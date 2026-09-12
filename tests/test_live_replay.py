@@ -449,11 +449,16 @@ def test_the_recorded_planner_hedged_rather_than_inventing_a_recommendation(
     """What the *model* did, which is a separate thing and worth pinning apart.
 
     Handed an empty state, the planner proposed "no recommended course of
-    action due to insufficient data" at zero confidence. That hedge is the
-    model's, not a guarantee of this code: the recommendation line renders
+    action due to insufficient information" at zero confidence. That hedge is
+    the model's, not a guarantee of this code: the recommendation line renders
     whatever hypothesis was committed. Pinned so that a re-record which starts
     asserting something confident out of nothing is visible rather than
     silently shipped in a memo.
+
+    The *shape* of the hedge is asserted, not its wording — successive
+    recordings have said "insufficient data" and "insufficient information",
+    and a test that fails on the synonym would be pinning the model's prose
+    style rather than its refusal to invent.
     """
     _, _, result = _replay_truncated(tmp_path, document)
     memo = result.memo_path.read_text(encoding="utf-8") if result.memo_path else ""
@@ -461,7 +466,9 @@ def test_the_recorded_planner_hedged_rather_than_inventing_a_recommendation(
     lead = max(result.run.final_state.hypotheses.values(), key=lambda h: h.confidence)
     assert lead.confidence == 0.0
     assert lead.supporting_claims == []
-    assert "insufficient data" in lead.text
+    assert "insufficient" in lead.text.lower(), (
+        "the planner named a shortfall rather than recommending something"
+    )
     assert "_Confidence: 0%._" in memo
 
 
