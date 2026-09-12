@@ -7,15 +7,14 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-12 · **Branch:** `claude/fervent-franklin-k6nffp`
-(reset from `main` at the start of the session — see *Starting work*)
+(its PR is merged — see *Starting work* before you commit anything)
 
 ---
 
 ## Where things stand
 
 Roadmap complete through **Phase 9**. The `TASKS.md` backlog is **done through
-T14**. Everything through T13 is merged to `main` (PRs #2–#5); **T14 is the
-uncommitted/unmerged work in this branch.**
+T14** and is empty again. Everything is merged to `main` (PRs #2–#6).
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
@@ -85,16 +84,15 @@ was pinning the model's prose style rather than its refusal to invent.
 
 ## Starting work — read this first
 
-**This branch carries unmerged T14 work.** Commit and push it, or open its PR,
-before starting anything else. Only once its PR is merged does the reset below
-apply:
+**This branch's PRs are all merged.** A merged PR is finished and cannot track
+new work; never stack commits on that history. Reset from `main` first:
 
 ```
 git fetch origin main && git checkout -B claude/fervent-franklin-k6nffp origin/main
 ```
 
-A merged PR is finished and cannot track new work — never stack commits on that
-history.
+This branch has already been reset that way and carries only the commit that
+rewrote this file.
 
 ## Next up
 
