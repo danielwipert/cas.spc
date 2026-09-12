@@ -750,6 +750,111 @@ analysis".
 
 ---
 
+## T15 — Hold a recommendation to what it rests on · M
+
+**Why, with the numbers.** T14 made the pipeline honest about its *sources*: a
+press release now commits as `low`-reliability evidence, the Retriever asks
+what stronger source would confirm the weak claims, and the memo flags the
+findings resting on it. Run `paramount_006` — the Paramount/WBD merger release,
+declared `--source-type press_release` — produced a memo whose every one of ten
+findings carries a **Weakly supported** marker.
+
+It still opened with:
+
+> **Proceed with the acquisition of Warner Bros. Discovery…**
+> _Confidence: 90%._
+
+Unchanged from the run before T14, and untouched by anything in the pipeline.
+What it rests on:
+
+| supporting claim | confidence | evidence |
+|---|---|---|
+| `claim_001` | 1.00 | low |
+| `claim_005` | 1.00 | low |
+| `claim_006` | **0.65** | low |
+| `claim_007` | 1.00 | low |
+| `claim_008` | 1.00 | low |
+
+The critic had *just lowered* `claim_006` from 0.80 to 0.65, recording "$6
+billion in synergies is a high estimate; integration challenges may reduce
+achievable synergies." The recommendation that cites it stayed at 90%.
+
+**Two distinct defects, both structural.**
+
+1. **Nothing re-derives a hypothesis after its support moves.** The planner
+   writes `hyp_001` at step 2; the critic adjusts claims at step 3. Nothing
+   revisits the hypothesis, so its confidence is stale by construction whenever
+   the critic does its job.
+2. **Nothing relates a hypothesis's confidence to its support at all.** The
+   `CRITIC` projection (`projection/builder.py`, the `Perspective.CRITIC`
+   branch) selects weak claims, weak evidence, assumptions, inferences,
+   questions and contradictions — **no hypotheses**. Confirmed in the run
+   record: the critique transform's `read_set` is
+   `['claim_003', 'claim_004', 'claim_006', 'claim_010']`. The recommendation
+   is the one object in committed state that no operator ever scrutinises.
+
+**Scope.** A new deterministic operator — no model, no cost, reproducible, in
+the mould of `RetrieverOperator` — that runs **after** the critic so it sees
+the adjusted confidences, and proposes a patch lowering any hypothesis whose
+confidence exceeds what its support can carry.
+
+The ceiling is a **weakest-link** rule, because a recommendation is only as
+good as the shakiest thing it depends on:
+
+```
+ceiling(h) = min over c in h.supporting_claims of
+                 claim_confidence(c) * reliability_factor(c)
+```
+
+where `reliability_factor` is the best reliability among that claim's evidence
+(`HIGH` → 1.0, `MEDIUM` → 0.8, `LOW` → 0.6), and a claim citing no evidence at
+all contributes its confidence times the `LOW` factor. A hypothesis with no
+supporting claims gets a ceiling of 0.0 — a recommendation grounded in nothing
+should not read as a finding.
+
+Two rules that are not negotiable, whatever the constants end up being:
+
+- **It only ever lowers.** Raising a confidence because the support looks
+  strong would be inventing certainty, which is the failure mode this exists to
+  fix. A hypothesis already at or below its ceiling is left alone.
+- **Every change is recorded.** Use the mechanism the critic already uses —
+  `UpdateObject` with `from`/`to`/`reason` plus a matching `ConfidenceChange`
+  — with a reason naming the binding claim and why
+  (`"capped at 0.39: rests on claim_006 (0.65) on low-reliability evidence"`).
+  A number that changes without a reason in the receipt is the thing this repo
+  exists not to do.
+
+The constants are a documented starting point, not a result. Pin them in the
+tests so changing them is a deliberate edit, and state the rule in the module
+docstring the way `provenance.py` states its normalization.
+
+Also fix the projection gap: the operator needs its own perspective (or the
+`CRITIC` slice needs hypotheses). Whichever way, it must read through a
+projection like every other operator — no reaching into raw state.
+
+**Explicitly out of scope.** The extractor's own claim confidences — four of
+the five claims above sit at **1.00** off a press release, which is its own
+problem with its own fix. Do not widen this task into it; note it and leave it.
+
+**Acceptance test** (`tests/test_calibration.py`, deterministic — no provider
+needed for the operator itself). Unit: the ceiling is the weakest link, not an
+average; a hypothesis at or below its ceiling is untouched; one above it is
+lowered with a reason naming the binding claim; a hypothesis with no supporting
+claims goes to 0.0; confidence is never raised. Pipeline: replay
+`analyze_five_stage.json` declared `press_release` and assert the recommendation
+commits **below** what the planner proposed, with the `ConfidenceChange` visible
+in the receipt; declared `regulatory_filing`, assert it is **not** capped — the
+same contrast that proves T14's declaration is load-bearing. Assert the
+operator reads only its projection.
+
+**Invariants.** Deterministic and model-free, so it costs nothing and replays
+identically. No direct `SemanticState` mutation — it proposes a `SemanticPatch`
+like everything else. **Do not add it to `spc-demo demo`**, for the same reason
+T1 kept the Retriever out: the frozen pilot artifacts are a release gate and
+`DEMO.md` must stay byte-identical.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)
