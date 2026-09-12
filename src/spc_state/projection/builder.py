@@ -41,6 +41,11 @@ from ..models.enums import EpistemicStatus
 # observation/verification. Writers want the complement; critics want these.
 WEAK_CONFIDENCE_THRESHOLD = 0.75
 
+# `REPORTED` is deliberately **not** here. Groundedness is about provenance,
+# and a reported claim has some: a named source says it, and the span is on
+# record. What it lacks is *first-hand* observation, which is what the label now
+# says out loud (T17) rather than what a projection filter should re-litigate —
+# how much that source is worth is already priced in by T14/T16.
 _UNGROUNDED = {
     EpistemicStatus.INFERRED,
     EpistemicStatus.ASSUMED,

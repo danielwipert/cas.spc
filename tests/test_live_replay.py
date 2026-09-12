@@ -457,10 +457,12 @@ def test_the_recorded_planner_hedged_rather_than_inventing_a_recommendation(
     asserting something confident out of nothing is visible rather than
     silently shipped in a memo.
 
-    The *shape* of the hedge is asserted, not its wording — successive
-    recordings have said "insufficient data" and "insufficient information",
-    and a test that fails on the synonym would be pinning the model's prose
-    style rather than its refusal to invent.
+    The *shape* of the hedge is asserted, not its wording. Three recordings have
+    now said "insufficient data", "insufficient information", and "lack of
+    claims and assumptions"; a test that fails on the synonym is pinning the
+    model's prose style rather than its refusal to invent, and has broken twice
+    doing so. What must hold is that it named a shortfall and staked nothing on
+    it.
     """
     _, _, result = _replay_truncated(tmp_path, document)
     memo = result.memo_path.read_text(encoding="utf-8") if result.memo_path else ""
@@ -468,9 +470,10 @@ def test_the_recorded_planner_hedged_rather_than_inventing_a_recommendation(
     lead = max(result.run.final_state.hypotheses.values(), key=lambda h: h.confidence)
     assert lead.confidence == 0.0
     assert lead.supporting_claims == []
-    assert "insufficient" in lead.text.lower(), (
-        "the planner named a shortfall rather than recommending something"
-    )
+    assert any(
+        word in lead.text.lower()
+        for word in ("insufficient", "lack", "no recommended", "cannot", "unable")
+    ), "the planner named a shortfall rather than recommending something"
     assert "_Confidence: 0%._" in memo
 
 

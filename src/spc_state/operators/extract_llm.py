@@ -72,7 +72,7 @@ _SCHEMA_HINT = """Return ONLY a single JSON object of this exact shape:
     {
       "text": "one claim stated in the document, in your own words",
       "claim_type": "factual_claim | analytical_claim | predictive_claim | normative_claim",
-      "epistemic_status": "observed | inferred | assumed | speculative",
+      "epistemic_status": "reported | inferred | assumed | speculative",
       "confidence": 0.0 to 1.0,
       "evidence_quote": "the exact span from the document that supports this claim",
       "assumption": "an assumption this claim depends on, or null if none",
@@ -86,6 +86,10 @@ Rules:
 - `evidence_quote` must be copied verbatim from the document. It is
   checked against the document text; a quote that cannot be found there
   is rejected, so never paraphrase, shorten mid-span, or invent one.
+- `epistemic_status` is `reported` when the document states the claim, and
+  `inferred` when you worked it out from what the document states. There is no
+  `observed`: reading a document shows that the document says something, not
+  that it is so.
 - Use `assumption` only for something the document does not establish but the
   claim relies on; otherwise null.
 - No prose, no markdown fences — only the JSON object."""
@@ -102,6 +106,21 @@ _CLAIM_TYPES = {
     "normative": ClaimType.NORMATIVE,
 }
 _EPISTEMIC = {s.value: s for s in EpistemicStatus}
+
+#: Statuses no operator reading a document can honestly claim, and what each
+#: becomes (T17). `observed` because the extractor saw the document, not the
+#: thing; `verified` because nothing here corroborated anything. Applied after
+#: the model's answer, so a model that ignores the prompt is corrected rather
+#: than believed — the same two-routes-in rule T11 established for provenance.
+_UNAVAILABLE_TO_A_READER = {
+    EpistemicStatus.OBSERVED: EpistemicStatus.REPORTED,
+    EpistemicStatus.VERIFIED: EpistemicStatus.REPORTED,
+}
+
+
+def ground_status(status: EpistemicStatus) -> EpistemicStatus:
+    """The strongest status a claim read out of a document may carry."""
+    return _UNAVAILABLE_TO_A_READER.get(status, status)
 _IMPACT = {i.value: i for i in Impact}
 
 
@@ -252,6 +271,17 @@ class LLMExtractOperator(LLMOperator):
         """
         return item.source_type in (self.source_type.value, LEGACY_INPUT_DOCUMENT)
 
+    def _ground_patch_claims(self, patch: SemanticPatch) -> None:
+        """Hold a model-authored patch to the reading rule too (T17).
+
+        The assembled path grounds every status it builds; a patch that arrives
+        fully formed would otherwise commit `observed` on the strength of
+        having read a press release. Correcting it here closes the same second
+        way in that T8 and T14 had to close.
+        """
+        for claim in patch.add_objects.claims:
+            claim.epistemic_status = ground_status(claim.epistemic_status)
+
     def _verify_patch_evidence(self, patch: SemanticPatch) -> None:
         """Hold a model-authored patch to the same rules (T8, T14).
 
@@ -294,6 +324,7 @@ class LLMExtractOperator(LLMOperator):
         if isinstance(data, dict) and ("add_objects" in data or "patch_id" in data):
             patch = SemanticPatch.model_validate(data)
             self._verify_patch_evidence(patch)
+            self._ground_patch_claims(patch)
             return patch
 
         if not isinstance(data, dict) or not isinstance(data.get("claims"), list):
@@ -376,8 +407,12 @@ class LLMExtractOperator(LLMOperator):
                     claim_type=coerce_enum(
                         rc.get("claim_type"), _CLAIM_TYPES, ClaimType.ANALYTICAL
                     ),
-                    epistemic_status=coerce_enum(
-                        rc.get("epistemic_status"), _EPISTEMIC, EpistemicStatus.INFERRED
+                    epistemic_status=ground_status(
+                        coerce_enum(
+                            rc.get("epistemic_status"),
+                            _EPISTEMIC,
+                            EpistemicStatus.REPORTED,
+                        )
                     ),
                     confidence=clamp_confidence(rc.get("confidence")),
                     supporting_evidence=supporting,

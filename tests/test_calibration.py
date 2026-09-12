@@ -367,44 +367,63 @@ def test_a_press_release_recommendation_commits_below_what_was_proposed(
 ) -> None:
     """The whole point, on output a real model produced.
 
-    The planner proposed 0.85 over a merger press release. Every span under it
-    is low-reliability (T14), so the recommendation cannot carry that — and the
-    memo now opens with the capped number rather than the proposed one.
+    Every span under this recommendation is low-reliability (T14), so it cannot
+    carry what the planner proposed — and the memo opens with the capped number
+    rather than the proposed one.
+
+    Expectations are **derived from the run**, not written down. Three
+    re-records in, hard-coded values here have broken every time and proved
+    nothing about the rule when they passed: what matters is that the committed
+    confidence is the weakest claim it rests on, whatever the model proposed
+    this time.
     """
     result = _replay(tmp_path, SourceType.PRESS_RELEASE)
-    calibrate = result.run.steps[-1]
-    assert calibrate.patch is not None
-    change = _hypothesis_change(calibrate.patch.transform_record)
+    final_state = result.run.final_state
+    change = _hypothesis_change(final_state.transform_log[-1])
 
-    assert change.to_value < change.from_value == 0.85
-    assert change.to_value == 0.6
-    final = max(
-        result.run.final_state.hypotheses.values(), key=lambda h: h.confidence
-    )
-    assert final.confidence == 0.6
+    assert change.to_value < change.from_value, "the cap really bound"
+    lead = final_state.hypotheses["hyp_001"]
+    assert lead.confidence == change.to_value
+    assert lead.confidence == min(
+        final_state.claims[cid].confidence for cid in lead.supporting_claims
+    ), "the committed number is the weakest claim it cites"
 
     assert result.memo_path is not None
-    assert "_Confidence: 60%._" in result.memo_path.read_text(encoding="utf-8")
+    memo = result.memo_path.read_text(encoding="utf-8")
+    assert f"_Confidence: {lead.confidence:.0%}._" in memo
 
 
-def test_the_same_run_declared_a_filing_keeps_its_confidence(
+def test_a_filing_is_held_to_a_higher_ceiling_than_a_press_release(
     tmp_path: Path,
 ) -> None:
     """The contrast that proves the declaration is doing the work.
 
-    Identical document, identical recorded completions, identical claims — only
-    the declared source differs. Read as a filing, the support carries 0.85 and
-    the operator leaves it alone.
-    """
-    result = _replay(tmp_path, SourceType.REGULATORY_FILING)
-    calibrate = result.run.steps[-1]
-    assert calibrate.patch is not None
-    assert calibrate.patch.transform_record.confidence_changes == []
+    Identical document, identical recorded completions, identical proposed
+    numbers — only the declared source differs. A filing carries its claims
+    intact, so nothing is discounted at the claim layer and the recommendation
+    lands higher; a press release discounts every claim and the recommendation
+    follows them down.
 
-    final = max(
-        result.run.final_state.hypotheses.values(), key=lambda h: h.confidence
+    The *gap* is asserted rather than either endpoint: whether a filing's
+    recommendation is capped at all depends on what the planner proposed that
+    run, which is not this rule's business.
+    """
+    filing = _replay(tmp_path / "rf", SourceType.REGULATORY_FILING).run.final_state
+    release = _replay(tmp_path / "pr", SourceType.PRESS_RELEASE).run.final_state
+
+    def claim_caps(state) -> list[str]:
+        return [
+            c.object_id
+            for c in state.transform_log[-1].confidence_changes
+            if c.object_id.startswith("claim_")
+        ]
+
+    assert claim_caps(filing) == [], "an accountable source discounts no claim"
+    assert len(claim_caps(release)) == len(release.claims), "an interested one, all of them"
+    assert (
+        filing.hypotheses["hyp_001"].confidence
+        > release.hypotheses["hyp_001"].confidence
     )
-    assert final.confidence == 0.85
 
 
 def test_the_cap_is_visible_in_the_reasoning_receipt(tmp_path: Path) -> None:
@@ -419,9 +438,13 @@ def test_the_cap_is_visible_in_the_reasoning_receipt(tmp_path: Path) -> None:
     assert result.artifacts is not None
     receipt = result.artifacts.receipt_path.read_text(encoding="utf-8")
 
-    assert "**calibration_transform** (calibrate)" in receipt
-    assert "**changed hypothesis `hyp_001`:** `confidence` 0.85 → 0.6" in receipt
-
     record = result.run.final_state.transform_log[-1]
     assert record.operator == "calibration_transform"
-    assert "Capped at 0.60" in (_hypothesis_change(record).reason or "")
+    change = _hypothesis_change(record)
+
+    assert "**calibration_transform** (calibrate)" in receipt
+    assert (
+        f"**changed hypothesis `hyp_001`:** `confidence` "
+        f"{change.from_value:g} → {change.to_value:g}" in receipt
+    )
+    assert f"Capped at {change.to_value:.2f}" in (change.reason or "")

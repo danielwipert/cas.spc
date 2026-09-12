@@ -24,7 +24,22 @@ class ObjectType(str, Enum):
 
 
 class EpistemicStatus(str, Enum):
+    """How a claim came to be believed. See PILOT_SPEC.md §11.2.
+
+    `OBSERVED` and `REPORTED` are the distinction T17 drew, and the difference
+    matters more than it looks. Reading a document establishes **that the
+    document says so** — never that the thing is so. An extractor holding a
+    press release has observed the press release; it has not observed the
+    merger. So a claim drawn from a source is `REPORTED`, and `OBSERVED` is
+    reserved for an operator that genuinely saw the thing itself.
+
+    `VERIFIED` is the status a future corroboration step would promote a
+    `REPORTED` claim to, once a second accountable source carries it. Nothing
+    emits it yet.
+    """
+
     OBSERVED = "observed"
+    REPORTED = "reported"
     INFERRED = "inferred"
     ASSUMED = "assumed"
     SPECULATIVE = "speculative"

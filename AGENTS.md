@@ -230,6 +230,12 @@ discounted by the source it cites, and a recommendation is capped at the
 weakest claim it depends on. Never raised — strong support is not a licence to
 invent certainty — and never silently: every change records what moved it.
 
+Since T17 the same holds for a claim's *warrant*. An operator that read a
+document has established that the document says so, never that the thing is so,
+so an extracted claim is `REPORTED` and never `OBSERVED` — derived, with the
+model's answer corrected rather than believed. Reserve `OBSERVED` for an
+operator that genuinely sees the thing itself.
+
 ---
 
 ## VIII. What This Repo Is Not

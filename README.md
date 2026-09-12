@@ -140,7 +140,10 @@ rests on — each claim discounted by the source it cites, and the recommendatio
 capped at the weakest claim it depends on, each change recorded with the reason
 that moved it. Over a merger press release the model proposed five of ten
 claims at absolute certainty and a 90% recommendation; committed state holds no
-claim above 60% and the memo opens at 45%. Remaining refinements (planner retry-on-shape, an optional
+claim above 60% and the memo opens at 45%. Claims read out of a document are
+labelled **reported**, not *observed* — reading a press release shows that the
+press release says so, not that the thing is so — so a memo line says what a
+reader needs: *"(confidence 60%, reported)"*. Remaining refinements (planner retry-on-shape, an optional
 LLM-narrated memo) are tracked in [`TASKS.md`](TASKS.md).
 
 ## Pilot scope
