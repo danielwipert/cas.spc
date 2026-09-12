@@ -653,6 +653,103 @@ ledger at all, and `DEMO.md` is byte-identical.
 
 ---
 
+## T14 — Evidence reliability comes from the source, not from the model · ✅ DONE
+
+**The defect.** `Evidence.reliability` decides how sceptical the rest of a run
+is: the Retriever opens an evidence-gap question for any under-confident claim
+not resting on a `HIGH` span, and the memo flags a finding supported only by
+`LOW` ones. It arrived from the model, as an `evidence_reliability` field in the
+extraction schema — which asks a model to grade a document's trustworthiness
+from inside that document, the one place the answer is not, and lets the
+extraction that most wants scrutiny exempt itself from it.
+
+It is not a theoretical worry. The model's own self-grades, read back off the
+cassettes recorded before this change — every one of these documents an
+announcement written by an interested party:
+
+| recording | spans graded `high` by the model |
+|---|---|
+| `analyze_five_stage` (merger press release) | 6 of 11 |
+| `analyze_hyphenated` | 8 of 9 |
+| `analyze_retry_path` | 7 of 8 |
+
+On the live Paramount/WBD press release earlier in this project it was 10 of 10,
+and the run recommended proceeding at 90%.
+
+**The fix.** Reliability is a property of *where the text came from*, so the
+caller declares that once and the operator derives the rest. `source_types.py`
+holds a coarse taxonomy and the mapping: `HIGH` only where someone is
+accountable for the statement being true (a legal duty of accuracy, or an
+independent check) — regulatory filing, audited financials, court record,
+official statistics, peer review; `LOW` where the author has a stake in the
+conclusion and nobody checked it — press release, marketing material, opinion,
+social media; `MEDIUM` for the disinterested-but-unverified middle. The
+`evidence_reliability` field is gone from the prompt, and
+`LLMExtractOperator(source_type=...)` stamps the derived value on both routes
+in — the assembled one and the full-patch passthrough, where a model-authored
+patch asserting `high` for itself would otherwise have kept it. `spc-demo
+analyze --source-type` exposes it.
+
+**An undeclared source is `MEDIUM`, deliberately.** `LOW` would assert something
+about the source nobody established, and flag every finding of every
+unclassified run as weakly supported. `HIGH` is the free promotion this task
+removes. `MEDIUM` is the honest answer and still denies the `HIGH` that silences
+the Retriever — nothing reaches `HIGH` without someone saying where the text
+came from.
+
+**What it changes, measured.** Same recording, same claims, same confidences —
+only the declaration differs:
+
+| declared as | evidence-gap questions | findings flagged weakly supported |
+|---|---|---|
+| `regulatory_filing` | 0 | 0 |
+| *(undeclared)* | 4 | 0 |
+| `press_release` | 4 | 8 |
+
+Declared for what it is, the Northwind merger release stops passing its own
+enterprise-value figure off as settled: eight findings gain a **Weakly
+supported** marker, including three at 100% confidence.
+
+**Stated honestly:** replaying the *old* recordings under the old and new rules
+gives the same gap count on all three. The model's self-graded `HIGH` spans
+happened to support claims it was already confident about, and the Retriever
+does not question those whatever their evidence. The gate is real — the table
+above is the same pipeline over the same recording — but on those three
+documents it was not yet the thing costing questions. What it was costing was
+the memo's weak-support flag, and the ability to tell a filing from a press
+release at all.
+
+New `tests/test_source_types.py` (the taxonomy: every member has a decided
+weighting, the `HIGH` set is exactly the accountable one and not a superset,
+unknown strings are weighed cautiously rather than raising) and
+`tests/test_evidence_reliability.py` (the wiring: the declaration sets every
+span on both routes in, a payload asserting `high` is ignored, and the
+Retriever's questions follow from the declaration — press release 2, filing 0,
+undeclared 2 on the same claims).
+
+Verified by mutation: restoring the model's self-grade turns 6 tests red;
+dropping the passthrough overwrite, 1; promoting the undeclared default to
+`HIGH`, 5; weighing a press release `MEDIUM`, 5.
+
+**Cassettes re-recorded.** Removing the field changed the extract prompt, which
+is exactly what `test_committed_cassettes_match_the_current_prompts` exists to
+catch. All four were re-recorded against `deepseek/deepseek-chat` and each
+still shows the property it was made for: the five-stage run commits every
+stage first time, the hyphenated one loses no claims, the German one is refused
+once and repaired, and the truncated one fails all three attempts. One
+assertion was loosened in the process — the new recording hedges with
+"insufficient information" where the old said "insufficient data", and pinning
+the synonym was pinning the model's prose style rather than its refusal to
+invent.
+
+**Invariants held.** No validator, runtime or state-model change; the
+deterministic `ExtractOperator` is untouched, so `DEMO.md` is byte-identical.
+`Evidence.source_type` stays a free-form string, and `input_document` — what
+every earlier run and the demo write — is still read as "the document under
+analysis".
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

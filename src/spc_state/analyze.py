@@ -30,6 +30,7 @@ from .operators import (
 from .providers import LLMProvider
 from .receipt import ReceiptArtifacts, write_run_artifacts
 from .runtime import Clock, RunResult, Runtime, WallClock, bootstrap_state
+from .source_types import DEFAULT_SOURCE_TYPE, SourceType
 from .store import RunPaths
 
 DEFAULT_QUESTION = "What does this document establish?"
@@ -58,15 +59,22 @@ def build_analysis_operators(
     *,
     clock: Clock,
     extract_only: bool = False,
+    source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
 ) -> list[Operator]:
     """The five-stage operator list (four when `extract_only`).
 
     extract -> plan -> critique -> retrieve -> verify. Retrieve is
     deterministic (`RetrieverOperator`, no model call); the rest are
     LLM-backed and share `provider`.
+
+    `source_type` says what kind of document this is. It sets the reliability
+    of every span the extraction records, and so how hard the Retriever looks
+    for corroboration downstream — see `source_types`.
     """
     operators: list[Operator] = [
-        LLMExtractOperator(provider, input_text=document, clock=clock)
+        LLMExtractOperator(
+            provider, input_text=document, clock=clock, source_type=source_type
+        )
     ]
     if not extract_only:
         operators.append(LLMPlannerOperator(provider, clock=clock))
@@ -84,11 +92,16 @@ def run_analysis(
     clock: Clock | None = None,
     question: str = DEFAULT_QUESTION,
     extract_only: bool = False,
+    source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
 ) -> AnalysisResult:
     """Run the pipeline and project its Reasoning Receipt + Decision Memo."""
     clock = clock or WallClock()
     operators = build_analysis_operators(
-        provider, document, clock=clock, extract_only=extract_only
+        provider,
+        document,
+        clock=clock,
+        extract_only=extract_only,
+        source_type=source_type,
     )
 
     runtime = Runtime(paths=paths, clock=clock)

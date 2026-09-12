@@ -33,6 +33,7 @@ from .operators import CriticOperator, ExtractOperator, LLMCriticOperator, Opera
 from .providers import OpenRouterConfigError, OpenRouterProvider
 from .receipt import FollowUps, write_run_artifacts
 from .runtime import Clock, FixedClock, Runtime, WallClock, bootstrap_state
+from .source_types import DEFAULT_SOURCE_TYPE, SourceType, reliability_for
 from .store import RunPaths, StateStore
 
 app = typer.Typer(
@@ -87,6 +88,14 @@ def analyze(
         help="OpenRouter model slug (defaults to a value-based model; also "
         "reads SPC_OPENROUTER_MODEL).",
     ),
+    source_type: SourceType = typer.Option(
+        DEFAULT_SOURCE_TYPE.value,
+        "--source-type",
+        case_sensitive=False,
+        help="What kind of document this is. Sets the reliability of every "
+        "extracted span, and so how hard the pipeline looks for corroboration. "
+        "Undeclared means medium — never high.",
+    ),
     extract_only: bool = typer.Option(
         False,
         "--extract-only",
@@ -103,6 +112,10 @@ def analyze(
       critique -> weak confidence adjusted
       retrieve -> evidence gaps opened as questions (deterministic, no model)
       verify   -> conflicting claim pairs committed as unresolved contradictions
+
+    Pass `--source-type` to say what kind of document this is: a press release
+    and a regulatory filing are not equally trustworthy, and the pipeline acts
+    on the difference. Left undeclared, spans are weighed as medium.
 
     A Decision Memo and a Reasoning Receipt are then projected from the
     committed state — neither re-prompts the model. Needs OPENROUTER_API_KEY;
@@ -126,6 +139,10 @@ def analyze(
         f"[yellow]live analysis via OpenRouter:[/yellow] {provider.model} "
         f"[dim]({stages})[/dim]"
     )
+    _console.print(
+        f"[yellow]source type:[/yellow] {source_type.value} "
+        f"[dim](evidence reliability: {reliability_for(source_type).value})[/dim]"
+    )
 
     analysis = run_analysis(
         provider,
@@ -134,6 +151,7 @@ def analyze(
         clock=clock,
         question=question,
         extract_only=extract_only,
+        source_type=source_type,
     )
 
     _render_summary(analysis.run)

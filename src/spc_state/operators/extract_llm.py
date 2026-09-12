@@ -13,12 +13,20 @@ not invented by a model. The result still flows through the runtime's
 validate -> route -> commit loop (`Runtime.step_llm`); the operator never
 mutates state.
 
+Evidence *reliability* falls on the operator's side of that line, and used not
+to. It is a fact about where the text came from, which the caller declares as
+`source_type` and the model cannot see from inside the document — asking the
+model for it let an extraction grade itself, and on a live press release it
+awarded its own ten spans `high` and silenced the Retriever. It is derived from
+the declaration instead (`source_types`), on both routes in.
+
 The model is asked for a compact extraction schema rather than a full
 `SemanticPatch`, because the patch envelope is exactly the error-prone part a
 model should not be hand-writing. If the model returns prose, malformed JSON,
 or already-formed patch JSON, the cases are handled: prose/garbage falls
 through to the validator (JSON_DECODE -> RETRY with feedback); a full patch is
-passed through untouched.
+passed through, with its citations checked and its weighting corrected the same
+way the assembled ones are.
 """
 
 from __future__ import annotations
@@ -35,7 +43,6 @@ from ..models import (
     PatchStatus,
     Perspective,
     Projection,
-    Reliability,
     SemanticPatch,
     SemanticState,
     TransformRecord,
@@ -45,6 +52,13 @@ from ..projection import ProjectionView, resolve_view
 from ..provenance import locate_span
 from ..providers import LLMProvider, ProviderRequest
 from ..runtime.clock import Clock, WallClock
+from ..source_types import (
+    DEFAULT_SOURCE_TYPE,
+    LEGACY_INPUT_DOCUMENT,
+    SourceType,
+    coerce_source_type,
+    reliability_for,
+)
 from ._assembly import LLMAssemblyError, clamp_confidence, coerce_enum, load_json
 from .llm import LLMOperator, OperatorCompletion
 
@@ -61,7 +75,6 @@ _SCHEMA_HINT = """Return ONLY a single JSON object of this exact shape:
       "epistemic_status": "observed | inferred | assumed | speculative",
       "confidence": 0.0 to 1.0,
       "evidence_quote": "the exact span from the document that supports this claim",
-      "evidence_reliability": "low | medium | high",
       "assumption": "an assumption this claim depends on, or null if none",
       "assumption_impact": "low | medium | high"
     }
@@ -89,7 +102,6 @@ _CLAIM_TYPES = {
     "normative": ClaimType.NORMATIVE,
 }
 _EPISTEMIC = {s.value: s for s in EpistemicStatus}
-_RELIABILITY = {r.value: r for r in Reliability}
 _IMPACT = {i.value: i for i in Impact}
 
 
@@ -160,6 +172,7 @@ class LLMExtractOperator(LLMOperator):
         patch_id: str = "patch_001",
         transform_id: str = "transform_extract_001",
         source_id: str = "doc_001",
+        source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
     ) -> None:
         super().__init__(provider, max_attempts=max_attempts)
         self.input_text = input_text
@@ -167,6 +180,11 @@ class LLMExtractOperator(LLMOperator):
         self.patch_id = patch_id
         self.transform_id = transform_id
         self.source_id = source_id
+        #: What kind of document this is, declared by the caller — and the
+        #: reliability every span drawn from it therefore carries. Derived once
+        #: here, never taken from the model (see `source_types`).
+        self.source_type = coerce_source_type(source_type)
+        self.reliability = reliability_for(self.source_type)
 
     def build_request(
         self, view: ProjectionView, feedback: list[str]
@@ -225,20 +243,37 @@ class LLMExtractOperator(LLMOperator):
 
     # -- assembly ---------------------------------------------------------
 
+    def _is_this_document(self, item: Evidence) -> bool:
+        """Does this `Evidence` claim to come from the document we were given?
+
+        Either it names the source type the caller declared, or it uses the
+        vocabulary the pipeline wrote before source types existed. Anything
+        else names a source we were not handed and cannot speak for.
+        """
+        return item.source_type in (self.source_type.value, LEGACY_INPUT_DOCUMENT)
+
     def _verify_patch_evidence(self, patch: SemanticPatch) -> None:
-        """Hold a model-authored patch to the same provenance rule (T8).
+        """Hold a model-authored patch to the same rules (T8, T14).
 
         A patch that arrives fully formed skips the assembly loop, so its
         `Evidence` would otherwise reach committed state as a citation without
         anyone checking it against the document. Locatable spans are stamped
         with their offsets, exactly as the assembled path does; unlocatable ones
         raise, so the runtime retries with the same repair hint.
+
+        Reliability is overwritten for the same reason it is derived on the
+        assembled path: it is a fact about the source, which the caller declared
+        and the model does not get a vote on. A patch that arrives asserting
+        `high` for its own extraction must not keep it — that is precisely the
+        self-promotion this route would otherwise leave open.
         """
         unlocatable: list[str] = []
         for item in patch.add_objects.evidence:
-            # Only spans claiming to come from *this* document are ours to check.
-            if item.source_type != "input_document":
+            # Only spans claiming to come from *this* document are ours.
+            if not self._is_this_document(item):
                 continue
+            item.source_type = self.source_type.value
+            item.reliability = self.reliability
             quote = (item.quote_or_span or "").strip()
             if not quote:
                 continue
@@ -297,15 +332,11 @@ class LLMExtractOperator(LLMOperator):
                     evidence.append(
                         Evidence(
                             id=eid,
-                            source_type="input_document",
+                            source_type=self.source_type.value,
                             source_id=self.source_id,
                             quote_or_span=quote,
                             location={"start": span.start, "end": span.end},
-                            reliability=coerce_enum(
-                                rc.get("evidence_reliability"),
-                                _RELIABILITY,
-                                Reliability.MEDIUM,
-                            ),
+                            reliability=self.reliability,
                             extracted_by=self.transform_id,
                         )
                     )

@@ -107,7 +107,22 @@ recorded reason, then a Reasoning Receipt is projected from that state:
 pip install -e ".[openrouter]"     # the live provider needs the openai SDK
 # put OPENROUTER_API_KEY=sk-or-... in a .env file (gitignored), or export it
 spc-demo analyze --input path\to\your_document.txt --run-id my_analysis
+
+# say what kind of document it is, and the pipeline weighs it accordingly
+spc-demo analyze --input quarterly_release.txt --source-type press_release
 ```
+
+**Tell it what it is reading.** `--source-type` sets the reliability of every
+span the extraction records, and that decides how sceptical the rest of the run
+is: the Retriever asks what stronger source would confirm an under-confident
+claim that rests on nothing solid, and the memo flags findings supported only
+by low-reliability evidence. A source is weighed `high` only when someone is
+accountable for the statement being true — a regulatory filing, audited
+financials, a court record, official statistics, peer review; `low` when the
+author has a stake in the conclusion — a press release, marketing material, an
+opinion piece, a social post; `medium` otherwise. Left undeclared it is
+`medium`: never distrusted for no reason, and never promoted for free. Run
+`spc-demo analyze --help` for the full list.
 
 The CLI auto-loads a local `.env`, so a key dropped there is picked up without
 exporting it. `analyze` also writes `runs/<id>/memo.md` — a stakeholder **Decision Memo**
