@@ -31,6 +31,7 @@ from spc_state.source_types import (
 #: `RELIABILITY_BY_SOURCE_TYPE` alone fails here.
 ACCOUNTABLE = {
     SourceType.REGULATORY_FILING,
+    SourceType.REGULATORY_DETERMINATION,
     SourceType.AUDITED_FINANCIALS,
     SourceType.COURT_RECORD,
     SourceType.OFFICIAL_STATISTICS,

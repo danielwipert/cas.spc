@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
-from .analyze import DEFAULT_QUESTION, run_analysis
+from .analyze import DEFAULT_QUESTION, SourceDocument, run_analysis
 from .baseline import run_baseline
 from .config import load_dotenv
 from .cost_ledger import build_cost_ledger, write_cost_ledger
@@ -96,6 +96,21 @@ def analyze(
         "extracted span, and so how hard the pipeline looks for corroboration. "
         "Undeclared means medium — never high.",
     ),
+    also_input: list[Path] = typer.Option(
+        [],
+        "--also-input",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+        help="A further document to extract into the SAME semantic state. "
+        "Repeatable; pair each with a --also-source-type in the same order.",
+    ),
+    also_source_type: list[SourceType] = typer.Option(
+        [],
+        "--also-source-type",
+        case_sensitive=False,
+        help="Source type for each --also-input, in the same order.",
+    ),
     extract_only: bool = typer.Option(
         False,
         "--extract-only",
@@ -119,11 +134,27 @@ def analyze(
     and a regulatory filing are not equally trustworthy, and the pipeline acts
     on the difference. Left undeclared, spans are weighed as medium.
 
+    Pass `--also-input` (with a matching `--also-source-type`) to extract
+    further documents into the **same** state, each weighed by its own source
+    type. The later stages then read every source at once, so the verifier can
+    find a conflict between two documents rather than only within one.
+
     A Decision Memo and a Reasoning Receipt are then projected from the
     committed state — neither re-prompts the model. Needs OPENROUTER_API_KEY;
     the run is non-deterministic (a live model).
     """
+    if len(also_input) != len(also_source_type):
+        raise typer.BadParameter(
+            f"{len(also_input)} --also-input but {len(also_source_type)} "
+            "--also-source-type: give one source type per extra document, in "
+            "the same order. A document's weight is not a detail to guess at."
+        )
+
     document = input.read_text(encoding="utf-8")
+    extras = [
+        SourceDocument(text=path.read_text(encoding="utf-8"), source_type=st)
+        for path, st in zip(also_input, also_source_type, strict=True)
+    ]
     paths = RunPaths(root=runs_dir, run_id=run_id)
     clock = WallClock()
 
@@ -145,6 +176,11 @@ def analyze(
         f"[yellow]source type:[/yellow] {source_type.value} "
         f"[dim](evidence reliability: {reliability_for(source_type).value})[/dim]"
     )
+    for i, (path, st) in enumerate(zip(also_input, also_source_type, strict=True), start=2):
+        _console.print(
+            f"[yellow]also source {i}:[/yellow] {st.value} "
+            f"[dim]({reliability_for(st).value}) — {path.name}[/dim]"
+        )
 
     analysis = run_analysis(
         provider,
@@ -154,6 +190,7 @@ def analyze(
         question=question,
         extract_only=extract_only,
         source_type=source_type,
+        extra_documents=extras,
     )
 
     _render_summary(analysis.run)

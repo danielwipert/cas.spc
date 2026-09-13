@@ -60,6 +60,10 @@ class SourceType(str, Enum):
 
     # Accountable: a duty of accuracy, or an independent check.
     REGULATORY_FILING = "regulatory_filing"
+    #: A regulator's *own* finding, not a filing made to one — an agency
+    #: determination, decision or enforcement statement. Distinct from
+    #: `REGULATORY_FILING`, where the interested party is still the author.
+    REGULATORY_DETERMINATION = "regulatory_determination"
     AUDITED_FINANCIALS = "audited_financials"
     COURT_RECORD = "court_record"
     OFFICIAL_STATISTICS = "official_statistics"
@@ -85,6 +89,7 @@ class SourceType(str, Enum):
 RELIABILITY_BY_SOURCE_TYPE: dict[SourceType, Reliability] = {
     # Accountable for the statement being true.
     SourceType.REGULATORY_FILING: Reliability.HIGH,
+    SourceType.REGULATORY_DETERMINATION: Reliability.HIGH,
     SourceType.AUDITED_FINANCIALS: Reliability.HIGH,
     SourceType.COURT_RECORD: Reliability.HIGH,
     SourceType.OFFICIAL_STATISTICS: Reliability.HIGH,

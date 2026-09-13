@@ -6,23 +6,23 @@
 > never append. The durable record lives in git history, `ROADMAP.md`, and
 > `TASKS.md` — not here.
 
-**Last session:** 2026-09-12 · **Branch:** `claude/fervent-franklin-k6nffp`
-(carries unmerged T17 work — see *Starting work* before you do anything else)
+**Last session:** 2026-09-13 · **Branch:** `claude/fervent-franklin-k6nffp`
+(carries unmerged T18 work — see *Starting work* before you do anything else)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T17** and
-empty again. Everything through T16 is merged to `main` (PRs #2–#12);
-**T17 is the uncommitted work in this branch.**
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T18** and
+empty again. Everything through T17 is merged to `main` (PRs #2–#13);
+**T18 is the uncommitted work in this branch.**
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
 python -m mypy              ->  Success: no issues found in 70 source files
-pytest                      ->  370 passed   (was 297 at the start of the session)
+pytest                      ->  378 passed   (was 297 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -165,9 +165,34 @@ on three successive re-records and proved nothing when they passed. They now
 weakest claim it cites; a filing discounts no claim where a press release
 discounts all of them), which is what they were always trying to say.
 
+### T18 — several sources, one semantic state
+
+**The cap nobody had named.** A run could hold one document, so the verifier
+hunted contradictions inside a single press release, T14's tiers never
+arbitrated between anything, and `VERIFIED` had nothing to corroborate with.
+The blocker was mechanical: `claim_001` is taken once the first document
+commits, and L2 refuses the second extraction by design. Each extraction now
+mints in its own namespace, declares its own `source_type`, and records its own
+`source_id`; **nothing downstream changed**, because every later stage reads
+committed state. New `SourceType.REGULATORY_DETERMINATION` (HIGH) — a
+regulator's own finding is not a filing made to one.
+
+`paramount_dual_001` (press release + the DOJ statement closing its antitrust
+investigation, 19 claims, $0.0035): 13 press-release claims all capped at
+**≤0.60**, 6 DOJ claims untouched at **0.85–0.95**. T14 and T16 arbitrating
+between two sources for the first time.
+
+**And what it exposed.** The recommendation rests on five claims, **every one
+of them from the press release at ≤0.60**; the six DOJ claims contributed
+nothing. The pipeline now holds better evidence and still builds its conclusion
+from the weakest material it has. The Retriever even asked *"what stronger
+source would confirm"* a regulatory-risk claim that the DOJ determination in the
+same state answers at 0.95. That is the next task's specification, written by a
+real run rather than guessed at.
+
 ## Starting work — read this first
 
-**This branch carries unmerged T17 work.** Push it and open its PR before
+**This branch carries unmerged T18 work.** Push it and open its PR before
 starting anything else. Only once that PR is merged does the reset below apply:
 
 ```
@@ -195,10 +220,14 @@ they want code:
   *asserting* "one of the industry's most compelling portfolios" — it now says
   the seller said it, which is true. Whether a sentence with no truth value
   should become a `Claim` at all is a separate question about what a claim is.
-- **Nothing emits `VERIFIED`.** The vocabulary now anticipates a corroboration
-  step that promotes a `reported` claim once a second accountable source
-  carries it. That is the natural next operator, and it is real work: it needs
-  more than one document in a run.
+- **The corroboration operator — now specified by a real run.** T18 put two
+  sources in one state and the result named its own next step: the
+  recommendation rested entirely on press-release claims at ≤0.60 while six DOJ
+  claims at 0.85–0.95 sat unused, and the Retriever asked "what stronger source
+  would confirm this?" about a claim the regulator's determination in the same
+  state answers. Matching claims across sources, promoting a corroborated one
+  to `VERIFIED`, and recording a `Contradiction` on disagreement is the work.
+  Start from `runs/paramount_dual_001` — it is the specification.
 - **The Retriever's gate is narrow.** It questions a claim only when confidence
   is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
   resting on a press release is never questioned. Widening it is a design
