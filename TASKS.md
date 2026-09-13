@@ -941,6 +941,91 @@ change, so the cassettes needed no re-recording.
 
 ---
 
+## T17 ⚠ — Reading a document is not observing the world · ✅ DONE
+
+**Sign-off given 2026-09-12**, per the ⚠ convention: this relaxes a v0.1
+constraint by adding a member to `EpistemicStatus`.
+
+**The defect.** `OBSERVED` was doing two jobs. Reading a press release
+establishes **that the press release says so**; it establishes nothing about
+the merger. The extractor only ever has the first and was committing the
+second. Across five real runs the claims marked `observed` and the claims at
+confidence 1.00 were the *same set*, and among them:
+
+> "Paramount **will acquire** Warner Bros. Discovery" — `observed`, 1.00
+
+A future event, contingent on regulatory clearances the same document names,
+recorded as something someone saw. T14 and T16 priced that claim down; neither
+could stop the memo telling a reader it had been **observed**, which is not a
+hedge they can discount but a false statement about where the claim came from.
+
+**The fix.** `EpistemicStatus.REPORTED` — "a source states this; nobody here
+verified it". It is **derived, not asked for**, the same move as T14/T15/T16:
+the prompt no longer offers `observed`, and a model that says it anyway is
+corrected rather than believed, on **both** routes in (assembled and full-patch
+passthrough — the second way in that T8, T11 and T14 each had to close).
+`VERIFIED` is mapped down for the same reason: nothing in the run corroborated
+anything.
+
+`OBSERVED` keeps its place in the vocabulary for an operator that genuinely
+sees the thing itself, and `VERIFIED` for a future corroboration step that
+promotes a reported claim once a second accountable source carries it. Neither
+is emitted today, and the enum now says so.
+
+**`REPORTED` is grounded, deliberately, and that non-change is pinned.**
+Groundedness (`projection/builder.py`, `_UNGROUNDED`) is about provenance, and
+a reported claim has some: a named source says it, the span is on record. What
+it lacks is *first-hand* observation, which the label now states out loud
+rather than a projection filter re-litigating it — how much the source is worth
+is already priced by T14 and T16. Putting `REPORTED` in `_UNGROUNDED` would
+reclassify every extracted claim as weak overnight; that turns 5 tests red
+rather than passing quietly.
+
+**Measured, live.** `paramount_010`, the Paramount/WBD release declared
+`press_release`: **10 of 10 claims commit as `reported`, none as `observed`**,
+and every line of the memo now reads `_(confidence 60%, reported)_`. The same
+run also extracted, for the first time across ten runs, the conditionality the
+source states: *"The transaction is expected to close in Q3 2026, subject to
+regulatory clearances and WBD shareholder approval."*
+
+New `tests/test_epistemic_grounding.py` (15 tests): only the two statuses a
+reader cannot reach are rewritten and every other passes through; the prompt no
+longer offers `observed`; a model claiming observation is corrected on both
+routes in; an omitted status defaults to `reported` rather than `inferred`;
+inference still reads as inference; a reported claim is grounded and not weak;
+and against the recorded cassette — no committed claim is `observed`, and the
+memo says `reported` where it used to say `observed`.
+
+Verified by mutation: believing the model's `observed` again turns 5 tests red;
+dropping the passthrough correction, 1; defaulting an omitted status to
+`inferred`, 1; flattening `inferred` into `reported`, 2; treating `REPORTED` as
+ungrounded, 5.
+
+**Not fixed, and it is worth being plain.** The relabelling does not make
+"one of the industry's **most compelling** portfolios" stop being extracted as
+a claim — but it does stop the state asserting it. As a `reported` claim at 60%
+it says "the seller says this", which is true and is what a reader needs.
+Whether the extractor should decline evaluative language altogether is a
+separate question about what counts as a claim.
+
+**Invariants held.** Adding an enum member is additive, so stored state and the
+deterministic `ExtractOperator` are unaffected and `DEMO.md` is byte-identical
+— the demo's claims are hand-written against a fixture and its artifacts are a
+release gate, so the rule is scoped to the path where a model is the author
+(pinned as a test). No validator or runtime change; `L2.CLAIM_MISSING_PROVENANCE`
+still requires evidence for a `reported` claim, correctly. The prompt changed,
+so all four cassettes were re-recorded and each still shows the property it was
+made for.
+
+**Test hygiene, while re-recording.** Four replay assertions that pinned exact
+numbers (0.85, 0.60, "six claims at 1.00") had now broken on three successive
+re-records and proved nothing about the rules when they passed. They were
+rewritten to derive their expectations from the run — the recommendation equals
+the weakest claim it cites, a filing discounts no claim where a press release
+discounts all of them — which is what those tests were always trying to say.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

@@ -35,6 +35,7 @@ from spc_state.models import (
     StateStatus,
 )
 from spc_state.operators import CalibrationOperator
+from spc_state.operators.calibration import RELIABILITY_FACTOR
 from spc_state.providers import ReplayProvider
 from spc_state.runtime import FixedClock, Runtime, bootstrap_state
 from spc_state.source_types import SourceType
@@ -323,11 +324,14 @@ def test_no_claim_from_a_press_release_commits_at_certainty(tmp_path: Path) -> N
 
     proposed = result.run.steps[0].next_state
     assert proposed is not None
-    assert [c.confidence for c in proposed.claims.values()].count(1.0) >= 6, (
+    assert any(c.confidence == 1.0 for c in proposed.claims.values()), (
         "this fixture must really contain the 1.00 spike, or it proves nothing"
     )
-    assert max(c.confidence for c in claims.values()) == 0.6
-    assert all(c.confidence <= 0.6 for c in claims.values())
+    # Derived from the factor, not written down: the strongest a low-reliability
+    # claim can reach, whatever the model proposed this recording.
+    ceiling = RELIABILITY_FACTOR[Reliability.LOW]
+    assert max(c.confidence for c in claims.values()) <= ceiling
+    assert not any(c.confidence == 1.0 for c in claims.values())
 
 
 def test_the_same_recording_read_as_a_filing_keeps_its_certainty(
@@ -339,25 +343,47 @@ def test_the_same_recording_read_as_a_filing_keeps_its_certainty(
     those alone — so this is a source-sensitive cap, not a blanket haircut.
     """
     result = _replay(tmp_path, SourceType.REGULATORY_FILING)
-    claims = result.run.final_state.claims
-    assert [c.confidence for c in claims.values()].count(1.0) >= 6
+    state = result.run.final_state
+    # The state calibration was handed — after the critic, which legitimately
+    # adjusts claims of its own and is not what this test is about.
+    before = result.run.steps[-2].next_state
+    assert before is not None
 
-    record = result.run.final_state.transform_log[-1]
-    assert record.confidence_changes == [], "nothing to correct on an accountable source"
+    # Calibration changed nothing: every claim commits at what it arrived with.
+    assert {cid: c.confidence for cid, c in state.claims.items()} == {
+        cid: c.confidence for cid, c in before.claims.items()
+    }
+    assert any(c.confidence == 1.0 for c in state.claims.values()), (
+        "a filing must really carry certainty here, or the contrast proves nothing"
+    )
+    claim_caps = [
+        c
+        for c in state.transform_log[-1].confidence_changes
+        if c.object_id.startswith("claim_")
+    ]
+    assert claim_caps == [], "nothing to correct on an accountable source"
 
 
-def test_the_committed_recommendation_is_unchanged_by_the_claim_cap(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    "source_type",
+    [SourceType.PRESS_RELEASE, SourceType.REGULATORY_FILING],
+    ids=["press_release", "regulatory_filing"],
+)
+def test_the_factor_reaches_the_recommendation_exactly_once(
+    tmp_path: Path, source_type: SourceType
 ) -> None:
-    """T15's number, held constant across T16 — the no-double-discount guard.
+    """The no-double-discount guard, stated as the invariant rather than a number.
 
-    Before T16 this replay committed the recommendation at 0.60 (press release)
-    and 0.85 (filing). Damping claims must not move either: the factor moved
-    layers, it was not applied again.
+    The committed recommendation must be exactly the weakest committed claim it
+    cites. If the reliability factor were applied at both layers it would land
+    below that — 0.36 where the claims say 0.60 — and this fails.
+
+    Written this way on purpose: the earlier version pinned 0.60 and 0.85, which
+    said nothing about the rule and broke on the next re-record.
     """
-    assert _lead(_replay(tmp_path / "pr", SourceType.PRESS_RELEASE)) == 0.6
-    assert _lead(_replay(tmp_path / "rf", SourceType.REGULATORY_FILING)) == 0.85
+    state = _replay(tmp_path, source_type).run.final_state
+    lead = state.hypotheses["hyp_001"]
+    assert lead.supporting_claims
 
-
-def _lead(result) -> float:
-    return max(h.confidence for h in result.run.final_state.hypotheses.values())
+    weakest = min(state.claims[cid].confidence for cid in lead.supporting_claims)
+    assert lead.confidence == weakest
