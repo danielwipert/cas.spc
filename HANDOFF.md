@@ -6,15 +6,16 @@
 > never append. The durable record lives in git history, `ROADMAP.md`, and
 > `TASKS.md` — not here.
 
-**Last session:** 2026-09-13 · **Branch:** `claude/fervent-franklin-k6nffp`
-(its PRs are merged — see *Starting work* before you commit anything)
+**Last session:** 2026-09-13 · **Branch:** `claude/eager-hypatia-h20zn9`
+(carries the commit that queued T20 — see *Starting work*)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T19** and
-empty again. Everything is merged to `main` (PRs #2–#15).
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T19**, with
+**T20 queued and unstarted** — it needs ⚠ sign-off before code moves.
+Everything through T19 is merged to `main` (PRs #2–#16).
 
 The live pipeline is now:
 
@@ -82,20 +83,32 @@ confirmed me:**
 
 ## Starting work — read this first
 
-**This branch's PRs are all merged.** A merged PR is finished and cannot track
-new work; never stack commits on that history. Reset from `main` first:
+This branch carries the unmerged commit that queued **T20**. If its PR has since
+merged, a merged PR is finished and cannot track new work — never stack commits
+on that history. Reset from `main` first:
 
 ```
-git fetch origin main && git checkout -B claude/fervent-franklin-k6nffp origin/main
+git fetch origin main && git checkout -B <branch> origin/main
 ```
-
-This branch has already been reset that way and carries only the commit that
-rewrote this file.
 
 ## Next up
 
-**The backlog is empty.** Nothing below is urgent. The first two are decisions
-before they are code, and belong to a human.
+**Start with T20 — it is written up and waiting on sign-off.** It is the
+structural piece under several items below. `EpistemicStatus` carries seven
+members answering **three** different questions — how a claim was acquired, how
+well it is supported, and whether anything contradicts it — and one field can
+hold one, so every write on a second axis destroys the first. Both symptoms are
+already in the tree: `CONTRADICTED` is dead code superseded by T3's
+`Contradiction` objects, and T19's promotion overwrites `REPORTED` with
+`VERIFIED` although a corroborated claim is still reported. Five sites already
+hand-maintain a subset of the enum to recover an axis the type does not expose.
+T20 stores acquisition, derives the other two from state that already holds
+them, and raises `VERIFIED`'s bar where it is actually weak: it has **no notion
+of source independence**, so a wire story republished ten times reads as ten
+sources. Lineage gets declared by the caller, for T14's reason.
+
+The rest below is not urgent. The first two are decisions before they are code,
+and belong to a human.
 
 - **A recommendation the pipeline cannot support still reads as "Proceed."**
   The memo now reports honestly how little it is worth — under 50%, every
@@ -107,13 +120,18 @@ before they are code, and belong to a human.
   *asserting* "one of the industry's most compelling portfolios" — it now says
   the seller said it, which is true. Whether a sentence with no truth value
   should become a `Claim` at all is a separate question about what a claim is.
-- **`VERIFIED` is still unproven on real data.** T19's operator fires
-  (`paramount_corrob_002` links both companies' releases on the closing date)
-  but promotion needs two sources asserting the *same* fact where one is
-  **accountable**. Neither live pairing produced that: a regulator and a press
-  release talk about different things, and two press releases are both
-  interested. A filing restating a release's figures, or two independent news
-  reports of one event, would close it.
+  T20 names this as out of scope and wants its axis split underneath it first:
+  *asserts*, *attributes* and *evaluates* are three epistemic acts that all land
+  on `REPORTED` today.
+- **`VERIFIED` is still unproven on real data** — and T20 raises its bar, so
+  the two travel together. T19's operator fires (`paramount_corrob_002` links
+  both companies' releases on the closing date) but promotion needs two sources
+  asserting the *same* fact where one is **accountable**. Neither live pairing
+  produced that: a regulator and a press release talk about different things,
+  and two press releases are both interested. A filing restating a release's
+  figures, or two independent news reports of one event, would close it — and
+  under T20 that second pairing must also be *independent*, which today nothing
+  checks.
 - **Recall of the corroboration pass is unmeasured.** It is deliberately
   precision-biased (a false corroboration lends one source's authority to
   another's claim) and found 1 link across 35 claims. Whether it missed real
