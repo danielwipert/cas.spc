@@ -156,7 +156,16 @@ def _apply_update(
     for container in containers.values():
         if upd.object_id in container:
             current = container[upd.object_id]
-            container[upd.object_id] = current.model_copy(update={upd.field: upd.to_value})
+            # Validated rather than assigned. A patch arrives as JSON, so
+            # `to_value` for a typed field is whatever JSON could carry:
+            # `model_copy(update=...)` would leave the raw string "verified"
+            # sitting where an `EpistemicStatus` belongs, silently, with only a
+            # serializer warning much later to hint at it. Round-tripping the
+            # object coerces the value into the field's real type and refuses
+            # one the model genuinely cannot hold.
+            data = current.model_dump()
+            data[upd.field] = upd.to_value
+            container[upd.object_id] = type(current).model_validate(data)
             return
     for i, rel in enumerate(relations):
         if rel.id == upd.object_id:

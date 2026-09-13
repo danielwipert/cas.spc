@@ -1,7 +1,8 @@
 """The live five-stage analysis pipeline: `spc-demo analyze` over ANY document.
 
 `run_analysis` runs extract -> plan -> critique -> retrieve -> verify ->
-calibrate against a real `LLMProvider`, each stage a validated, committed patch
+calibrate against a real `LLMProvider` (plus a corroborate stage when a run has
+more than one source), each a validated, committed patch
 (`Runtime.step_llm` / `Runtime.step`), then projects the Reasoning Receipt and
 Decision Memo from the committed state. It never re-prompts a model once the
 pipeline has run — both documents are faithful projections of state.
@@ -23,6 +24,7 @@ from .memo import write_memo
 from .operators import (
     CalibrationOperator,
     LLMContradictionOperator,
+    LLMCorroborationOperator,
     LLMExtractOperator,
     LLMPlannerOperator,
     LLMReviewCriticOperator,
@@ -84,10 +86,11 @@ def build_analysis_operators(
     source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
     extra_documents: Sequence[SourceDocument] = (),
 ) -> list[Operator]:
-    """The six-stage operator list (one when `extract_only`).
+    """The six-stage operator list, plus corroboration when sources differ.
 
-    extract -> plan -> critique -> retrieve -> verify -> calibrate. Retrieve
-    and calibrate are deterministic (`RetrieverOperator`,
+    extract -> plan -> critique -> retrieve -> verify -> calibrate, with a
+    corroborate stage between extract and plan **when there is more than one
+    source**. Retrieve and calibrate are deterministic (`RetrieverOperator`,
     `CalibrationOperator`, no model call); the rest are LLM-backed and share
     `provider`.
 
@@ -125,6 +128,15 @@ def build_analysis_operators(
             )
         )
     if not extract_only:
+        if extra_documents:
+            # Before the planner on purpose: corroboration settles what the
+            # sources jointly establish, and the planner should reason from
+            # that picture rather than from one document's account of it (T19).
+            # Only with more than one source — with a single document there is
+            # nothing to corroborate across, and adding a stage to answer a
+            # question that has no answer costs a real call and would make
+            # every existing cassette stale for nothing.
+            operators.append(LLMCorroborationOperator(provider, clock=clock))
         operators.append(LLMPlannerOperator(provider, clock=clock))
         operators.append(LLMReviewCriticOperator(provider, clock=clock))
         operators.append(RetrieverOperator(clock=clock))
