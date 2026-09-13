@@ -1098,6 +1098,93 @@ re-record.
 
 ---
 
+## T19 — Corroboration: what two sources independently say · ✅ DONE
+
+**Specified by T18's run, not guessed at.** With the Paramount/WBD press
+release and the DOJ determination in one state, the Retriever asked *"what
+stronger source would confirm this?"* about a claim the regulator's finding
+answered at 0.95 in the same state, and nothing connected them.
+
+`operators/corroboration_llm.py` — `LLMCorroborationOperator`. Whether two
+differently-worded sentences assert the same thing is a semantic judgement, so
+the model supplies the pairings and the operator owns every consequence. Two
+passes, the precision gate `LLMContradictionOperator` established: propose,
+then a skeptic whose default is "these are different claims". A false
+corroboration is worse than a missed one here, because it does not merely add a
+note — it lets a claim inherit warrant it never earned.
+
+**It never touches confidence, and that is the design.** T15 and T16 hold that
+calibration only ever lowers. Corroboration needs no exception: it changes what
+a claim *rests on*, and the calibrator's existing rule reprices it. A claim
+ceilinged at `confidence x reliability_factor(best evidence)` and cited only to
+a press release carries 0.54; once a regulator's span genuinely supports it,
+the best evidence it cites is `HIGH` and the **same untouched rule** lets it
+carry 0.90. No new arithmetic and no exception to a stated invariant — the
+composition is pinned as a test.
+
+`REPORTED` is promoted to `VERIFIED` only when the corroborating source is
+**accountable**. Two press releases agreeing is two interested parties telling
+the same story, which is what T17 reserved `VERIFIED` *against*. Only across
+sources, and one direction: the better-sourced claim corroborates the weaker.
+
+Runs between extraction and the planner, so the planner reasons from what the
+sources jointly establish. **Not added at all for a single-source run** — there
+is nothing to corroborate across, and a stage that always answers "none" costs
+a real call and would make every committed cassette stale for nothing.
+
+**A defect this found in `commit`, not in the operator.** A patch arrives as
+JSON, so an `UpdateObject.to_value` for a typed field is whatever JSON can
+carry. `model_copy(update=...)` assigns without validating, so setting
+`epistemic_status` to `"verified"` left the raw **string** sitting where an
+`EpistemicStatus` belongs — comparing unequal to the enum, with only a pydantic
+serializer warning much later to hint at it. No operator had ever updated an
+enum field, so nothing had caught it. `_apply_update` now round-trips the
+object through validation, which coerces the value and refuses one the model
+cannot hold.
+
+**Measured live, and the honest result is mixed.**
+
+`paramount_corrob_001` (press release + DOJ determination): **0
+corroborations**. A true negative, not a failure — the two documents assert
+different things about the same transaction. The press release is deal terms
+($31/share, $6bn synergies, 15,000 titles, funding); the determination is
+competition analysis (SVOD, linear, theatrical, labour). Nothing in one asserts
+what the other asserts.
+
+That corrects an assumption in T18's write-up: **corroboration is not the
+payoff from a second source of a different kind — coverage is.** The DOJ
+statement contributed eight claims at `HIGH` that the press release never made,
+including the Netflix bidding war it omits entirely, and the recommendation now
+cites them.
+
+`paramount_corrob_002` (both companies' press releases + the DOJ determination,
+35 claims, $0.0049) is the case corroboration is actually for, and it fired:
+
+> `claim_005` *"expected to close in Q3 2026, subject to regulatory approvals
+> and WBD shareholder approval"*
+> **corroborates** `d2_claim_005` *"expected to close in Q3 2026, subject to
+> customary closing conditions"*
+
+and **did not promote it** — both sources are press releases. The accountable
+-source rule holding on real data, not only on a mock. The overlap was smaller
+than it looks: the two extractions picked largely different facts, and the one
+genuine duplicate was the one found.
+
+**Still unproven on real data:** promotion to `VERIFIED` needs two sources
+asserting the *same* fact where one is accountable. Neither live pairing
+produced that, so it is covered by tests and not yet by a run.
+
+New `tests/test_corroboration.py` (10 tests). Verified by mutation: allowing
+same-source pairs turns 1 test red; promoting regardless of source, 1; skipping
+the skeptic pass, 1; choosing direction by id instead of strength, 4; and
+reverting `commit` to the unvalidated assignment, 2.
+
+**Invariants held.** No state-model change. Single-source runs are untouched —
+the stage is not added, so every cassette still replays and no prompt changed.
+`DEMO.md` byte-identical.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

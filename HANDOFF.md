@@ -7,22 +7,22 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-13 · **Branch:** `claude/fervent-franklin-k6nffp`
-(carries unmerged T18 work — see *Starting work* before you do anything else)
+(carries unmerged T19 work — see *Starting work* before you do anything else)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T18** and
-empty again. Everything through T17 is merged to `main` (PRs #2–#13);
-**T18 is the uncommitted work in this branch.**
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T19** and
+empty again. Everything through T18 is merged to `main` (PRs #2–#14);
+**T19 is the uncommitted work in this branch.**
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
 python -m mypy              ->  Success: no issues found in 70 source files
-pytest                      ->  378 passed   (was 297 at the start of the session)
+pytest                      ->  388 passed   (was 297 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -192,7 +192,7 @@ real run rather than guessed at.
 
 ## Starting work — read this first
 
-**This branch carries unmerged T18 work.** Push it and open its PR before
+**This branch carries unmerged T19 work.** Push it and open its PR before
 starting anything else. Only once that PR is merged does the reset below apply:
 
 ```
@@ -220,14 +220,17 @@ they want code:
   *asserting* "one of the industry's most compelling portfolios" — it now says
   the seller said it, which is true. Whether a sentence with no truth value
   should become a `Claim` at all is a separate question about what a claim is.
-- **The corroboration operator — now specified by a real run.** T18 put two
-  sources in one state and the result named its own next step: the
-  recommendation rested entirely on press-release claims at ≤0.60 while six DOJ
-  claims at 0.85–0.95 sat unused, and the Retriever asked "what stronger source
-  would confirm this?" about a claim the regulator's determination in the same
-  state answers. Matching claims across sources, promoting a corroborated one
-  to `VERIFIED`, and recording a `Contradiction` on disagreement is the work.
-  Start from `runs/paramount_dual_001` — it is the specification.
+- **`VERIFIED` is still unproven on real data.** T19 built the operator and it
+  fires (`paramount_corrob_002` links the two companies' releases on the
+  closing date), but promotion needs two sources asserting the *same* fact
+  where one is **accountable**. Neither live pairing produced that: a regulator
+  and a press release talk about different things, and two press releases are
+  both interested. Finding a pair that does — a filing restating a release's
+  figures, or two independent news reports of one event — would close it.
+- **Recall of the corroboration pass is unmeasured.** It is deliberately
+  precision-biased (a false corroboration lends one source's authority to
+  another's claim) and found 1 link across 35 claims. Whether it missed real
+  ones is not yet known; that needs a document pair with known overlap.
 - **The Retriever's gate is narrow.** It questions a claim only when confidence
   is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
   resting on a press release is never questioned. Widening it is a design

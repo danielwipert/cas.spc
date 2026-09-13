@@ -208,6 +208,7 @@ def test_the_later_stages_are_unchanged_and_see_every_source(tmp_path: Path) -> 
         "llm_extract_transform",
         "llm_extract_transform",
         "llm_extract_transform",
+        "corroboration_transform",
         "llm_planner_transform",
         "llm_critic_transform",
         "retriever_transform",

@@ -9,6 +9,7 @@ from ._assembly import LLMAssemblyError
 from .base import Operator
 from .calibration import CalibrationOperator
 from .contradiction_llm import LLMContradictionOperator
+from .corroboration_llm import LLMCorroborationOperator
 from .critic import CriticOperator
 from .critic_llm import LLMReviewCriticOperator
 from .extract import ExtractOperator
@@ -30,6 +31,7 @@ __all__ = [
     "ExtractionError",
     "LLMAssemblyError",
     "LLMContradictionOperator",
+    "LLMCorroborationOperator",
     "LLMCriticOperator",
     "LLMExtractOperator",
     "LLMOperator",
