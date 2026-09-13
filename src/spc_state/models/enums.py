@@ -24,7 +24,22 @@ class ObjectType(str, Enum):
 
 
 class EpistemicStatus(str, Enum):
-    """How a claim came to be believed. See PILOT_SPEC.md §11.2.
+    """**How a claim entered state.** See PILOT_SPEC.md §11.2.
+
+    One axis, one question, five mutually exclusive answers. T20 narrowed it to
+    that: it used to carry seven members answering *three* different questions —
+    how a claim was acquired, how well it is supported (`VERIFIED`), and whether
+    anything contradicts it (`CONTRADICTED`). A claim has a value on all three at
+    once and one field holds one, so every write on a second axis destroyed the
+    first: T19's corroboration overwrote `REPORTED` with `VERIFIED`, although a
+    corroborated claim is still reported — it was read out of a document, and a
+    second source agreeing does not change that.
+
+    The other two axes are **derived, never stored** (`spc_state.epistemics`),
+    because state already holds what they need: corroboration from the spans a
+    claim cites and the sources behind them, conflict from the `Contradiction`
+    objects naming it. That is the T14/T15/T16 rule — derive it from structure,
+    do not let anyone assert it — applied to the type those judgements land in.
 
     `OBSERVED` and `REPORTED` are the distinction T17 drew, and the difference
     matters more than it looks. Reading a document establishes **that the
@@ -33,9 +48,8 @@ class EpistemicStatus(str, Enum):
     merger. So a claim drawn from a source is `REPORTED`, and `OBSERVED` is
     reserved for an operator that genuinely saw the thing itself.
 
-    `VERIFIED` is the status a future corroboration step would promote a
-    `REPORTED` claim to, once a second accountable source carries it. Nothing
-    emits it yet.
+    Claims stored before T20 may carry `verified` or `contradicted` on disk;
+    `Claim` migrates both to `reported` on load, which is where they came from.
     """
 
     OBSERVED = "observed"
@@ -43,8 +57,39 @@ class EpistemicStatus(str, Enum):
     INFERRED = "inferred"
     ASSUMED = "assumed"
     SPECULATIVE = "speculative"
-    VERIFIED = "verified"
-    CONTRADICTED = "contradicted"
+
+    @property
+    def is_grounded(self) -> bool:
+        """Does this claim trace to something outside the reasoning itself?
+
+        Replaces `projection.builder._UNGROUNDED`. `REPORTED` is deliberately
+        grounded: a named source says it and the span is on record. What it
+        lacks is *first-hand* observation, which the label says out loud (T17)
+        rather than a projection filter re-litigating it — how much the source
+        is worth is already priced by T14/T16.
+        """
+        return self in (EpistemicStatus.OBSERVED, EpistemicStatus.REPORTED)
+
+    @property
+    def needs_provenance(self) -> bool:
+        """Must a claim with this status cite evidence or an assumption?
+
+        Replaces `projection.builder._PROVENANCE_FREE` and
+        `validation.l2._PROVENANCE_FREE_STATUSES`, which were the same two-member
+        set maintained twice. `ASSUMED` and `SPECULATIVE` are exempt because both
+        say out loud that nothing supports them yet.
+        """
+        return self not in (EpistemicStatus.ASSUMED, EpistemicStatus.SPECULATIVE)
+
+
+#: Statuses retired by T20 and what a stored claim carrying one becomes. Both
+#: were answers to a *different* question than this axis asks, and both were
+#: reached from `reported` — corroboration promoted it, and nothing ever emitted
+#: `contradicted` at all (T3 gave conflict its own first-class object).
+RETIRED_EPISTEMIC_STATUSES = {
+    "verified": EpistemicStatus.REPORTED,
+    "contradicted": EpistemicStatus.REPORTED,
+}
 
 
 class ObjectStatus(str, Enum):

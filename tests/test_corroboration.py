@@ -20,6 +20,7 @@ import datetime as dt
 import json
 from pathlib import Path
 
+from spc_state.epistemics import Corroboration, corroboration_of
 from spc_state.models import EpistemicStatus
 from spc_state.operators import (
     CalibrationOperator,
@@ -158,15 +159,41 @@ def test_a_cross_source_pair_is_linked_and_recorded(tmp_path: Path) -> None:
     assert "ev_001" not in final.claims["d2_claim_001"].supporting_evidence
 
 
-def test_an_accountable_source_promotes_the_claim_to_verified(
+def test_an_accountable_source_makes_the_claim_derive_as_verified(
     tmp_path: Path,
 ) -> None:
-    """What T17 kept `VERIFIED` in the vocabulary for."""
-    final = _run(
+    """What T17 held the word `verified` back for — now reached by derivation.
+
+    The operator writes no label. It attaches the accountable source's span, and
+    `corroboration_of` reads the result: two independent sources, one of them
+    `HIGH`. Acquisition is untouched, because the claim is still reported — it
+    was read out of a press release, and a regulator agreeing does not change
+    where it came from. That double-bookkeeping is the defect T20 removed.
+    """
+    result = _run(
         tmp_path, corroboration=[_pairs(("claim_001", "d2_claim_001")), _keep(1)]
-    ).final_state
-    assert final.claims["claim_001"].epistemic_status is EpistemicStatus.VERIFIED
+    )
+    final = result.final_state
+
+    assert corroboration_of(final.claims["claim_001"], final.evidence) is (
+        Corroboration.VERIFIED
+    )
+    assert final.claims["claim_001"].epistemic_status is EpistemicStatus.REPORTED
     assert final.claims["d2_claim_001"].epistemic_status is EpistemicStatus.REPORTED
+
+
+def test_the_operator_writes_no_epistemic_status_at_all(tmp_path: Path) -> None:
+    """Pin that the promotion write is *gone*, not merely agreeing with the rule.
+
+    A patch that still wrote the label would keep this file's other assertions
+    green while re-introducing exactly the overwrite T20 exists to remove.
+    """
+    result = _run(
+        tmp_path, corroboration=[_pairs(("claim_001", "d2_claim_001")), _keep(1)]
+    )
+    patch = result.steps[-1].patch
+    assert patch is not None
+    assert [u.field for u in patch.update_objects] == ["supporting_evidence"]
 
 
 def test_two_interested_parties_agreeing_is_not_verification(tmp_path: Path) -> None:
@@ -174,7 +201,8 @@ def test_two_interested_parties_agreeing_is_not_verification(tmp_path: Path) -> 
 
     Two press releases telling the same story is two interested parties telling
     the same story. The link is still recorded — it is a real fact about
-    provenance — but nothing is promoted.
+    provenance, and the claim does derive as `CORROBORATED` — but the rung that
+    needs an accountable source is not reached.
     """
     final = _run(
         tmp_path,
@@ -183,6 +211,14 @@ def test_two_interested_parties_agreeing_is_not_verification(tmp_path: Path) -> 
     ).final_state
 
     assert [r.predicate for r in final.relations] == ["corroborates"]
+    # Which of the pair gains the span is settled by a tie-break on id when both
+    # sources are equally weak, so assert the property rather than the winner:
+    # the link is real, and no rung above `CORROBORATED` is reached.
+    levels = {
+        corroboration_of(c, final.evidence) for c in final.claims.values()
+    }
+    assert Corroboration.CORROBORATED in levels
+    assert Corroboration.VERIFIED not in levels
     assert all(
         c.epistemic_status is EpistemicStatus.REPORTED for c in final.claims.values()
     )
@@ -351,25 +387,3 @@ def test_both_calls_are_billed(tmp_path: Path) -> None:
     step = result.steps[-1]
     assert step.usage is not None
     assert step.usage.prompt_tokens > 0
-
-
-def test_a_typed_field_update_commits_as_its_real_type(tmp_path: Path) -> None:
-    """A defect this task found in `commit`, not in the operator.
-
-    A patch arrives as JSON, so an `UpdateObject.to_value` for a typed field is
-    whatever JSON could carry — here the string "verified". `model_copy` assigns
-    without validating, so committed state held a raw string where an
-    `EpistemicStatus` belongs: it compared unequal to the enum, and only a
-    pydantic serializer warning much later hinted at it. No operator had
-    updated an enum field before, so nothing had caught it.
-    """
-    final = _run(
-        tmp_path, corroboration=[_pairs(("claim_001", "d2_claim_001")), _keep(1)]
-    ).final_state
-    status = final.claims["claim_001"].epistemic_status
-    assert isinstance(status, EpistemicStatus), "not the raw string it arrived as"
-    assert status is EpistemicStatus.VERIFIED
-
-    # It survives the round trip state is actually stored through.
-    reloaded = type(final).model_validate_json(final.model_dump_json(by_alias=True))
-    assert reloaded.claims["claim_001"].epistemic_status is EpistemicStatus.VERIFIED

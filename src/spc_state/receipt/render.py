@@ -12,6 +12,7 @@ is byte-for-byte identical, preserving the Phase 3 reproducibility gate.
 from __future__ import annotations
 
 from ..diff import StateDiff
+from ..epistemics import Corroboration, corroboration_of
 from ..models import ReasoningReceipt, SemanticState
 from .graph import render_mermaid_graph
 
@@ -21,9 +22,11 @@ def _claim_line(state: SemanticState, cid: str) -> str:
     if c is None:
         return f"- `{cid}`"
     ev = f", {len(c.supporting_evidence)} evidence" if c.supporting_evidence else ""
+    level = corroboration_of(c, state.evidence)
+    support = "" if level is Corroboration.UNCORROBORATED else f", {level.value}"
     return (
         f"- `{cid}` — {c.text} "
-        f"_(confidence {c.confidence:.2f}, {c.epistemic_status.value}{ev})_"
+        f"_(confidence {c.confidence:.2f}, {c.epistemic_status.value}{support}{ev})_"
     )
 
 

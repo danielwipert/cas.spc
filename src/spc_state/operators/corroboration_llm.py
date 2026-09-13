@@ -29,16 +29,24 @@ evidence it cites is `HIGH` and the same untouched rule lets it carry more. No
 new arithmetic, no exception to a stated invariant, and the reason is on the
 record as a relation rather than buried in a number.
 
-`REPORTED` is promoted to `VERIFIED` only when the corroborating source is
-**accountable** — `HIGH` reliability. Two press releases agreeing is not
-verification, it is two interested parties telling the same story, and T17 kept
-`VERIFIED` in the vocabulary for exactly this moment rather than for that one.
+**This operator no longer labels anything.** It used to promote the corroborated
+claim's `epistemic_status` from `REPORTED` to `VERIFIED`, which destroyed a fact
+to record another one — a corroborated claim is *still* reported, because it was
+still read out of a document. T20 retired that write: support is **derived** from
+what a claim cites (`spc_state.epistemics.corroboration_of`), and this operator
+already does the only thing that derivation needs, which is to attach the
+corroborating span. The `VERIFIED` rung still requires an **accountable** source,
+but the rule now lives where it can be recomputed instead of on a field someone
+has to remember to update.
 
-**Only across sources.** Two claims from the same document agreeing corroborate
-nothing; the operator drops such pairs itself rather than trusting the model to.
-**One direction only:** the better-sourced claim corroborates the weaker. The
-reverse adds a span that cannot raise anything (the *best* evidence wins within
-a claim) and would only clutter provenance.
+**Only across independent sources.** Two claims from the same document agreeing
+corroborate nothing, and neither do two documents where one was written off the
+other — a wire story republished ten times is one source wearing ten hats. The
+operator drops both kinds of pair itself rather than trusting the model to,
+reading the lineage the caller declared (T20). **One direction only:** the
+better-sourced claim corroborates the weaker. The reverse adds a span that cannot
+raise anything (the *best* evidence wins within a claim) and would only clutter
+provenance.
 
 Detection runs in **two passes**, the precision gate
 `LLMContradictionOperator` established. A single pass is too eager, and a false
@@ -46,6 +54,11 @@ corroboration is worse here than a missed one: it does not merely add a note,
 it lets a claim inherit warrant it never earned. So a skeptic pass defaults to
 "these are different claims" and keeps only pairs asserting the same thing
 about the same subject.
+
+What the model still decides is whether two claims assert *the same thing* —
+the one judgement T14-T19 left with it, and worth naming rather than letting a
+derived `VERIFIED` read as more than it is. Independence and accountability are
+structural; the match is not.
 
 With a single source there is nothing to corroborate across, so `analyze` does
 not add this stage at all rather than paying for a call whose answer is already
@@ -59,13 +72,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..epistemics import source_lineage, sources_are_independent
 from ..models import (
-    EpistemicStatus,
     PatchStatus,
     Perspective,
     Projection,
     Relation,
-    Reliability,
     SemanticPatch,
     SemanticState,
     TokenUsage,
@@ -253,6 +265,7 @@ class LLMCorroborationOperator(LLMOperator):
         """Keep pairs that are valid, justified, distinct and cross-source."""
         seen: set[tuple[str, str]] = set()
         out: list[dict[str, Any]] = []
+        lineage = source_lineage(view.evidence)
         for item in _as_dict_list(data.get("corroborations")):
             a, b = item.get("claim_a"), item.get("claim_b")
             if not (isinstance(a, str) and isinstance(b, str)) or a == b:
@@ -261,8 +274,11 @@ class LLMCorroborationOperator(LLMOperator):
                 continue
             source_a, source_b = self._source_of(a, view), self._source_of(b, view)
             # The operator enforces this rather than trusting the instruction:
-            # a document agreeing with itself corroborates nothing.
-            if source_a is None or source_b is None or source_a == source_b:
+            # a document agreeing with itself corroborates nothing, and neither
+            # does a document agreeing with the one it was written off (T20).
+            if source_a is None or source_b is None:
+                continue
+            if not sources_are_independent(source_a, source_b, lineage):
                 continue
             key = _pair_key(a, b)
             if key in seen:
@@ -335,7 +351,6 @@ class LLMCorroborationOperator(LLMOperator):
         # One entry per corroborated claim, so two corroborations of the same
         # claim accumulate rather than the second overwriting the first.
         gained: dict[str, list[str]] = {}
-        promote: set[str] = set()
 
         for c in candidates:
             a, b = c["a"], c["b"]
@@ -360,14 +375,6 @@ class LLMCorroborationOperator(LLMOperator):
             new = [eid for eid in spans if eid not in held]
             if new:
                 gained.setdefault(weak, []).extend(new)
-            # Verification needs an *accountable* source. Two interested
-            # parties telling the same story is not verification (T17).
-            if (
-                best is Reliability.HIGH
-                and weak_claim.epistemic_status is EpistemicStatus.REPORTED
-            ):
-                promote.add(weak)
-
             rid = f"rel_corrob_{len(relations) + 1:03d}"
             relations.append(
                 Relation(
@@ -402,26 +409,6 @@ class LLMCorroborationOperator(LLMOperator):
             if cid not in write_set:
                 write_set.append(cid)
 
-        for cid in sorted(promote):
-            claim = view.claims[cid]
-            updates.append(
-                UpdateObject.model_validate(
-                    {
-                        "object_id": cid,
-                        "field": "epistemic_status",
-                        "from": claim.epistemic_status,
-                        "to": EpistemicStatus.VERIFIED,
-                        "reason": (
-                            "Independently asserted by an accountable source, "
-                            "which is what verification means here — not that "
-                            "a second interested party agrees."
-                        ),
-                    }
-                )
-            )
-            if cid not in write_set:
-                write_set.append(cid)
-
         resolved_reads = sorted(read_set & (set(view.claims) | set(view.evidence)))
         transform_record = TransformRecord(
             id=self.transform_id,
@@ -436,8 +423,8 @@ class LLMCorroborationOperator(LLMOperator):
             started_at=now,
             finished_at=now,
             notes=(
-                f"Linked {len(relations)} cross-source corroboration(s); "
-                f"promoted {len(promote)} claim(s) to verified."
+                f"Linked {len(relations)} corroboration(s) across independent "
+                f"sources; {len(gained)} claim(s) gained supporting spans."
             ),
         )
         return SemanticPatch(

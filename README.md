@@ -143,7 +143,14 @@ claims at absolute certainty and a 90% recommendation; committed state holds no
 claim above 60% and the memo opens at 45%. Claims read out of a document are
 labelled **reported**, not *observed* — reading a press release shows that the
 press release says so, not that the thing is so — so a memo line says what a
-reader needs: *"(confidence 60%, reported)"*. Remaining refinements (planner retry-on-shape, an optional
+reader needs: *"(confidence 60%, reported)"*. How well a claim is supported is a
+**separate** fact from how it was acquired, and the memo states both: a claim two
+independent sources carry reads *corroborated*, and *verified* only when one of
+them is accountable for being right. Neither is a label any operator writes —
+both are derived from the spans a claim cites, so they cannot be asserted, only
+earned (run `spc-demo analyze --help` for `--also-derives-from`, which declares
+that one document was written off another so the pair is not counted twice).
+Remaining refinements (planner retry-on-shape, an optional
 LLM-narrated memo) are tracked in [`TASKS.md`](TASKS.md).
 
 ## Pilot scope

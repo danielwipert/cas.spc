@@ -1185,6 +1185,284 @@ the stage is not added, so every cassette still replays and no prompt changed.
 
 ---
 
+## T20 ⚠ — One status cannot hold three facts · ✅ DONE
+
+**Sign-off given 2026-09-13**, per the ⚠ convention.
+
+**What landed.** `EpistemicStatus` is five members and one question. `VERIFIED`
+and `CONTRADICTED` are gone from it; a `Claim` carrying either on disk migrates
+to `reported` at load, on a `field_validator` rather than in a store, so every
+route in gets it — both backends, a patch carrying a legacy value, and a model
+that answers `verified` anyway.
+
+Support and conflict are derived in the new `src/spc_state/epistemics.py`:
+
+- `corroboration_of(claim, evidence)` → `UNCORROBORATED` / `CORROBORATED` /
+  `VERIFIED`, read from the spans a claim cites and the sources behind them;
+- `is_contested(claim_id, contradictions)` → whether an **unresolved**
+  `Contradiction` names it.
+
+**T19's promotion write is deleted**, as predicted: `LLMCorroborationOperator`
+already attached the corroborating span and wrote the `Relation`, so the label
+was redundant bookkeeping over the same fact. The operator now writes exactly one
+field, `supporting_evidence`, and a test pins that the `epistemic_status` update
+is *gone* rather than merely agreeing with the derived answer.
+
+**The higher bar, as specified.** `Evidence.derives_from` names the `source_id` a
+document was written off; `sources_are_independent` walks the chain (transitively,
+cycle-safe) and `_candidates` drops any pair that is not independent, replacing
+the old `source_a == source_b`. Two documents off a *common* origin stay
+independent of each other — the rule is ancestry, not shared ancestry — and that
+choice is pinned by a test so it stays a decision. Undeclared lineage counts as
+independent; `--also-derives-from` on `spc-demo analyze` declares it, validated
+against the run's real source ids because a typo'd parent silently buys back the
+independence the flag was passed to deny.
+
+**Five sites became two properties.** `_UNGROUNDED` and `_PROVENANCE_FREE`
+(`projection/builder.py`), `_PROVENANCE_FREE_STATUSES` (`validation/l2.py`) and
+the `SPECULATIVE` comparison in `evaluation/metrics.py` are now
+`EpistemicStatus.is_grounded` and `.needs_provenance`. The metrics one was
+carrying a real bug: §20.2 counted a `speculative` claim as having declared its
+provenance but not an `assumed` one, although L2 has always exempted both for the
+same reason. `metrics.py:106` is left alone deliberately — it asks whether the
+demo quantified uncertainty, a genuine one-member question, not axis recovery.
+
+**Measured.** 429 tests (was 425 at the start, 388 before T20's spec was
+written). `DEMO.md` byte-identical: the deterministic `ExtractOperator` emits
+only `OBSERVED` and `INFERRED`, the demo has no corroboration stage, so every
+demo claim derives `UNCORROBORATED` and renders exactly as before — including
+after the `metrics.py` correction, which was checked against the demo rather than
+assumed safe.
+
+**Verified by mutation.** Ignoring lineage turns 3 red; removing the migration 4;
+re-introducing the promotion write 3; conflict ignoring contradiction status 2;
+`VERIFIED` dropping its accountability requirement 2; `needs_provenance`
+forgetting `ASSUMED` 2; `is_grounded` admitting `INFERRED` 2; the extractor
+failing to stamp declared lineage 1 on the assembled route and 2 on the
+passthrough.
+
+That last pair was a **real gap found by mutation, not by review**: the first
+draft wired `derives_from` end to end and nothing tested it, so an extractor that
+quietly stopped stamping it would have gone unnoticed — and the consequence is
+exactly the failure T20 exists to prevent. Three tests now cover it, including a
+patch that asserts its own independence and is overwritten.
+
+**A regression guard was relocated, not dropped.**
+`test_a_typed_field_update_commits_as_its_real_type` pinned a defect in
+`runtime/commit.py` — a typed field updated from JSON committed as a raw string —
+found through T19's promotion, which was the only operator updating an enum
+field. Retiring the promotion would have silently retired the test with it, so it
+moved to `tests/test_commit.py` and pins the commit rule directly. The defect is
+in `commit`, and the next operator to update a typed field would meet it again.
+
+**Schemas regenerated.** `python -m spc_state.models.schema_export schemas`. The
+diff also picks up a `TokenUsage` block missing since T5 — the committed schemas
+had drifted before this task and nothing checks them, which is worth a test one
+day.
+
+**Still true, and still out of scope.** The model still judges whether two claims
+assert the same thing. Independence and accountability are structural now; the
+match is not, and it is the last self-judgement in the T14–T20 arc. The
+corroboration docstring says so rather than letting a derived `VERIFIED` read as
+more than it is.
+
+
+---
+
+### The spec this was built from
+
+**Required sign-off.** This changes the membership of `EpistemicStatus` and adds
+a field to `Claim` and `Evidence`. T16 deferred exactly this — "splitting the
+model so `observed` means 'observed in the source' and warranted belief lives on
+its own field ... is a state-model change: raise it as its own ⚠ task with
+sign-off, do not smuggle it in here." This is that task.
+
+**Why, with what is in the tree.** `EpistemicStatus` has seven members and they
+do not answer one question. They answer three:
+
+| axis | the question it answers | members today |
+|---|---|---|
+| **acquisition** | how did this enter state? | `OBSERVED` `REPORTED` `INFERRED` `ASSUMED` `SPECULATIVE` |
+| **corroboration** | how well is it supported? | `VERIFIED` |
+| **conflict** | does anything contradict it? | `CONTRADICTED` |
+
+A claim has a value on all three **at once**. One field holds one, so every
+write on a second axis destroys the first. Both failure modes are already in the
+tree:
+
+- **`CONTRADICTED` is dead.** It appears in `models/enums.py:47` and in one
+  parametrised test case. Nothing emits it — because T3 gave conflict a
+  first-class `Contradiction` object carrying both claim ids, a type and a
+  status. The object is the right shape; the enum member is the sketch it
+  superseded, never removed.
+- **`VERIFIED` overwrites `REPORTED`** (`operators/corroboration_llm.py:411`). A
+  corroborated claim is *still reported* — it was read out of a document, and
+  that does not stop being true because a second source agreed. T19 trades a
+  fact about acquisition for a fact about support, and the receipt loses the
+  first.
+
+The consumers already work around the shape. **Five sites hand-maintain a subset
+of the enum to recover an axis the type does not expose**: `_UNGROUNDED`
+(`projection/builder.py:49`), `_PROVENANCE_FREE` (`:54`),
+`_PROVENANCE_FREE_STATUSES` (`validation/l2.py:54`), `_UNAVAILABLE_TO_A_READER`
+(`operators/extract_llm.py:115`), and two inline comparisons in
+`evaluation/metrics.py:106,178`. Every member added to the flat list is an audit
+of all five, and a missed one fails silently.
+
+That is the case against simply adding members. The list is not too short; it is
+the wrong shape, and lengthening it multiplies a defect that already costs five
+maintained subsets and one dead value.
+
+**The fix — store one axis, derive two.**
+
+Store **acquisition** only. It is a fact about what an operator did at commit
+time, and nothing downstream can recover it:
+
+```
+OBSERVED     an operator saw the thing itself
+REPORTED     a source states it
+INFERRED     derived from other claims in state
+ASSUMED      taken as a premise
+SPECULATIVE  proposed without warrant
+```
+
+Derive the other two, because **state already holds everything they need**:
+
+- **corroboration** is a function of the claim's `supporting_evidence` and the
+  sources those spans came from;
+- **conflict** is a function of the `Contradiction` objects naming the claim.
+
+This is T14/T15/T16 one level up. The rule those three established is *derive it
+from structure, do not let anyone assert it*, and the enum is the last place it
+has not been applied. It is also the pilot's own thesis turned on its own
+schema: a stored status that summarises the warrant graph is a summary sitting
+in the middle of the state.
+
+The pleasant consequence: **T19's promotion write disappears.**
+`corroboration_llm` already adds the corroborating span to `supporting_evidence`
+and already writes a `Relation` recording why. Once corroboration is derived
+from those, the third write (`:405-421`) is redundant and comes out. A good part
+of this task is a deletion.
+
+**The higher bar: independence, and the caller declares it.**
+
+`VERIFIED` today needs a second source at `HIGH` reliability. The hole is that it
+has **no notion of independence**. Reuters reporting a merger *because it read
+the press release* is not a second source, it is the same source relayed; ten
+outlets carrying one wire story are one source wearing ten hats. `Evidence`
+separates sources only by `source_id` (`models/objects.py:110`), so two spans
+tracing to a common origin corroborate each other today. If `VERIFIED` ever
+fired on real news data it would most likely be wrong — which is the honest
+reason its bar is too low, ahead of any question of how many members the enum
+has.
+
+A model cannot close this. Whether an article was written off a press release is
+a fact about the world *outside* both documents — precisely the class T14 ruled
+on: *an operator does not take a model's word for a fact about the world outside
+the document.* So the caller declares it, exactly as they now declare
+`--source-type`:
+
+- `Evidence.derives_from: str | None` — the `source_id` this document is
+  downstream of;
+- a CLI option paired with `--also-input`, following the positional convention
+  `--also-source-type` already set;
+- two spans are **independent** iff neither's source is an ancestor of the
+  other's.
+
+The derived ladder then reads:
+
+| derived level | requires |
+|---|---|
+| `UNCORROBORATED` | one source, or several that are not independent |
+| `CORROBORATED` | ≥ 2 **independent** sources assert it |
+| `VERIFIED` | ≥ 2 **independent** sources, ≥ 1 of them `HIGH` |
+
+Undeclared lineage counts as independent, for T14's reason in reverse: "we do
+not know" is not "we know it is derivative". Note that unlike the `MEDIUM`
+default for reliability this default is **generous**, so it must be stated at
+the field and surfaced in the memo rather than left implicit.
+
+**The decision this forces.** Removing `VERIFIED` and `CONTRADICTED` from
+`EpistemicStatus` is breaking: state already on disk carries those values and
+`schemas/` exports them. Either
+
+(a) remove them and write a load-time migration mapping `verified → reported`
+and `contradicted → reported`, or
+(b) keep them parseable but never emitted.
+
+**Take (a).** (b) leaves the confusion inside the type where the next operator
+can reach for it, and there is exactly one production emitter to migrate. Get
+this confirmed before writing code — that is what the ⚠ is for.
+
+**Out of scope, named so nobody smuggles it in.**
+
+- **The three kinds of `REPORTED`.** A document that *asserts* a fact, one that
+  *attributes* it to someone ("the CEO said"), and one that *evaluates* ("one of
+  the industry's most compelling portfolios") are three different epistemic acts
+  and all land on `REPORTED`. That belongs on the acquisition axis and is the
+  T17 follow-on already named in `HANDOFF.md`. It wants this task's shape
+  underneath it first: do it after, not inside.
+- **Per-assertion accountability.** A 10-K is `HIGH`, but a forward-looking
+  sentence inside it is explicitly not audited. Accountability attaches per
+  assertion, not per document; catching that means reading claim text, which is
+  a heuristic rather than a structural check.
+- **"These two claims assert the same thing" is still model-judged.** The
+  two-pass skeptic gate is a precision device, not a check, and it is the last
+  self-judgement left in the T14–T19 arc. This task raises the bar on
+  *independence* and *accountability* only. Say so in the write-up rather than
+  letting a derived `VERIFIED` read as more than it is.
+
+**Acceptance test** (`tests/test_epistemic_axes.py`, deterministic, no provider
+call).
+
+*Unit — acquisition.* The five members survive; under (a), a state file on disk
+carrying `verified` or `contradicted` loads as `reported` and the migration is
+pinned by a round-trip test.
+
+*Unit — derived corroboration.* A claim on one source derives `UNCORROBORATED`;
+on two independent `MEDIUM` sources, `CORROBORATED`; on two independent sources
+one of which is `HIGH`, `VERIFIED`; and — **the case that does not pass today,
+and the point of this task** — on two sources where one declares `derives_from`
+the other, back to `UNCORROBORATED` however reliable either is.
+
+*Unit — derived conflict.* A claim named by an `UNRESOLVED` `Contradiction`
+reads as conflicted; a `RESOLVED` or `DISMISSED` one does not; and assert **no
+field on the claim changed** to say so.
+
+*Unit — the five subsets.* Each hand-maintained set is replaced by a property on
+the axis, with today's behaviour pinned unchanged: a `reported` claim is
+grounded and not weak, an `assumed` claim is provenance-free, and L2 still
+raises `L2.CLAIM_MISSING_PROVENANCE` at `ERROR` for a 0.6+ claim citing nothing.
+
+*Composition.* On the T19 corroboration fixture the corroborated claim reaches
+the same derived level the promotion used to write — **and the patch contains no
+`epistemic_status` update at all.** Pin that the write is gone, not just that the
+answer matches.
+
+*Replay.* Against the committed cassettes: no committed claim carries `verified`
+or `contradicted`, and the memo line for a corroborated claim states its
+acquisition and its derived support as **two** facts rather than one.
+
+**Invariants.** No direct `SemanticState` mutation. Derivation is a pure read
+over committed state — deterministic, model-free, and free to compute, so it
+replays identically and adds no provider call.
+
+`DEMO.md` stays byte-identical. The deterministic `ExtractOperator` emits only
+`OBSERVED` and `INFERRED` (`operators/extract.py:69,79,88`) and the demo has no
+corroboration stage, so every demo claim derives `UNCORROBORATED`; render
+nothing at that level and the artifacts do not move. If a renderer change would
+move them, scope it out of the demo path the way T1, T15 and T16 each did.
+
+The extraction prompt should not need to change — `extract_llm.py:75` already
+offers only `reported | inferred | assumed | speculative`. If it does change,
+re-record all four cassettes.
+
+Whatever replaces `_UNAVAILABLE_TO_A_READER` must hold on **both** routes in,
+assembled and full-patch passthrough. T8, T11, T14 and T17 each had to close
+that separately; assume this one does too until a test says otherwise.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

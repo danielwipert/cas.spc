@@ -154,22 +154,54 @@ def _extract(tmp_path: Path, payload: str, source_type: SourceType):
     ("claimed", "expected"),
     [
         (EpistemicStatus.OBSERVED, EpistemicStatus.REPORTED),
-        (EpistemicStatus.VERIFIED, EpistemicStatus.REPORTED),
         (EpistemicStatus.INFERRED, EpistemicStatus.INFERRED),
         (EpistemicStatus.ASSUMED, EpistemicStatus.ASSUMED),
         (EpistemicStatus.SPECULATIVE, EpistemicStatus.SPECULATIVE),
-        (EpistemicStatus.CONTRADICTED, EpistemicStatus.CONTRADICTED),
     ],
 )
 def test_only_the_statuses_a_reader_cannot_reach_are_rewritten(
     claimed: EpistemicStatus, expected: EpistemicStatus
 ) -> None:
-    """`observed` and `verified` are the two nobody gets from reading.
+    """`observed` is the one nobody gets from reading.
 
-    Everything else is a claim about the reader's own reasoning, which reading
-    really does establish, so it passes through untouched.
+    Everything else on this axis is a claim about the reader's own reasoning,
+    which reading really does establish, so it passes through untouched.
+
+    `verified` used to be listed here too. T20 retired it from the axis
+    altogether — support is derived from what a claim cites, not asserted on it
+    — so there is no longer an `EpistemicStatus` to ground. The two routes that
+    map a model's `"verified"` string to `reported` are pinned below and in
+    `test_epistemic_axes.py`.
     """
     assert ground_status(claimed) is expected
+
+
+def test_a_model_answering_verified_still_lands_on_reported() -> None:
+    """The rule T17 wrote survives its member's retirement, on both routes in.
+
+    Assembled: `coerce_enum` no longer finds `"verified"` in the vocabulary and
+    falls through to the `reported` default. Passthrough: `Claim` migrates the
+    string itself. Neither needs a line in `_UNAVAILABLE_TO_A_READER` any more,
+    which is exactly the kind of quiet gap this test exists to catch.
+    """
+    from spc_state.models import Claim
+    from spc_state.operators.extract_llm import _EPISTEMIC, coerce_enum
+
+    assert "verified" not in _EPISTEMIC
+    assert (
+        coerce_enum("verified", _EPISTEMIC, EpistemicStatus.REPORTED)
+        is EpistemicStatus.REPORTED
+    )
+    passed_through = Claim.model_validate(
+        {
+            "id": "claim_001",
+            "text": "Arrived in a fully-formed patch claiming verification.",
+            "epistemic_status": "verified",
+            "confidence": 0.9,
+            "supporting_evidence": ["ev_001"],
+        }
+    )
+    assert passed_through.epistemic_status is EpistemicStatus.REPORTED
 
 
 def test_the_model_is_not_offered_observed(tmp_path: Path) -> None:

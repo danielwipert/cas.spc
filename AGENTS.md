@@ -214,7 +214,10 @@ tree. Any LLM operator — existing or new:
   span supports each. Facts about the source itself belong to the caller, who
   knows them, and the operator derives from that: `Evidence.reliability` comes
   from the declared `source_type` (`source_types.py`), not from an
-  `evidence_reliability` field the model fills in. A model asked to grade the
+  `evidence_reliability` field the model fills in, and since T20
+  `Evidence.derives_from` — whether this document was written off another — is
+  declared the same way, because whether a news report came from a press release
+  is not visible from inside either document. A model asked to grade the
   trustworthiness of a document from inside that document will grade its own
   extraction generously — measured, it rated 6 of 11 spans of a corporate press
   release `high`. If you find yourself adding a prompt field for something the
@@ -235,6 +238,21 @@ document has established that the document says so, never that the thing is so,
 so an extracted claim is `REPORTED` and never `OBSERVED` — derived, with the
 model's answer corrected rather than believed. Reserve `OBSERVED` for an
 operator that genuinely sees the thing itself.
+
+**One field, one fact — and prefer deriving it to storing it (T20).**
+`EpistemicStatus` answers exactly one question: how a claim entered state. It
+used to also carry how well a claim was supported (`VERIFIED`) and whether
+anything contradicted it (`CONTRADICTED`), which are answers to *different*
+questions — and since a claim has a value on all three at once and one field
+holds one, every write on a second axis destroyed the first. Before adding a
+member to an enum, check you are not answering a second question with it; before
+storing a value, check whether committed state already implies it. Support and
+conflict are computed on read in `epistemics.py`, so they cannot go stale and
+cannot be asserted by an operator that has not earned them. The corollary for
+operators: **change what a claim rests on and let the derivation reprice it** —
+`LLMCorroborationOperator` attaches the corroborating span and writes no label at
+all. If you find yourself updating a field that summarises other fields, that is
+the same mistake.
 
 ---
 

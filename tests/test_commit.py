@@ -199,3 +199,42 @@ def test_commit_raises_if_update_target_missing() -> None:
     )
     with pytest.raises(CommitError):
         commit_patch(state, patch, now=dt.datetime(2026, 6, 26, tzinfo=UTC))
+
+
+def test_a_typed_field_update_commits_as_its_real_type() -> None:
+    """A patch arrives as JSON, so `to_value` for a typed field is a raw string.
+
+    `model_copy(update=...)` assigns without validating, so committed state held
+    the string where an `EpistemicStatus` belongs: it compared unequal to the
+    enum, and only a pydantic serializer warning much later hinted at it.
+
+    Found via T19's promotion, which was the first operator to update an enum
+    field; T20 retired that promotion, so this pins the commit-level rule
+    directly rather than through an operator that no longer does it. The defect
+    is in `commit`, and a future operator updating any typed field would meet it
+    again.
+    """
+    state = _state_with_one_claim()
+    patch = _patch(
+        state,
+        update_objects=[
+            UpdateObject.model_validate(
+                {
+                    "object_id": "claim_001",
+                    "field": "epistemic_status",
+                    "from": "speculative",
+                    "to": "reported",
+                    "reason": "A typed field, updated with what JSON can carry.",
+                }
+            )
+        ],
+    )
+    committed = commit_patch(state, patch, now=dt.datetime(2026, 6, 26, tzinfo=UTC))
+
+    status = committed.claims["claim_001"].epistemic_status
+    assert isinstance(status, EpistemicStatus), "not the raw string it arrived as"
+    assert status is EpistemicStatus.REPORTED
+
+    # It survives the round trip state is actually stored through.
+    reloaded = SemanticState.model_validate_json(committed.model_dump_json(by_alias=True))
+    assert reloaded.claims["claim_001"].epistemic_status is EpistemicStatus.REPORTED

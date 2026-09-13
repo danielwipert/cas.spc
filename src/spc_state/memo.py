@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .epistemics import Corroboration, corroboration_of
 from .models import (
     Claim,
     Evidence,
@@ -32,6 +33,18 @@ from .projection.builder import WEAK_CONFIDENCE_THRESHOLD
 from .store import RunPaths
 
 _PRIORITY_RANK = {Priority.HIGH: 0, Priority.MEDIUM: 1, Priority.LOW: 2}
+
+
+def _support(claim: Claim, evidence: dict[str, Evidence]) -> str:
+    """The claim's derived corroboration, stated as a fact of its own (T20).
+
+    Acquisition and support are two different things and the memo says both:
+    "reported" is where the claim came from, "corroborated" is how many
+    independent sources carry it. An uncorroborated claim — every claim in a
+    single-source run — adds nothing, so the common line is unchanged.
+    """
+    level = corroboration_of(claim, evidence)
+    return "" if level is Corroboration.UNCORROBORATED else f", {level.value}"
 
 
 def _is_weakly_supported(claim: Claim, evidence: dict[str, Evidence]) -> bool:
@@ -137,7 +150,8 @@ def render_memo(state: SemanticState, *, question: str = "Decision analysis") ->
             note = " — assumes " + ", ".join(c.assumptions)
         lines.append(
             f"- {c.text}{cite} "
-            f"_(confidence {c.confidence:.0%}, {c.epistemic_status.value}{note})_"
+            f"_(confidence {c.confidence:.0%}, {c.epistemic_status.value}"
+            f"{_support(c, evidence)}{note})_"
         )
     if not ranked:
         lines.append("- _No claims were extracted._")

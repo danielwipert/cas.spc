@@ -21,7 +21,6 @@ decide REJECT vs. REVIEW vs. COMMIT via the router.
 from __future__ import annotations
 
 from ..models import (
-    EpistemicStatus,
     SemanticPatch,
     SemanticState,
     ValidationIssue,
@@ -51,7 +50,6 @@ def _warn(code: str, message: str, *, object_id: str | None = None) -> Validatio
     )
 
 
-_PROVENANCE_FREE_STATUSES = {EpistemicStatus.ASSUMED, EpistemicStatus.SPECULATIVE}
 
 
 def validate_patch(state: SemanticState, patch: SemanticPatch) -> list[ValidationIssue]:
@@ -185,7 +183,7 @@ def validate_patch(state: SemanticState, patch: SemanticPatch) -> list[Validatio
 
     # --- provenance for new high-confidence claims -----------------------
     for claim in patch.add_objects.claims:
-        if claim.epistemic_status in _PROVENANCE_FREE_STATUSES:
+        if not claim.epistemic_status.needs_provenance:
             continue
         has_evidence = bool(claim.supporting_evidence)
         has_assumption = bool(claim.assumptions)
