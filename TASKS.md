@@ -1463,6 +1463,147 @@ that separately; assume this one does too until a test says otherwise.
 
 ---
 
+## T21 — An accountable source is not a certain one · M
+
+**Why, with the numbers.** T20's first live proof run did what it was built to
+do and, in passing, produced the highest confidence number in the project's
+history. `verify_001` — Netflix's Form 8-K Item 1.01 and WBD's Form 8-K Item
+1.01, both declared `regulatory_filing` — committed **17 of 17 claims at exactly
+1.00**, and a recommendation of *"Proceed with the merger"* at **100%**.
+
+Measured against the arc that produced it, on the same pipeline:
+
+| run | source | claims at 1.00 | recommendation |
+|---|---|---|---|
+| `005` (before T14) | press release | 7 of 10 | 90% |
+| `009` (T16) | press release | 0 of 10 | 42% |
+| `010` (T17) | press release | 0 of 10 | 48% |
+| **`verify_001` (T20)** | **two filings** | **17 of 17** | **100%** |
+
+T14 stopped a press release buying certainty. Nothing stops a *filing* buying
+it — and a filing buys more of it than the press release ever did.
+
+**The mechanism, in three facts already in the tree.**
+
+1. `RELIABILITY_FACTOR[Reliability.HIGH] = 1.0`
+   (`operators/calibration.py:104`). A claim citing an accountable source is
+   discounted by **nothing**: `ceiling = confidence × 1.0`.
+2. T15's recommendation cap is `min(capped claim confidence)`
+   (`calibration.py:170`), so with every limb at 1.00 the recommendation is 1.00.
+   The cap did its job; there was nothing left to bind it.
+3. The model set every `claim_type` to `factual_claim` — **17 of 17**, including
+   ten whose text is plainly about the future (*"WBD's stockholders **will**
+   become stockholders of NewCo"*, *"Each share of WBD Common Stock **will** be
+   converted into cash"*). `predictive_claim` is offered in the prompt
+   (`extract_llm.py:74`) and was used **zero** times. `calibration.py` never
+   reads `claim_type` at all.
+
+That is T14's disease at the top of the ladder: a classification the model makes
+about its own output, answered uniformly and favourably, that nothing downstream
+re-derives.
+
+**And the substance was genuinely unsettled.** At the time of these filings the
+merger was subject to a competing hostile tender offer and a proxy contest from
+Paramount Skydance (EDGAR: `SC TO-T`, `DFAN14A`, `DEFC14A`, Dec 2025 – Feb 2026),
+plus regulatory clearance and a shareholder vote. The run's own Retriever opened
+the question *"Are there any regulatory hurdles that could delay or prevent the
+merger?"* — and the memo still recommended Proceed at 100%.
+
+**The documents themselves disagree with the number.** The same 8-K that carries
+Section 18 liability for its factual statements explicitly disclaims its
+forward-looking ones under the PSLRA safe harbor, and WBD's 8-K says of its own
+exhibits that they *"shall not be deemed 'filed' for purposes of Section 18 ...
+or otherwise subject to the liability of such section."* A filing is not one
+uniform block of accountability, and it says so in its own text. The pipeline
+applies `HIGH` to all of it.
+
+**The fix — the ceiling reads the epistemic axis too.** T17 established that
+reading a document establishes *that the document says so*, never that the thing
+is so, and made every extracted claim `REPORTED`. That rule never reached the
+number. It should:
+
+```
+ceiling(c) = c.confidence × min( reliability_factor(best evidence),
+                                 grounding_factor(c.epistemic_status) )
+```
+
+with `grounding_factor(OBSERVED) = 1.0` and `grounding_factor(REPORTED) < 1.0`.
+**`min`, deliberately not a product** — T16 settled that a claim is damped
+*once*, and multiplying two factors that never agreed to meet is the double
+discount it ruled out. Under `min`, a `LOW` press release still caps at 0.60 and
+nothing about T14–T16 moves; only the `HIGH` tier changes, which is the tier that
+is wrong.
+
+The consequence worth stating plainly: **no claim read out of a document can
+commit at 1.00, ever.** That is not a new rule — it is T17's rule, finally
+applied to the number instead of only to the label. It needs no text heuristic,
+no new model call and no new field: it reads the axis T20 just narrowed to one
+clean question.
+
+**The decision this forces.** What is `grounding_factor(REPORTED)`? It is a
+constant with no principled derivation, the way `RELIABILITY_FACTOR`'s values are
+— pin it, document the reasoning at the constant, and make changing it a
+deliberate edit. **0.9 is the recommendation**: it removes certainty without
+pretending to model deal risk, and leaves a filing meaningfully stronger than the
+`MEDIUM` 0.8 it would otherwise collapse toward. Get the value agreed before
+writing code; the mechanism is not in question, the number is.
+
+**Expect one existing assertion to invert, and that is the point.**
+`tests/test_calibration.py:421` reads `assert claim_caps(filing) == [], "an
+accountable source discounts no claim"`. After T21 an accountable source *does*
+discount — a little — because the claim is still only reported. Rewrite it to say
+the thing that is still true: a filing discounts **less** than a press release,
+and the gap between them is unchanged.
+
+**Out of scope, named so nobody smuggles it in.**
+
+- **Per-assertion accountability.** T20 named this and deferred it; this run is
+  the evidence it is not academic. The honest version reads document structure —
+  the PSLRA safe harbor, `furnished` under Item 7.01 versus `filed` — and prices
+  a forward-looking span below a historical one *within the same document*. That
+  is a second discount on a different axis (modality, not grounding) and it wants
+  its own task. T21 deliberately does the layer that needs no text analysis.
+- **Deal risk.** Nothing here models whether the merger completes. A ceiling is
+  not a forecast, and a pipeline that reads two documents has no business
+  producing one.
+- **The model's `claim_type`.** T21 does not start trusting it, and does not try
+  to fix it. It is currently inert — nothing reads it — and the measurement above
+  (17 of 17 `factual`) is the reason to leave it that way until something derives
+  it rather than asks for it.
+
+**Acceptance test** (`tests/test_claim_calibration.py`, deterministic, no
+provider call).
+
+*Unit.* A `REPORTED` claim citing `HIGH` evidence cannot commit at 1.00 whatever
+confidence was proposed, and commits at exactly `grounding_factor(REPORTED)`; an
+`OBSERVED` claim citing the same evidence is untouched; a `REPORTED` claim citing
+`LOW` evidence is capped at the `LOW` factor and **not** below it — pin that the
+two rules compose by `min` and not by product, which is the decision above; every
+cap records a reason naming which of the two bound it.
+
+*Composition.* On the `analyze_five_stage` cassette declared `regulatory_filing`,
+the recommendation is below 1.00, and the gap between the same run declared
+`press_release` and declared `regulatory_filing` is unchanged from today's — the
+filing is still worth more, it is just no longer worth certainty.
+
+*Replay.* Against the committed cassettes: **no committed claim in any run
+commits at 1.00**, and no hypothesis does either. That single assertion is the
+whole task, and it is the one that would have caught `verify_001`.
+
+**Invariants.** No direct `SemanticState` mutation. Deterministic and model-free
+— the ceiling is arithmetic over committed state, so it replays identically and
+adds no provider call. Confidence still moves **only downward**, and every change
+still records what moved it (T15/T16).
+
+`DEMO.md` must stay byte-identical: the deterministic `ExtractOperator`'s
+hand-written confidences are 0.74/0.85/0.83/0.58 with no 1.00 anywhere, and its
+claims are `OBSERVED`/`INFERRED` rather than `REPORTED`, so the new factor does
+not bind. **Verify that rather than assume it** — and if a renderer or metric
+moves, scope the change out of the demo path the way T1, T15, T16 and T20 each
+did.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)
