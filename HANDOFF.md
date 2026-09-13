@@ -13,9 +13,9 @@
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T20**, with
-**T21 queued and unstarted** — it needs one number agreed before code moves.
-Everything through T20 is merged to `main` (PRs #2–#17).
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T21** and
+empty again. Everything through T20 is merged to `main` (PRs #2–#17); **T21 is
+the work in this branch.**
 
 **`VERIFIED` is proven on real data.** It had never fired on a live pairing until
 this session; it now has, and the run that proved it also found the defect T21
@@ -33,12 +33,16 @@ A claim's **support** and whether anything **contradicts** it are no longer
 stored anywhere. They are computed on read from committed state
 (`src/spc_state/epistemics.py`), so no operator can assert either one.
 
+And since T21, **nothing read out of a document commits at 1.00** — a `REPORTED`
+claim carries at most 0.9 however accountable its source, which is T17's rule
+finally reaching the number rather than only the label.
+
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
 python -m mypy              ->  Success: no issues found in 72 source files
-pytest                      ->  429 passed   (was 388 at the start of the session)
+pytest                      ->  441 passed   (was 388 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -91,6 +95,25 @@ confirmed me:**
   `verify_001` shows 17 findings for 11 distinct facts. Cosmetic next to the
   above, but it makes the artifact a reader actually opens look wrong.
 
+**T21 — an accountable source is not a certain one** then fixed the first of
+those. `GROUNDING_FACTOR[REPORTED] = 0.9`, and a claim's ceiling is now
+`confidence x min(reliability_factor, grounding_factor)` — **min, not a
+product**, because T16 settled that a claim is damped once. Nothing about
+T14-T16 moves (a `LOW` press release was already below 0.9); only the `HIGH`
+tier changes, which is the tier that was wrong. Re-calibrating `verify_001`'s
+own pre-calibration state under the new rule, with identical claims and model
+output:
+
+| | before T21 | after T21 |
+|---|---|---|
+| claims at 1.00 | **17 of 17** | **0** |
+| recommendation | **100%** | 90% |
+
+Three existing assertions inverted and were rewritten rather than deleted —
+including T19's headline test, whose corroborated endpoint is now 0.81 because
+the claim is still only *reported*. Corroboration still pays; it no longer pays
+in certainty.
+
 ## Starting work — read this first
 
 **T20's PR (#17) is merged**, and this branch has already been reset to `main`'s
@@ -103,19 +126,22 @@ git fetch origin main && git checkout -B <branch> origin/main
 
 ## Next up
 
-**Start with T21 — it is written up and waiting on one number.** It is the
-defect the `VERIFIED` proof run found, and it is the worst live number the
-pipeline has produced: `verify_001` committed **17 of 17 claims at 1.00** and
-recommended *"Proceed with the merger"* at **100%**, on a deal then facing a
-hostile counter-bid and a proxy contest. `RELIABILITY_FACTOR[HIGH] = 1.0`, so an
-accountable source is discounted by nothing and T15's cap has nothing to bind it;
-the model meanwhile labelled all 17 claims `factual_claim`, ten of them plainly
-about the future, and `calibration.py` never reads `claim_type` anyway. T21
-proposes the fix that needs no text heuristic: let the ceiling read the epistemic
-axis T20 just cleaned up, so a `REPORTED` claim cannot reach certainty however
-accountable its source — T17's rule finally applied to the number and not only to
-the label. **The mechanism is not in question; the constant is.** Agree
-`grounding_factor(REPORTED)` (0.9 recommended) before writing code.
+**The backlog is empty.** The clearest next piece of work is the one T21 names
+and deliberately does not do:
+
+- **Per-assertion accountability.** T21 stopped a filing buying *certainty*, but
+  90% on a merger facing a hostile counter-bid is still too high, and the fix is
+  not a smaller constant. A filing is not one uniform block of accountability and
+  says so in its own text: the same 8-K carries Section 18 liability for its
+  historical statements and **disclaims its forward-looking ones** under the
+  PSLRA safe harbor, and WBD's says of its own exhibits that they *"shall not be
+  deemed 'filed' ... or otherwise subject to the liability of such section"*.
+  Both markers are explicit, locatable document structure rather than text
+  heuristics — which is what makes this tractable, and different from the
+  claim-text reading T16 rejected. T20 deferred it, T21 deferred it, and the
+  `verify_001` numbers are the evidence it is not academic: ten of those
+  seventeen claims are about the future and the model labelled all seventeen
+  `factual_claim`.
 
 Nothing below is urgent. The first three are decisions before they are code, and
 belong to a human.
@@ -244,6 +270,11 @@ Read [`AGENTS.md`](./AGENTS.md). The hard invariant: **no operator mutates
   on and let this rule reprice it — do not add an exception.
 - **Reading a document is not observing the world** (T17). An extracted claim is
   `REPORTED`; `OBSERVED` is for an operator that genuinely sees the thing.
+- **No claim read out of a document is certain** (T21). A `REPORTED` claim
+  carries at most `GROUNDING_FACTOR[REPORTED]` however accountable its source —
+  T17's rule reaching the number, not just the label. The two damping rules
+  combine by **`min`**, never by product: T16 settled that a claim is damped
+  once, and two factors meeting by accident is not a considered position.
 - **One field, one fact — and prefer deriving it to storing it** (T20).
   `EpistemicStatus` answers only how a claim entered state. Support and conflict
   are computed on read (`epistemics.py`) from what state already holds, so no

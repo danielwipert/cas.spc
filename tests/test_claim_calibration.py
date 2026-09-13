@@ -20,6 +20,7 @@ that never agreed to meet.
 from __future__ import annotations
 
 import datetime as dt
+import math
 from pathlib import Path
 
 import pytest
@@ -30,12 +31,21 @@ from spc_state.models import (
     EpistemicStatus,
     Evidence,
     Hypothesis,
+    Perspective,
     Reliability,
     SemanticState,
     StateStatus,
 )
 from spc_state.operators import CalibrationOperator
-from spc_state.operators.calibration import RELIABILITY_FACTOR
+from spc_state.operators.calibration import (
+    GROUNDING_FACTOR,
+    RELIABILITY_FACTOR,
+    _claim_reason,
+    claim_ceiling,
+    claim_factor,
+)
+from spc_state.projection import build_projection, resolve_view
+from spc_state.projection.view import ProjectionView
 from spc_state.providers import ReplayProvider
 from spc_state.runtime import FixedClock, Runtime, bootstrap_state
 from spc_state.source_types import SourceType
@@ -334,13 +344,22 @@ def test_no_claim_from_a_press_release_commits_at_certainty(tmp_path: Path) -> N
     assert not any(c.confidence == 1.0 for c in claims.values())
 
 
-def test_the_same_recording_read_as_a_filing_keeps_its_certainty(
+def test_the_same_recording_read_as_a_filing_is_discounted_least(
     tmp_path: Path,
 ) -> None:
     """The contrast that proves the declaration is doing the work.
 
-    A regulatory filing can carry a claim at 1.00, and the operator leaves
-    those alone — so this is a source-sensitive cap, not a blanket haircut.
+    Before T21 this asserted that a filing "keeps its certainty" — calibration
+    changed nothing, and claims committed at 1.00. That was the defect: a run
+    over two real SEC filings committed 17 of 17 claims at 1.00 and recommended
+    proceeding with a contested merger at 100%.
+
+    A filing is still worth more than a press release, and that is what this
+    test is for. What it no longer buys is certainty: the claim was *read*, not
+    seen, so it carries at most `GROUNDING_FACTOR[REPORTED]` however accountable
+    the source. The discount is the grounding one, not the source one — pinned
+    here, because a filing falling to the `LOW` factor would be a different and
+    much worse bug than the one T21 fixed.
     """
     result = _replay(tmp_path, SourceType.REGULATORY_FILING)
     state = result.run.final_state
@@ -349,19 +368,28 @@ def test_the_same_recording_read_as_a_filing_keeps_its_certainty(
     before = result.run.steps[-2].next_state
     assert before is not None
 
-    # Calibration changed nothing: every claim commits at what it arrived with.
-    assert {cid: c.confidence for cid, c in state.claims.items()} == {
-        cid: c.confidence for cid, c in before.claims.items()
-    }
-    assert any(c.confidence == 1.0 for c in state.claims.values()), (
-        "a filing must really carry certainty here, or the contrast proves nothing"
+    grounding = GROUNDING_FACTOR[EpistemicStatus.REPORTED]
+    for cid, claim in state.claims.items():
+        if claim.epistemic_status is not EpistemicStatus.REPORTED:
+            continue
+        expected = math.floor(before.claims[cid].confidence * grounding * 100) / 100
+        assert claim.confidence == expected, (
+            f"{cid}: a reported claim on a filing is damped by grounding alone"
+        )
+
+    assert not any(c.confidence == 1.0 for c in state.claims.values()), (
+        "nothing read out of a document commits at certainty — the whole of T21"
     )
-    claim_caps = [
-        c
+
+    reasons = " ".join(
+        c.reason or ""
         for c in state.transform_log[-1].confidence_changes
         if c.object_id.startswith("claim_")
-    ]
-    assert claim_caps == [], "nothing to correct on an accountable source"
+    )
+    assert "reported" in reasons, "the receipt must say what bound the number"
+    assert "high-reliability" not in reasons, (
+        "the source did not bind it; saying so would misdirect an auditor"
+    )
 
 
 @pytest.mark.parametrize(
@@ -387,3 +415,149 @@ def test_the_factor_reaches_the_recommendation_exactly_once(
 
     weakest = min(state.claims[cid].confidence for cid in lead.supporting_claims)
     assert lead.confidence == weakest
+
+
+# ---------------------------------------------------------------------------
+# T21 — an accountable source is not a certain one
+# ---------------------------------------------------------------------------
+
+
+def _view_of(claim: Claim, evidence: list[Evidence]) -> ProjectionView:
+    state = SemanticState(
+        state_id="sr",
+        project_id="p",
+        name="n",
+        state_version=1,
+        created_at=NOW,
+        updated_at=NOW,
+        claims={claim.id: claim},
+        evidence={e.id: e for e in evidence},
+    )
+    projection = build_projection(
+        state, perspective=Perspective.VERIFIER, goal="calibrate"
+    )
+    return resolve_view(projection, state)
+
+
+def _ev(eid: str, reliability: Reliability) -> Evidence:
+    return Evidence(
+        id=eid,
+        source_type="input_document",
+        source_id="doc_001",
+        quote_or_span=f"span {eid}",
+        reliability=reliability,
+    )
+
+
+def _c(status: EpistemicStatus, confidence: float, evidence: list[str]) -> Claim:
+    return Claim(
+        id="claim_001",
+        text="A claim.",
+        epistemic_status=status,
+        confidence=confidence,
+        supporting_evidence=evidence,
+    )
+
+
+def test_a_reported_claim_on_an_accountable_source_cannot_be_certain() -> None:
+    """The defect T21 exists for, at its smallest.
+
+    17 of 17 claims at 1.00 over two SEC filings, and a 100% recommendation on a
+    contested merger, all reduce to this one line being 1.0 before.
+    """
+    claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev("ev_001", Reliability.HIGH)])
+    assert claim_ceiling(claim, view) == GROUNDING_FACTOR[EpistemicStatus.REPORTED]
+    assert claim_ceiling(claim, view) < 1.0
+
+
+def test_an_observed_claim_on_the_same_source_is_untouched() -> None:
+    """`OBSERVED` is first-hand, so nothing about *reading* discounts it.
+
+    The contrast that shows T21 is a grounding rule and not a blanket haircut.
+    """
+    claim = _c(EpistemicStatus.OBSERVED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev("ev_001", Reliability.HIGH)])
+    assert claim_ceiling(claim, view) == 1.0
+
+
+def test_the_two_rules_compose_by_min_and_not_by_product() -> None:
+    """The decision T16 settled, re-settled where T21 could have broken it.
+
+    A reported claim on a press release is damped **once**, by the source —
+    0.90 x 0.60, not 0.90 x 0.60 x 0.90. Multiplying would drop it to 0.48 for
+    no considered reason, which is the double discount T16 ruled out.
+    """
+    claim = _c(EpistemicStatus.REPORTED, 0.90, ["ev_001"])
+    view = _view_of(claim, [_ev("ev_001", Reliability.LOW)])
+    low = RELIABILITY_FACTOR[Reliability.LOW]
+    assert claim_ceiling(claim, view) == round(0.90 * low, 2)
+    assert claim_factor(claim, view) == (low, "source")
+
+
+@pytest.mark.parametrize(
+    ("reliability", "binds"),
+    [
+        (Reliability.HIGH, "grounding"),
+        (Reliability.MEDIUM, "source"),
+        (Reliability.LOW, "source"),
+    ],
+)
+def test_the_harder_of_the_two_rules_binds(
+    reliability: Reliability, binds: str
+) -> None:
+    """Only the `HIGH` tier changed, which is the tier that was wrong."""
+    claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev("ev_001", reliability)])
+    factor, bound_by = claim_factor(claim, view)
+    assert bound_by == binds
+    assert factor == min(
+        RELIABILITY_FACTOR[reliability], GROUNDING_FACTOR[EpistemicStatus.REPORTED]
+    )
+
+
+def test_the_grounding_factor_is_pinned() -> None:
+    """A constant with no principled derivation, so changing it is deliberate."""
+    assert GROUNDING_FACTOR[EpistemicStatus.REPORTED] == 0.9
+    assert GROUNDING_FACTOR[EpistemicStatus.OBSERVED] == 1.0
+
+
+def test_every_epistemic_status_has_a_grounding_factor() -> None:
+    """Adding a member to the axis must force a decision, not default silently."""
+    assert set(GROUNDING_FACTOR) == set(EpistemicStatus)
+
+
+def test_the_receipt_names_which_rule_bound_the_number() -> None:
+    """An auditor must be able to tell a source cap from a grounding cap."""
+    claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev("ev_001", Reliability.HIGH)])
+    reason = _claim_reason(claim, view, claim_ceiling(claim, view))
+    assert "reported" in reason
+    assert "high-reliability" not in reason
+
+
+@pytest.mark.parametrize(
+    "source_type",
+    [SourceType.REGULATORY_FILING, SourceType.PRESS_RELEASE, SourceType.UNCLASSIFIED],
+)
+def test_no_committed_claim_reaches_certainty_on_any_source(
+    tmp_path: Path, source_type: SourceType
+) -> None:
+    """The one assertion that would have caught `verify_001`.
+
+    Against real recorded output rather than a hand-built claim: whatever the
+    model proposed and whatever the document was declared to be, nothing read
+    out of it commits at 1.00 — and neither does the recommendation that rests
+    on it. Before T21 a filing produced exactly that, seventeen times over.
+    """
+    state = _replay(tmp_path, source_type).run.final_state
+
+    certain = [
+        cid
+        for cid, c in state.claims.items()
+        if c.confidence >= 1.0 and c.epistemic_status is EpistemicStatus.REPORTED
+    ]
+    assert certain == [], f"{source_type.value}: reported claims at certainty"
+    assert all(h.confidence < 1.0 for h in state.hypotheses.values()), (
+        "a recommendation resting on read claims cannot be certain either"
+    )

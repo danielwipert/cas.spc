@@ -399,14 +399,19 @@ def test_a_filing_is_held_to_a_higher_ceiling_than_a_press_release(
     """The contrast that proves the declaration is doing the work.
 
     Identical document, identical recorded completions, identical proposed
-    numbers — only the declared source differs. A filing carries its claims
-    intact, so nothing is discounted at the claim layer and the recommendation
-    lands higher; a press release discounts every claim and the recommendation
-    follows them down.
+    numbers — only the declared source differs. A filing discounts its claims
+    less than a press release does, so its recommendation lands higher.
 
     The *gap* is asserted rather than either endpoint: whether a filing's
     recommendation is capped at all depends on what the planner proposed that
     run, which is not this rule's business.
+
+    Before T21 this said "an accountable source discounts **no** claim" — the
+    filing's claims committed untouched. That was the defect T21 removed: a
+    reported claim is now capped at 0.9 however accountable its source, because
+    reading a filing still only establishes what the filing says. What survives
+    is the comparison this test was always about, and it is the honest form of
+    it: a filing is worth more than a press release, just not worth certainty.
     """
     filing = _replay(tmp_path / "rf", SourceType.REGULATORY_FILING).run.final_state
     release = _replay(tmp_path / "pr", SourceType.PRESS_RELEASE).run.final_state
@@ -418,11 +423,23 @@ def test_a_filing_is_held_to_a_higher_ceiling_than_a_press_release(
             if c.object_id.startswith("claim_")
         ]
 
-    assert claim_caps(filing) == [], "an accountable source discounts no claim"
-    assert len(claim_caps(release)) == len(release.claims), "an interested one, all of them"
+    assert len(claim_caps(filing)) == len(filing.claims), (
+        "every reported claim is discounted, however good its source (T21)"
+    )
+    assert len(claim_caps(release)) == len(release.claims), "an interested one too"
+
+    def worst_claim(state) -> float:
+        return min(c.confidence for c in state.claims.values())
+
+    assert worst_claim(filing) > worst_claim(release), (
+        "a filing is still worth more than a press release"
+    )
     assert (
         filing.hypotheses["hyp_001"].confidence
         > release.hypotheses["hyp_001"].confidence
+    )
+    assert filing.hypotheses["hyp_001"].confidence < 1.0, (
+        "but it is not worth certainty — the whole of T21"
     )
 
 

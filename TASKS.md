@@ -1463,7 +1463,84 @@ that separately; assume this one does too until a test says otherwise.
 
 ---
 
-## T21 — An accountable source is not a certain one · M
+## T21 — An accountable source is not a certain one · ✅ DONE
+
+**What landed.** `GROUNDING_FACTOR` (`operators/calibration.py`) maps each
+`EpistemicStatus` to how much of a claim's confidence survives *how it entered
+state*. `REPORTED` is **0.9**, agreed before code moved; every other member is
+1.0, each for a stated reason. The table is exhaustive rather than defaulting, so
+adding a member to the axis forces a decision — T20's lesson applied forward.
+
+`claim_factor()` resolves the one factor that damps a claim and says which rule
+supplied it:
+
+```
+ceiling(c) = c.confidence * min(reliability_factor(c), grounding_factor(c))
+```
+
+**`min`, not a product**, which is the decision T16 settled and the one thing
+T21 could most easily have broken. Under `min` a `LOW` press release still caps
+at 0.60 — 0.6 is already below the 0.9 a reported claim allows — so nothing about
+T14–T16 moves. Only the `HIGH` tier changes, which is the tier that was wrong.
+Multiplying would have dropped that press-release claim to 0.54 for no considered
+reason: two rules meeting by accident, exactly what T16 ruled out.
+
+**Measured on the run that found the defect.** `verify_001`'s pre-calibration
+state (v7) re-calibrated under the new rule, so the claims, evidence and model
+output are identical and only the arithmetic differs:
+
+| | before T21 | after T21 |
+|---|---|---|
+| claims at 1.00 | **17 of 17** | **0** |
+| claim confidences | all 1.00 | all 0.90 |
+| recommendation | **100%** | 90% |
+
+18 confidence changes recorded, each naming what moved it:
+
+> *"Discounted to 0.90 from 1.00: a reported claim carries 90% of its stated
+> confidence however accountable its source. Reading a document establishes that
+> the document says so, which is not the same as the thing being so — so no claim
+> read out of one is certain."*
+
+**Three existing assertions inverted, and each was rewritten to say what is still
+true rather than deleted.** The spec predicted the first; the other two fell out
+of the same rule.
+
+- `test_a_filing_is_held_to_a_higher_ceiling_than_a_press_release` said *"an
+  accountable source discounts no claim"*. It now asserts what the test was
+  always about — a filing is worth **more** than a press release — plus the new
+  half: it is not worth certainty.
+- `test_the_same_recording_read_as_a_filing_keeps_its_certainty` is renamed
+  `..._is_discounted_least` and pins that the discount applied is the *grounding*
+  one and not the source one. A filing sliding to the `LOW` factor would be a
+  worse bug than the one T21 fixed, and nothing else would have caught it.
+- T19's headline test (`0.54` uncorroborated → corroborated) keeps its shape with
+  the upper endpoint at **0.81**: the claim is still only *reported*, so
+  grounding binds where the source no longer does. Both endpoints are now derived
+  from the constants rather than typed, so the test says which rules produced
+  them. Corroboration still pays; it just no longer pays in certainty.
+
+**Verified by mutation.** Restoring the defect (`REPORTED` back to 1.0) turns 7
+red; multiplying instead of `min`, 7; letting the *weaker* rule bind (`max`), 25;
+applying grounding to `OBSERVED` too, 11; dropping the receipt's distinction
+between the two rules, 2. No survivors.
+
+**`DEMO.md` byte-identical**, and checked rather than assumed: the deterministic
+`ExtractOperator` emits `OBSERVED` and `INFERRED` only — never `REPORTED` — so the
+new factor does not bind anywhere on the demo path.
+
+**What this does not do, and the number says so.** 90% on a merger facing a
+hostile counter-bid is still too high, and T21 does not claim otherwise. It
+removes *certainty*; it does not model the risk of the thing not happening, which
+a pipeline reading two documents has no business forecasting. The remaining gap
+is per-assertion accountability — the same 8-K carries Section 18 liability for
+its historical statements and disclaims its forward-looking ones under the PSLRA
+safe harbor — and that is named, unstarted, and wants its own task.
+
+
+---
+
+### The spec this was built from
 
 **Why, with the numbers.** T20's first live proof run did what it was built to
 do and, in passing, produced the highest confidence number in the project's
