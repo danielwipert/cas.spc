@@ -109,12 +109,18 @@ _EPISTEMIC = {s.value: s for s in EpistemicStatus}
 
 #: Statuses no operator reading a document can honestly claim, and what each
 #: becomes (T17). `observed` because the extractor saw the document, not the
-#: thing; `verified` because nothing here corroborated anything. Applied after
-#: the model's answer, so a model that ignores the prompt is corrected rather
-#: than believed — the same two-routes-in rule T11 established for provenance.
+#: thing. Applied after the model's answer, so a model that ignores the prompt
+#: is corrected rather than believed — the same two-routes-in rule T11
+#: established for provenance.
+#:
+#: `verified` used to be mapped here too. T20 retired it from the axis
+#: altogether — support is derived from what a claim cites, not asserted on it —
+#: so a model answering `verified` now falls through `coerce_enum` to the
+#: `reported` default on the assembled path, and is migrated by `Claim` itself on
+#: the passthrough path. Both routes still land on `reported`; neither needs a
+#: line here.
 _UNAVAILABLE_TO_A_READER = {
     EpistemicStatus.OBSERVED: EpistemicStatus.REPORTED,
-    EpistemicStatus.VERIFIED: EpistemicStatus.REPORTED,
 }
 
 
@@ -192,6 +198,7 @@ class LLMExtractOperator(LLMOperator):
         transform_id: str = "transform_extract_001",
         source_id: str = "doc_001",
         source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
+        derives_from: str | None = None,
         id_prefix: str = "",
     ) -> None:
         super().__init__(provider, max_attempts=max_attempts)
@@ -200,6 +207,11 @@ class LLMExtractOperator(LLMOperator):
         self.patch_id = patch_id
         self.transform_id = transform_id
         self.source_id = source_id
+        #: Which source this document is downstream of, declared by the caller
+        #: (T20) for the same reason `source_type` is: whether this text was
+        #: written off another document is a fact about the world outside it,
+        #: which the model cannot see and does not get a vote on.
+        self.derives_from = derives_from
         #: What kind of document this is, declared by the caller — and the
         #: reliability every span drawn from it therefore carries. Derived once
         #: here, never taken from the model (see `source_types`).
@@ -297,11 +309,13 @@ class LLMExtractOperator(LLMOperator):
         with their offsets, exactly as the assembled path does; unlocatable ones
         raise, so the runtime retries with the same repair hint.
 
-        Reliability is overwritten for the same reason it is derived on the
-        assembled path: it is a fact about the source, which the caller declared
-        and the model does not get a vote on. A patch that arrives asserting
-        `high` for its own extraction must not keep it — that is precisely the
-        self-promotion this route would otherwise leave open.
+        Reliability and declared lineage are overwritten for the same reason
+        they are derived on the assembled path: both are facts about the source,
+        which the caller declared and the model does not get a vote on. A patch
+        that arrives asserting `high` for its own extraction must not keep it —
+        that is precisely the self-promotion this route would otherwise leave
+        open, and an unasked-for `derives_from: null` would buy independence the
+        same way.
         """
         unlocatable: list[str] = []
         for item in patch.add_objects.evidence:
@@ -310,6 +324,10 @@ class LLMExtractOperator(LLMOperator):
                 continue
             item.source_type = self.source_type.value
             item.reliability = self.reliability
+            # Declared lineage is overwritten for exactly the reason reliability
+            # is: it is the caller's fact about this document, and a patch that
+            # arrives asserting its own independence must not keep it.
+            item.derives_from = self.derives_from
             quote = (item.quote_or_span or "").strip()
             if not quote:
                 continue
@@ -374,6 +392,7 @@ class LLMExtractOperator(LLMOperator):
                             quote_or_span=quote,
                             location={"start": span.start, "end": span.end},
                             reliability=self.reliability,
+                            derives_from=self.derives_from,
                             extracted_by=self.transform_id,
                         )
                     )

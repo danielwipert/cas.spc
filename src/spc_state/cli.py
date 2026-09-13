@@ -63,6 +63,25 @@ def version() -> None:
     typer.echo(f"spc-state {__version__}")
 
 
+def _lineage_arg(value: str, known: set[str]) -> str | None:
+    """One `--also-derives-from` value: a known source id, or nothing.
+
+    Validated here rather than swallowed, because a typo'd parent silently buys
+    back the independence the flag was passed to deny — the failure mode would
+    be a `verified` claim that nobody checked.
+    """
+    cleaned = value.strip()
+    if cleaned.lower() in ("", "none", "-"):
+        return None
+    if cleaned not in known:
+        raise typer.BadParameter(
+            f"--also-derives-from {value!r} is not a source in this run. "
+            f"Known sources: {', '.join(sorted(known))} (doc_001 is --input, "
+            "extras follow in the order given), or 'none'."
+        )
+    return cleaned
+
+
 @app.command()
 def analyze(
     input: Path = typer.Option(
@@ -111,6 +130,15 @@ def analyze(
         case_sensitive=False,
         help="Source type for each --also-input, in the same order.",
     ),
+    also_derives_from: list[str] = typer.Option(
+        [],
+        "--also-derives-from",
+        help="For an --also-input written off another document, the source id "
+        "it came from (doc_001 is --input; extras are doc_002, doc_003, ... in "
+        "order). Two sources where one derives from the other never corroborate "
+        "each other. Repeatable; pass 'none' to skip one. Omit entirely to "
+        "declare every document independent.",
+    ),
     extract_only: bool = typer.Option(
         False,
         "--extract-only",
@@ -149,11 +177,26 @@ def analyze(
             "--also-source-type: give one source type per extra document, in "
             "the same order. A document's weight is not a detail to guess at."
         )
+    if also_derives_from and len(also_derives_from) != len(also_input):
+        raise typer.BadParameter(
+            f"{len(also_input)} --also-input but {len(also_derives_from)} "
+            "--also-derives-from: give one per extra document, in the same "
+            "order, using 'none' for a document that stands on its own. Omit "
+            "the option entirely to declare every document independent."
+        )
+    known_sources = {f"doc_{i:03d}" for i in range(1, len(also_input) + 2)}
+    lineage = [_lineage_arg(v, known_sources) for v in also_derives_from] or [
+        None
+    ] * len(also_input)
 
     document = input.read_text(encoding="utf-8")
     extras = [
-        SourceDocument(text=path.read_text(encoding="utf-8"), source_type=st)
-        for path, st in zip(also_input, also_source_type, strict=True)
+        SourceDocument(
+            text=path.read_text(encoding="utf-8"), source_type=st, derives_from=parent
+        )
+        for path, st, parent in zip(
+            also_input, also_source_type, lineage, strict=True
+        )
     ]
     paths = RunPaths(root=runs_dir, run_id=run_id)
     clock = WallClock()
@@ -176,10 +219,13 @@ def analyze(
         f"[yellow]source type:[/yellow] {source_type.value} "
         f"[dim](evidence reliability: {reliability_for(source_type).value})[/dim]"
     )
-    for i, (path, st) in enumerate(zip(also_input, also_source_type, strict=True), start=2):
+    for i, (path, st, parent) in enumerate(
+        zip(also_input, also_source_type, lineage, strict=True), start=2
+    ):
+        origin = f", derives from {parent}" if parent else ""
         _console.print(
             f"[yellow]also source {i}:[/yellow] {st.value} "
-            f"[dim]({reliability_for(st).value}) — {path.name}[/dim]"
+            f"[dim]({reliability_for(st).value}{origin}) — {path.name}[/dim]"
         )
 
     analysis = run_analysis(

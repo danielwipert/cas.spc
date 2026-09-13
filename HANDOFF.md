@@ -7,15 +7,15 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-13 · **Branch:** `claude/eager-hypatia-h20zn9`
-(carries the commit that queued T20 — see *Starting work*)
+(carries T20, queued and implemented — see *Starting work*)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T19**, with
-**T20 queued and unstarted** — it needs ⚠ sign-off before code moves.
-Everything through T19 is merged to `main` (PRs #2–#16).
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T20** and
+empty again. Everything through T19 is merged to `main` (PRs #2–#16); **T20 is
+the work in this branch.**
 
 The live pipeline is now:
 
@@ -25,67 +25,60 @@ extract (one stage per source)
   -> plan -> critique -> retrieve -> verify -> calibrate
 ```
 
+A claim's **support** and whether anything **contradicts** it are no longer
+stored anywhere. They are computed on read from committed state
+(`src/spc_state/epistemics.py`), so no operator can assert either one.
+
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
-python -m mypy              ->  Success: no issues found in 71 source files
-pytest                      ->  388 passed   (was 297 at the start of the session)
+python -m mypy              ->  Success: no issues found in 72 source files
+pytest                      ->  429 passed   (was 388 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
 ## What the last session did
 
-Six tasks, from one question: after a live run recommended proceeding at 90%
-confidence on a promotional press release, what in the pipeline was supposed to
-push back, and why didn't it?
+**T20 — one status cannot hold three facts.** `EpistemicStatus` carried seven
+members answering *three* different questions: how a claim was acquired, how well
+it is supported (`VERIFIED`), and whether anything contradicts it
+(`CONTRADICTED`). A claim has a value on all three at once and one field holds
+one, so every write on a second axis destroyed the first. Both symptoms were
+already in the tree — `CONTRADICTED` was dead code superseded by T3's
+`Contradiction` objects, and T19's promotion overwrote `REPORTED` with
+`VERIFIED`, although a corroborated claim is *still* reported.
 
-The answer was the same confusion over and over, one layer lower each time —
-**the model was being asked to judge its own work**, and it always judged
-favourably. Each task replaced one of those judgements with something
-structural. `TASKS.md` has the full write-up of each; this is the shape:
-
-| | the model was judging | now derived from |
+| | before | after |
 |---|---|---|
-| T14 | how trustworthy its own source is | the declared source type |
-| T15 | how confident its own recommendation should be | the claims beneath it |
-| T16 | how certain its own claims are | the source beneath each one |
-| T17 ⚠ | whether it *observed* what it read | what reading can establish at all |
-| T18 | — (a cap, not a judgement: one document per run) | several sources, one state |
-| T19 | — | what two sources independently say |
+| acquisition | one of seven members | one of **five**, stored |
+| corroboration | `VERIFIED`, written by an operator | **derived** from the spans a claim cites |
+| conflict | `CONTRADICTED`, written by nobody | **derived** from `Contradiction` objects |
 
-Measured end to end on the document that started it, the Paramount/WBD press
-release, same model throughout:
+Three consequences worth carrying forward:
 
-| run | claims at 1.00 | recommendation |
-|---|---|---|
-| `005` (before T14) | 7 of 10 | **90%** |
-| `007` (T15) | 7 of 10 | 60% |
-| `009` (T16) | **0 of 10** | 42% |
-| `010` (T17) | 0 of 10 | 48% — and every finding now reads *reported*, not *observed* |
-
-Every number that moved says in the receipt what moved it.
-
-**Two results worth carrying forward, because they corrected me rather than
-confirmed me:**
-
-- **A second source of a different kind pays in coverage, not corroboration.**
-  `paramount_corrob_001` (press release + DOJ antitrust determination) found
-  **zero** corroborations — a true negative: one document is deal terms, the
-  other competition analysis, and neither asserts what the other asserts. What
-  the DOJ statement actually bought was eight `HIGH` claims the press release
-  never made, including the Netflix bidding war it omits entirely.
-- **Corroboration needed no new arithmetic.** T15/T16 hold that calibration
-  only ever lowers. Rather than carve an exception, T19 changes what a claim
-  *rests on* and lets the existing rule reprice it: cited only to a press
-  release it carries 0.54; once a regulator's span genuinely supports it, the
-  best evidence it cites is `HIGH` and the same untouched rule allows 0.90.
+- **The fix was mostly deletion.** T19's promotion write is gone — the operator
+  already attached the corroborating span and wrote the `Relation`, so the label
+  was redundant bookkeeping over a fact state already held. Five hand-maintained
+  subsets of the enum collapsed into two properties (`is_grounded`,
+  `needs_provenance`), and one of them — `evaluation/metrics.py` — turned out to
+  be carrying a real bug, counting a `speculative` claim as having declared its
+  provenance but not an `assumed` one.
+- **`VERIFIED`'s bar was not merely low, it was uncheckable.** `Evidence`
+  separated sources only by `source_id`, so a wire story republished ten times
+  read as ten sources. `Evidence.derives_from` (declared by the caller, T14's
+  rule) now makes independence a structural test rather than an assumption.
+- **Mutation testing found a gap review did not.** The `derives_from` wiring was
+  complete and end-to-end untested: an extractor that quietly stopped stamping it
+  would have gone unnoticed, and the consequence is exactly the failure the task
+  exists to prevent. Three tests cover it now. Worth repeating the technique on
+  the next structural change — it was the only thing that caught this.
 
 ## Starting work — read this first
 
-This branch carries the unmerged commit that queued **T20**. If its PR has since
-merged, a merged PR is finished and cannot track new work — never stack commits
-on that history. Reset from `main` first:
+This branch carries the unmerged **T20** work. If its PR has since merged, a
+merged PR is finished and cannot track new work — never stack commits on that
+history. Reset from `main` first:
 
 ```
 git fetch origin main && git checkout -B <branch> origin/main
@@ -93,22 +86,21 @@ git fetch origin main && git checkout -B <branch> origin/main
 
 ## Next up
 
-**Start with T20 — it is written up and waiting on sign-off.** It is the
-structural piece under several items below. `EpistemicStatus` carries seven
-members answering **three** different questions — how a claim was acquired, how
-well it is supported, and whether anything contradicts it — and one field can
-hold one, so every write on a second axis destroys the first. Both symptoms are
-already in the tree: `CONTRADICTED` is dead code superseded by T3's
-`Contradiction` objects, and T19's promotion overwrites `REPORTED` with
-`VERIFIED` although a corroborated claim is still reported. Five sites already
-hand-maintain a subset of the enum to recover an axis the type does not expose.
-T20 stores acquisition, derives the other two from state that already holds
-them, and raises `VERIFIED`'s bar where it is actually weak: it has **no notion
-of source independence**, so a wire story republished ten times reads as ten
-sources. Lineage gets declared by the caller, for T14's reason.
+**The backlog is empty.** The clearest next piece of work is the one T20 makes
+reachable for the first time, and it needs no code:
 
-The rest below is not urgent. The first two are decisions before they are code,
-and belong to a human.
+- **Prove `VERIFIED` on a real document pair.** T20 gave it a bar that can
+  actually be checked — two *independent* sources, one of them accountable — and
+  nothing in the tree has ever cleared it on live data. The shape to look for is
+  a filing that restates a press release's figures, or two independent reports of
+  one event. A pairing that clears it would be the first end-to-end evidence that
+  the derived ladder means what it says; one that *should* clear it and does not
+  is just as informative, and would say the matcher or the lineage model is
+  wrong. Run it with `--also-derives-from` set honestly, since undeclared lineage
+  counts as independent and would flatter the result.
+
+Nothing below is urgent. The first two are decisions before they are code, and
+belong to a human.
 
 - **A recommendation the pipeline cannot support still reads as "Proceed."**
   The memo now reports honestly how little it is worth — under 50%, every
@@ -120,18 +112,17 @@ and belong to a human.
   *asserting* "one of the industry's most compelling portfolios" — it now says
   the seller said it, which is true. Whether a sentence with no truth value
   should become a `Claim` at all is a separate question about what a claim is.
-  T20 names this as out of scope and wants its axis split underneath it first:
+  T20 named this as out of scope and built the shape it wants underneath it:
   *asserts*, *attributes* and *evaluates* are three epistemic acts that all land
-  on `REPORTED` today.
-- **`VERIFIED` is still unproven on real data** — and T20 raises its bar, so
-  the two travel together. T19's operator fires (`paramount_corrob_002` links
-  both companies' releases on the closing date) but promotion needs two sources
-  asserting the *same* fact where one is **accountable**. Neither live pairing
-  produced that: a regulator and a press release talk about different things,
-  and two press releases are both interested. A filing restating a release's
-  figures, or two independent news reports of one event, would close it — and
-  under T20 that second pairing must also be *independent*, which today nothing
-  checks.
+  on `REPORTED` today, and the acquisition axis is now a clean place to split
+  them.
+- **The corroboration matcher is the last self-judgement in the arc.** T14–T20
+  replaced six model judgements with structure, and stopped one step short of
+  the newest operator: whether two claims assert *the same thing* is still an
+  LLM's call. Independence and accountability are structural now; the match is
+  not. Two passes bias it toward precision, which is the right trade — a false
+  corroboration lends one source's authority to another's claim — but it is not a
+  check, and a derived `VERIFIED` is only as good as it.
 - **Recall of the corroboration pass is unmeasured.** It is deliberately
   precision-biased (a false corroboration lends one source's authority to
   another's claim) and found 1 link across 35 claims. Whether it missed real
@@ -213,8 +204,13 @@ Read [`AGENTS.md`](./AGENTS.md). The hard invariant: **no operator mutates
   moved it. T19 shows the way to raise something honestly: change what it rests
   on and let this rule reprice it — do not add an exception.
 - **Reading a document is not observing the world** (T17). An extracted claim is
-  `REPORTED`; `OBSERVED` is for an operator that genuinely sees the thing, and
-  `VERIFIED` for corroboration by an accountable source.
+  `REPORTED`; `OBSERVED` is for an operator that genuinely sees the thing.
+- **One field, one fact — and prefer deriving it to storing it** (T20).
+  `EpistemicStatus` answers only how a claim entered state. Support and conflict
+  are computed on read (`epistemics.py`) from what state already holds, so no
+  operator can assert either. Before adding an enum member, check you are not
+  answering a second question with it; if you find yourself updating a field that
+  summarises other fields, change what it summarises instead.
 
 The full definition of done is in `TASKS.md`; note that `spc-demo demo`
 rewrites `DEMO.md` in the repo root, so run it with the default `--runs-dir` or

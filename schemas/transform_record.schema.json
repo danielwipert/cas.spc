@@ -92,6 +92,28 @@
       ],
       "title": "ModelFingerprint",
       "type": "object"
+    },
+    "TokenUsage": {
+      "additionalProperties": false,
+      "description": "Tokens spent producing a patch (T5). Real API usage when a provider\nreports it (OpenRouter); a deterministic estimate (`tokens.py`) otherwise\n\u2014 either way this is what a `CostLedger` sums, never re-measured itself.",
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "title": "Completion Tokens",
+          "type": "integer"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "title": "Prompt Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "prompt_tokens",
+        "completion_tokens"
+      ],
+      "title": "TokenUsage",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -189,6 +211,17 @@
       ],
       "default": null,
       "title": "Started At"
+    },
+    "token_usage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TokenUsage"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "transform_type": {
       "title": "Transform Type",

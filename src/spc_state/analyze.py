@@ -54,10 +54,19 @@ class SourceDocument:
     press release and a regulator's determination on the same transaction do
     not carry the same weight (T14), and until now a run could declare only one
     of them.
+
+    `derives_from` names the `source_id` this document was written off, if any
+    (T20). The primary document is `doc_001` and each extra is `doc_002`,
+    `doc_003`, ... in the order given. Declaring it stops corroboration counting
+    the pair as two independent sources — a news report of a press release is
+    the press release relayed, not a second witness to it. Left unset the
+    document counts as independent, which is generous on purpose; see
+    `spc_state.epistemics`.
     """
 
     text: str
     source_type: SourceType | str = DEFAULT_SOURCE_TYPE
+    derives_from: str | None = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +133,7 @@ def build_analysis_operators(
                 patch_id=f"patch_extract_{i:03d}",
                 transform_id=f"transform_extract_{i:03d}",
                 source_id=f"doc_{i:03d}",
+                derives_from=extra.derives_from,
                 id_prefix=f"d{i}_",
             )
         )

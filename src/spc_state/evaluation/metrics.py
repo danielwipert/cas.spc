@@ -168,14 +168,17 @@ def _semantic_continuity(final: SemanticState, baseline: BaselineResult) -> Metr
 def _provenance(final: SemanticState, baseline: BaselineResult) -> MetricResult:
     claims = final.claims
     total = len(claims)
-    # A claim has provenance if it traces to evidence, to assumptions, or is
-    # explicitly flagged as speculation (spec §20.2).
+    # A claim has provenance if it traces to evidence, to assumptions, or says
+    # out loud that it rests on neither (spec §20.2). That last clause used to
+    # name `speculative` alone — a one-member subset recovering the same axis
+    # `needs_provenance` now exposes, and it silently omitted `assumed`, which
+    # L2 has always exempted for exactly the same reason (T20).
     with_prov = sum(
         1
         for c in claims.values()
         if bool(c.supporting_evidence)
         or bool(c.assumptions)
-        or c.epistemic_status == EpistemicStatus.SPECULATIVE
+        or not c.epistemic_status.needs_provenance
     )
     spc_ratio = with_prov / total if total else 0.0
     return MetricResult(

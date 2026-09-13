@@ -1185,9 +1185,93 @@ the stage is not added, so every cassette still replays and no prompt changed.
 
 ---
 
-## T20 ⚠ — One status cannot hold three facts · L
+## T20 ⚠ — One status cannot hold three facts · ✅ DONE
 
-**Requires sign-off.** This changes the membership of `EpistemicStatus` and adds
+**Sign-off given 2026-09-13**, per the ⚠ convention.
+
+**What landed.** `EpistemicStatus` is five members and one question. `VERIFIED`
+and `CONTRADICTED` are gone from it; a `Claim` carrying either on disk migrates
+to `reported` at load, on a `field_validator` rather than in a store, so every
+route in gets it — both backends, a patch carrying a legacy value, and a model
+that answers `verified` anyway.
+
+Support and conflict are derived in the new `src/spc_state/epistemics.py`:
+
+- `corroboration_of(claim, evidence)` → `UNCORROBORATED` / `CORROBORATED` /
+  `VERIFIED`, read from the spans a claim cites and the sources behind them;
+- `is_contested(claim_id, contradictions)` → whether an **unresolved**
+  `Contradiction` names it.
+
+**T19's promotion write is deleted**, as predicted: `LLMCorroborationOperator`
+already attached the corroborating span and wrote the `Relation`, so the label
+was redundant bookkeeping over the same fact. The operator now writes exactly one
+field, `supporting_evidence`, and a test pins that the `epistemic_status` update
+is *gone* rather than merely agreeing with the derived answer.
+
+**The higher bar, as specified.** `Evidence.derives_from` names the `source_id` a
+document was written off; `sources_are_independent` walks the chain (transitively,
+cycle-safe) and `_candidates` drops any pair that is not independent, replacing
+the old `source_a == source_b`. Two documents off a *common* origin stay
+independent of each other — the rule is ancestry, not shared ancestry — and that
+choice is pinned by a test so it stays a decision. Undeclared lineage counts as
+independent; `--also-derives-from` on `spc-demo analyze` declares it, validated
+against the run's real source ids because a typo'd parent silently buys back the
+independence the flag was passed to deny.
+
+**Five sites became two properties.** `_UNGROUNDED` and `_PROVENANCE_FREE`
+(`projection/builder.py`), `_PROVENANCE_FREE_STATUSES` (`validation/l2.py`) and
+the `SPECULATIVE` comparison in `evaluation/metrics.py` are now
+`EpistemicStatus.is_grounded` and `.needs_provenance`. The metrics one was
+carrying a real bug: §20.2 counted a `speculative` claim as having declared its
+provenance but not an `assumed` one, although L2 has always exempted both for the
+same reason. `metrics.py:106` is left alone deliberately — it asks whether the
+demo quantified uncertainty, a genuine one-member question, not axis recovery.
+
+**Measured.** 429 tests (was 425 at the start, 388 before T20's spec was
+written). `DEMO.md` byte-identical: the deterministic `ExtractOperator` emits
+only `OBSERVED` and `INFERRED`, the demo has no corroboration stage, so every
+demo claim derives `UNCORROBORATED` and renders exactly as before — including
+after the `metrics.py` correction, which was checked against the demo rather than
+assumed safe.
+
+**Verified by mutation.** Ignoring lineage turns 3 red; removing the migration 4;
+re-introducing the promotion write 3; conflict ignoring contradiction status 2;
+`VERIFIED` dropping its accountability requirement 2; `needs_provenance`
+forgetting `ASSUMED` 2; `is_grounded` admitting `INFERRED` 2; the extractor
+failing to stamp declared lineage 1 on the assembled route and 2 on the
+passthrough.
+
+That last pair was a **real gap found by mutation, not by review**: the first
+draft wired `derives_from` end to end and nothing tested it, so an extractor that
+quietly stopped stamping it would have gone unnoticed — and the consequence is
+exactly the failure T20 exists to prevent. Three tests now cover it, including a
+patch that asserts its own independence and is overwritten.
+
+**A regression guard was relocated, not dropped.**
+`test_a_typed_field_update_commits_as_its_real_type` pinned a defect in
+`runtime/commit.py` — a typed field updated from JSON committed as a raw string —
+found through T19's promotion, which was the only operator updating an enum
+field. Retiring the promotion would have silently retired the test with it, so it
+moved to `tests/test_commit.py` and pins the commit rule directly. The defect is
+in `commit`, and the next operator to update a typed field would meet it again.
+
+**Schemas regenerated.** `python -m spc_state.models.schema_export schemas`. The
+diff also picks up a `TokenUsage` block missing since T5 — the committed schemas
+had drifted before this task and nothing checks them, which is worth a test one
+day.
+
+**Still true, and still out of scope.** The model still judges whether two claims
+assert the same thing. Independence and accountability are structural now; the
+match is not, and it is the last self-judgement in the T14–T20 arc. The
+corroboration docstring says so rather than letting a derived `VERIFIED` read as
+more than it is.
+
+
+---
+
+### The spec this was built from
+
+**Required sign-off.** This changes the membership of `EpistemicStatus` and adds
 a field to `Claim` and `Evidence`. T16 deferred exactly this — "splitting the
 model so `observed` means 'observed in the source' and warranted belief lives on
 its own field ... is a state-model change: raise it as its own ⚠ task with

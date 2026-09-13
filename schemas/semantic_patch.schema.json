@@ -151,7 +151,7 @@
     },
     "Claim": {
       "additionalProperties": false,
-      "description": "A proposition the system asserts, infers, or assumes. See spec \u00a711.2.",
+      "description": "A proposition the system asserts, infers, or assumes. See spec \u00a711.2.\n\n`epistemic_status` answers **one** question \u2014 how this claim entered state.\nHow well it is supported and whether anything contradicts it are derived on\nread (`spc_state.epistemics`), not stored here. T20 narrowed the field to\nthat; see `EpistemicStatus` for why carrying all three destroyed information.",
       "properties": {
         "assumptions": {
           "items": {
@@ -443,13 +443,13 @@
       "type": "object"
     },
     "EpistemicStatus": {
+      "description": "**How a claim entered state.** See PILOT_SPEC.md \u00a711.2.\n\nOne axis, one question, five mutually exclusive answers. T20 narrowed it to\nthat: it used to carry seven members answering *three* different questions \u2014\nhow a claim was acquired, how well it is supported (`VERIFIED`), and whether\nanything contradicts it (`CONTRADICTED`). A claim has a value on all three at\nonce and one field holds one, so every write on a second axis destroyed the\nfirst: T19's corroboration overwrote `REPORTED` with `VERIFIED`, although a\ncorroborated claim is still reported \u2014 it was read out of a document, and a\nsecond source agreeing does not change that.\n\nThe other two axes are **derived, never stored** (`spc_state.epistemics`),\nbecause state already holds what they need: corroboration from the spans a\nclaim cites and the sources behind them, conflict from the `Contradiction`\nobjects naming it. That is the T14/T15/T16 rule \u2014 derive it from structure,\ndo not let anyone assert it \u2014 applied to the type those judgements land in.\n\n`OBSERVED` and `REPORTED` are the distinction T17 drew, and the difference\nmatters more than it looks. Reading a document establishes **that the\ndocument says so** \u2014 never that the thing is so. An extractor holding a\npress release has observed the press release; it has not observed the\nmerger. So a claim drawn from a source is `REPORTED`, and `OBSERVED` is\nreserved for an operator that genuinely saw the thing itself.\n\nClaims stored before T20 may carry `verified` or `contradicted` on disk;\n`Claim` migrates both to `reported` on load, which is where they came from.",
       "enum": [
         "observed",
+        "reported",
         "inferred",
         "assumed",
-        "speculative",
-        "verified",
-        "contradicted"
+        "speculative"
       ],
       "title": "EpistemicStatus",
       "type": "string"
@@ -458,6 +458,18 @@
       "additionalProperties": false,
       "description": "An observed source span. See spec \u00a711.3.\n\nEvidence must not be collapsed into claims. The runtime enforces that\nhigh-confidence claims either cite at least one `Evidence` or carry an\nexplicit `epistemic_status` of `assumed` or `speculative`.",
       "properties": {
+        "derives_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Derives From"
+        },
         "extracted_by": {
           "anyOf": [
             {
@@ -931,6 +943,28 @@
       "title": "Severity",
       "type": "string"
     },
+    "TokenUsage": {
+      "additionalProperties": false,
+      "description": "Tokens spent producing a patch (T5). Real API usage when a provider\nreports it (OpenRouter); a deterministic estimate (`tokens.py`) otherwise\n\u2014 either way this is what a `CostLedger` sums, never re-measured itself.",
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "title": "Completion Tokens",
+          "type": "integer"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "title": "Prompt Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "prompt_tokens",
+        "completion_tokens"
+      ],
+      "title": "TokenUsage",
+      "type": "object"
+    },
     "TransformRecord": {
       "additionalProperties": false,
       "description": "A durable record of an operator invocation. See spec \u00a710.6.",
@@ -1027,6 +1061,17 @@
           ],
           "default": null,
           "title": "Started At"
+        },
+        "token_usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "transform_type": {
           "title": "Transform Type",

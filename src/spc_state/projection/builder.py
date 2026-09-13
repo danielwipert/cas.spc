@@ -35,23 +35,15 @@ from ..models import (
     Reliability,
     SemanticState,
 )
-from ..models.enums import EpistemicStatus
 
 # A claim is "weak" below this confidence, or whenever it is not grounded in
 # observation/verification. Writers want the complement; critics want these.
 WEAK_CONFIDENCE_THRESHOLD = 0.75
 
-# `REPORTED` is deliberately **not** here. Groundedness is about provenance,
-# and a reported claim has some: a named source says it, and the span is on
-# record. What it lacks is *first-hand* observation, which is what the label now
-# says out loud (T17) rather than what a projection filter should re-litigate —
-# how much that source is worth is already priced in by T14/T16.
-_UNGROUNDED = {
-    EpistemicStatus.INFERRED,
-    EpistemicStatus.ASSUMED,
-    EpistemicStatus.SPECULATIVE,
-}
-_PROVENANCE_FREE = {EpistemicStatus.ASSUMED, EpistemicStatus.SPECULATIVE}
+# Groundedness and provenance-freedom used to be two hand-maintained subsets of
+# `EpistemicStatus` kept here, and a third copy of the second lived in
+# `validation/l2.py`. They are properties on the axis now (T20), so adding a
+# member cannot silently miss one of them.
 _WEAK_RELIABILITY = {Reliability.LOW, Reliability.MEDIUM}
 
 _T = TypeVar("_T")
@@ -64,12 +56,18 @@ _T = TypeVar("_T")
 
 def is_weak_claim(claim: Claim) -> bool:
     """A claim a critic should scrutinise: low confidence or ungrounded."""
-    return claim.confidence < WEAK_CONFIDENCE_THRESHOLD or claim.epistemic_status in _UNGROUNDED
+    return (
+        claim.confidence < WEAK_CONFIDENCE_THRESHOLD
+        or not claim.epistemic_status.is_grounded
+    )
 
 
 def is_strong_claim(claim: Claim) -> bool:
     """A claim a writer can lean on: high confidence and grounded."""
-    return claim.confidence >= WEAK_CONFIDENCE_THRESHOLD and claim.epistemic_status not in _PROVENANCE_FREE
+    return (
+        claim.confidence >= WEAK_CONFIDENCE_THRESHOLD
+        and claim.epistemic_status.needs_provenance
+    )
 
 
 def is_evidence_gap(claim: Claim) -> bool:

@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .enums import (
+    RETIRED_EPISTEMIC_STATUSES,
     ClaimType,
     ContradictionStatus,
     ContradictionType,
@@ -75,7 +76,13 @@ class Entity(_Frozenish):
 
 
 class Claim(_Frozenish):
-    """A proposition the system asserts, infers, or assumes. See spec §11.2."""
+    """A proposition the system asserts, infers, or assumes. See spec §11.2.
+
+    `epistemic_status` answers **one** question — how this claim entered state.
+    How well it is supported and whether anything contradicts it are derived on
+    read (`spc_state.epistemics`), not stored here. T20 narrowed the field to
+    that; see `EpistemicStatus` for why carrying all three destroyed information.
+    """
 
     id: str
     object_type: Literal["claim"] = "claim"
@@ -89,6 +96,21 @@ class Claim(_Frozenish):
     contradicted_by: list[str] = Field(default_factory=list)
     derived_from: list[str] = Field(default_factory=list)
     extracted_by: str | None = None
+
+    @field_validator("epistemic_status", mode="before")
+    @classmethod
+    def _migrate_retired_statuses(cls, value: object) -> object:
+        """Read a pre-T20 claim as what it actually was: `reported`.
+
+        Placed on the model rather than in a store so it holds on **every** way
+        in — both state backends, a patch carrying a legacy value, and any
+        direct `model_validate`. A model that ignores the prompt and answers
+        `verified` is corrected by the same line, which is the two-routes-in rule
+        T8, T11, T14 and T17 each had to close separately.
+        """
+        if isinstance(value, str):
+            return RETIRED_EPISTEMIC_STATUSES.get(value, value)
+        return value
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +136,13 @@ class Evidence(_Frozenish):
     reliability: Reliability = Reliability.MEDIUM
     status: ObjectStatus = ObjectStatus.ACTIVE
     extracted_by: str | None = None
+
+    #: The `source_id` this document is downstream of, declared by the caller
+    #: (T20). A news report written off a press release names it here, and
+    #: corroboration then refuses to count the two as independent sources.
+    #: `None` means "not declared", which counts as **independent** — see
+    #: `spc_state.epistemics` for why that default is the generous one.
+    derives_from: str | None = None
 
 
 # ---------------------------------------------------------------------------
