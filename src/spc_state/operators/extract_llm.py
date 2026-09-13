@@ -192,6 +192,7 @@ class LLMExtractOperator(LLMOperator):
         transform_id: str = "transform_extract_001",
         source_id: str = "doc_001",
         source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
+        id_prefix: str = "",
     ) -> None:
         super().__init__(provider, max_attempts=max_attempts)
         self.input_text = input_text
@@ -204,6 +205,11 @@ class LLMExtractOperator(LLMOperator):
         #: here, never taken from the model (see `source_types`).
         self.source_type = coerce_source_type(source_type)
         self.reliability = reliability_for(self.source_type)
+        #: Prepended to every id this operator mints. Empty for the first
+        #: document in a run; a second extraction into the same state needs its
+        #: own namespace, because `claim_001` is already taken and L2 rejects
+        #: the collision by design (`L2.DUPLICATE_OBJECT_ID`).
+        self.id_prefix = id_prefix
 
     def build_request(
         self, view: ProjectionView, feedback: list[str]
@@ -347,7 +353,7 @@ class LLMExtractOperator(LLMOperator):
         write_set: list[str] = []
 
         for i, rc in enumerate(raw_claims, start=1):
-            cid = f"claim_{i:03d}"
+            cid = f"{self.id_prefix}claim_{i:03d}"
             supporting: list[str] = []
             quote = (rc.get("evidence_quote") or "").strip()
             if quote:
@@ -359,7 +365,7 @@ class LLMExtractOperator(LLMOperator):
                 if span is None:
                     unlocatable.append(quote)
                 else:
-                    eid = f"ev_{i:03d}"
+                    eid = f"{self.id_prefix}ev_{i:03d}"
                     evidence.append(
                         Evidence(
                             id=eid,
@@ -379,7 +385,7 @@ class LLMExtractOperator(LLMOperator):
             if atext:
                 aid = assumption_ids.get(atext)
                 if aid is None:
-                    aid = f"assumption_{len(assumption_ids) + 1:03d}"
+                    aid = f"{self.id_prefix}assumption_{len(assumption_ids) + 1:03d}"
                     assumption_ids[atext] = aid
                     assumptions.append(
                         Assumption(

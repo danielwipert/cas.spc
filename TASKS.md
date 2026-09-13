@@ -1026,6 +1026,78 @@ discounts all of them — which is what those tests were always trying to say.
 
 ---
 
+## T18 — Several sources, one semantic state · ✅ DONE
+
+**Why.** A run could hold only one document, and that quietly capped the whole
+pipeline. The verifier looked for contradictions inside a single press release,
+where a company does not contradict itself. T14's reliability tiers never
+arbitrated anything, because every span in a run shared one source type. And
+nothing could emit `VERIFIED`, since corroboration needs a second source to
+corroborate with.
+
+The blocker was mechanical: the extractor mints `claim_001`, `ev_001`,
+`assumption_001` per run, and L2 refuses a second extraction into the same state
+with `L2.DUPLICATE_OBJECT_ID` — correctly. Each extraction now mints in its own
+namespace (`d2_claim_001`), declares its own `source_type`, and records its own
+`source_id`. **Nothing downstream changed at all**: the planner, critic,
+retriever, verifier and calibrator read committed state, so they compare across
+sources for free.
+
+`SourceType.REGULATORY_DETERMINATION` (HIGH) was added for the case this
+exposed: a regulator's *own* finding is not a `regulatory_filing`, where the
+interested party is still the author.
+
+`spc-demo analyze --also-input PATH --also-source-type TYPE`, repeatable and
+positionally paired; a mismatched count is refused rather than guessed at.
+
+**What the first real run showed.** `paramount_dual_001` — the Paramount/WBD
+press release (`press_release`) plus the DOJ Antitrust Division's statement
+closing its investigation (`regulatory_determination`), 19 claims, 20,399
+tokens, $0.0035:
+
+| | claims | committed confidence |
+|---|---|---|
+| press release | 13 | all ≤ **0.60** |
+| DOJ determination | 6 | **0.85–0.95**, untouched |
+
+T14 and T16 arbitrating between two sources, which a single-document run could
+never do.
+
+**And the defect it exposed, which is the point of having run it.** The
+recommendation rests on `claim_001, 003, 004, 009, 010` — **every one of them a
+press-release claim at ≤0.60**. The six DOJ claims contributed nothing. The
+state now holds better evidence than it did and still builds its conclusion out
+of the weakest material in it.
+
+Sharpest form: the Retriever committed
+> *"What stronger source would confirm 'The deal may face risks from regulatory
+> clearances and stockholder approval'?" (claim_013 rests only on
+> lower-reliability evidence.)*
+
+while `d2_claim_001`, at 0.95 on the regulator's own determination, sits in the
+same state answering it. The question and its answer are both committed and
+nothing connects them. The verifier found **0** contradictions — fairly, since
+the DOJ cleared the merger — but it also missed that the DOJ statement reveals
+Netflix had agreed to acquire WBD in December 2025 and Paramount outbid it, a
+material fact the press release omits entirely.
+
+**That is the corroboration operator's specification, written by a real run
+rather than guessed at**, and it is deliberately left for its own task.
+
+New `tests/test_multi_document.py` (7 tests): a second document commits into the
+same state; each source mints ids in its own namespace; each keeps its own
+weight and is separately attributable; provenance is checked against the *right*
+document; the later stages are unchanged and see every source; and a
+single-document run is byte-for-byte unchanged. Verified by mutation: removing
+the id namespacing turns 5 tests red.
+
+**Invariants held.** No validator, runtime or state-model change; the single
+document path is untouched (same ids, same stage count), so every committed
+cassette still replays and `DEMO.md` is byte-identical. No prompt change, so no
+re-record.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

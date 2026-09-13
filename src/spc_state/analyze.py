@@ -14,6 +14,7 @@ provider, calls this, and renders the result.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,6 +36,26 @@ from .source_types import DEFAULT_SOURCE_TYPE, SourceType
 from .store import RunPaths
 
 DEFAULT_QUESTION = "What does this document establish?"
+
+
+@dataclass(frozen=True)
+class SourceDocument:
+    """A further document to extract into the same semantic state.
+
+    One run, one state, several sources. Each extraction mints ids in its own
+    namespace (`d2_claim_001`) because `claim_001` is already taken and L2
+    refuses the collision by design. Everything downstream is unchanged: the
+    planner, critic, retriever, verifier and calibrator read whatever claims
+    committed state holds, so they compare across sources for free.
+
+    The point of the exercise is that `source_type` is **per document**. A
+    press release and a regulator's determination on the same transaction do
+    not carry the same weight (T14), and until now a run could declare only one
+    of them.
+    """
+
+    text: str
+    source_type: SourceType | str = DEFAULT_SOURCE_TYPE
 
 
 @dataclass(frozen=True)
@@ -61,6 +82,7 @@ def build_analysis_operators(
     clock: Clock,
     extract_only: bool = False,
     source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
+    extra_documents: Sequence[SourceDocument] = (),
 ) -> list[Operator]:
     """The six-stage operator list (one when `extract_only`).
 
@@ -76,12 +98,32 @@ def build_analysis_operators(
     `source_type` says what kind of document this is. It sets the reliability
     of every span the extraction records, and so how hard the Retriever looks
     for corroboration downstream — see `source_types`.
+
+    `extra_documents` adds one extraction stage per further source, each with
+    its own declared `source_type` and its own id namespace, before the shared
+    stages run over the combined state.
     """
     operators: list[Operator] = [
         LLMExtractOperator(
             provider, input_text=document, clock=clock, source_type=source_type
         )
     ]
+    for i, extra in enumerate(extra_documents, start=2):
+        operators.append(
+            LLMExtractOperator(
+                provider,
+                input_text=extra.text,
+                clock=clock,
+                source_type=extra.source_type,
+                # Deliberately outside the fixed downstream numbering
+                # (`patch_002` is the planner), so a second source cannot
+                # shadow a later stage's patch id.
+                patch_id=f"patch_extract_{i:03d}",
+                transform_id=f"transform_extract_{i:03d}",
+                source_id=f"doc_{i:03d}",
+                id_prefix=f"d{i}_",
+            )
+        )
     if not extract_only:
         operators.append(LLMPlannerOperator(provider, clock=clock))
         operators.append(LLMReviewCriticOperator(provider, clock=clock))
@@ -100,6 +142,7 @@ def run_analysis(
     question: str = DEFAULT_QUESTION,
     extract_only: bool = False,
     source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
+    extra_documents: Sequence[SourceDocument] = (),
 ) -> AnalysisResult:
     """Run the pipeline and project its Reasoning Receipt + Decision Memo."""
     clock = clock or WallClock()
@@ -109,6 +152,7 @@ def run_analysis(
         clock=clock,
         extract_only=extract_only,
         source_type=source_type,
+        extra_documents=extra_documents,
     )
 
     runtime = Runtime(paths=paths, clock=clock)
@@ -153,6 +197,7 @@ def run_analysis(
 __all__ = [
     "DEFAULT_QUESTION",
     "AnalysisResult",
+    "SourceDocument",
     "build_analysis_operators",
     "run_analysis",
 ]
