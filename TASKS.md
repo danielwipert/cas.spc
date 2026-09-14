@@ -1681,7 +1681,85 @@ did.
 
 ---
 
-## T22 — A document is not one block of accountability · M
+## T22 — A document is not one block of accountability · ✅ DONE
+
+**What landed.** `src/spc_state/regions.py` — a region is a marker plus a source
+type, declared by the caller; a span takes the source type of the last region
+beginning at or before its offset, and the document's own declaration before
+that. Option **(a)** as agreed:
+
+```
+spc-demo analyze --input 8k.txt --source-type regulatory_filing \
+                 --region "Item 7.01:press_release"
+```
+
+Nothing new is derived. T8 made every citation locatable and T10 hardened it, so
+`Evidence.location` already carried the offsets this needs; markers are located
+with the same `locate_span`, so `"Item   7.01"` finds `"Item 7.01"` the way a
+citation survives a real document's whitespace.
+
+**Measured, live.** The same complete 8-K submission, declared `regulatory_filing`
+both times:
+
+| | `region_001` (no region) | `region_002` (region declared) |
+|---|---|---|
+| filed spans (Item 1.01) | `high` | `high` |
+| furnished spans (7.01 / Ex 99.1) | **`high`** | **`low`** |
+| claim confidence, furnished | 0.90 | **0.60** |
+| recommendation | 0.90 | **0.60** |
+| memo flags furnished claims weak | no | **yes** |
+
+The whole chain moves: region → reliability → T16's claim discount → T15's
+recommendation cap → the memo's risk section. Nothing downstream needed changing,
+because each of those already read what was underneath it.
+
+*(The two runs extracted different claim sets — a live model is not
+deterministic, and `region_002` happened not to extract the marketing-copy line at
+all. The deterministic proof is the unit test, which feeds both spans from one
+document and asserts each one's weight; the live pair is corroboration.)*
+
+**Both routes in, closed together this time.** T8, T11, T14, T17 and T20 each had
+to close the full-patch passthrough separately, after the assembled path. Here the
+passthrough was written in the same change and is pinned by its own test: a patch
+asserting the furnished exhibit is a `regulatory_filing` at `high` is overruled,
+because the region is the caller's fact and believing the patch restores exactly
+the defect. Moving the reliability stamp after `locate_span` — the offset is not
+known until the span is located — is the only structural change that needed.
+
+**`_is_this_document` was widened, and it would have been a silent bug.** It
+accepted evidence naming the document's declared source type or the legacy
+vocabulary. With regions, a span inside a furnished exhibit legitimately reads
+`press_release` while the document is a `regulatory_filing`, so a model-authored
+patch carrying the honest region type would have been treated as naming a
+document we were not handed, and skipped.
+
+**Verified by mutation.** Ignoring regions entirely turns 5 red; excluding the
+marker index from its own region, 1; first-region-wins instead of last, 1;
+silently skipping a marker that does not occur, 1; the assembled route ignoring
+the region, 1; the passthrough route ignoring it, 1. No survivors.
+
+**`DEMO.md` byte-identical**, and 459 tests pass (was 441) — with no region
+declared every span is weighed exactly as before, which is the no-op guarantee
+this task owes everyone not using it, pinned by its own test.
+
+**Scope, stated plainly.** `--region` applies to `--input` only. `--also-input`
+documents take no regions from the CLI; `SourceDocument.regions` carries them for
+a programmatic caller, but pairing a repeatable-per-document list positionally on
+the command line would be worse than not having it. Add it when a run needs it.
+
+**What this does not fix, and it is the one that matters.** `verify_001`'s 17 of
+17 claims at 1.00 and its 100% recommendation are untouched, exactly as the spec
+said: every one of those spans sits in Item 1.01, the accountable region, so no
+region rule reaches them. That is **modality** — settled fact versus expected
+event — and it remains unstarted, needing a decision between a linguistic check
+on the cited span (locatable and auditable, but the heuristic T16 declined) and
+asking the model, which answered `factual_claim` 17 times out of 17 including ten
+claims plainly about the future.
+
+
+---
+
+### The spec this was built from
 
 **A correction first, because it splits this task in two.** `HANDOFF.md` records
 "per-assertion accountability" as one item, and says its two markers — the PSLRA

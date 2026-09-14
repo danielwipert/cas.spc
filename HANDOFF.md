@@ -13,9 +13,9 @@
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T21**, with
-**T22 queued and unstarted** — it needs one ergonomic decision before code moves.
-Everything through T21 is merged to `main` (PRs #2–#18).
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T22** and
+empty again. Everything through T21 is merged to `main` (PRs #2–#18); **T22 is
+the work in this branch.**
 
 **`VERIFIED` is proven on real data.** It had never fired on a live pairing until
 this session; it now has, and the run that proved it also found the defect T21
@@ -37,12 +37,17 @@ And since T21, **nothing read out of a document commits at 1.00** — a `REPORTE
 claim carries at most 0.9 however accountable its source, which is T17's rule
 finally reaching the number rather than only the label.
 
+Since T22, **reliability is a property of the span, not the document**. A caller
+can carve a document into regions (`--region "Item 7.01:press_release"`) and a
+span takes the last region beginning at or before it, because a filing is not one
+block of accountability and says so itself. No region declared changes nothing.
+
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
-python -m mypy              ->  Success: no issues found in 72 source files
-pytest                      ->  441 passed   (was 388 at the start of the session)
+python -m mypy              ->  Success: no issues found in 73 source files
+pytest                      ->  459 passed   (was 388 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -126,35 +131,21 @@ git fetch origin main && git checkout -B <branch> origin/main
 
 ## Next up
 
-**Start with T22 — it is written up and waiting on one decision**, and it begins
-by correcting this file. "Per-assertion accountability" was recorded here as one
-item whose two markers were both "explicit document structure". Read against the
-actual filings, only one of them is:
+**The backlog is empty.** One piece of work stands out, and it is the half T22
+split off and deliberately did not do:
 
-- **Furnished-versus-filed is a real region boundary**, declared by the document
-  itself: *"The information contained in this Item 7.01, including Exhibit 99.1,
-  shall not be deemed 'filed' ... or otherwise subject to the liabilities of that
-  section."* Locatable, structural, no judgement needed.
-- **The safe harbor is not a per-sentence marker.** It says the document
-  *contains* forward-looking statements and describes their subject matter. It
-  never says which sentences. Applying it still needs the judgement T16 declined.
-
-So the item is two tasks. **T22 is the structural half**, and the defect is
-demonstrated rather than argued: EDGAR serves each filing as one complete
-submission concatenating the 8-K with its exhibits, so declaring the Netflix 8-K
-`regulatory_filing` — as any reasonable user would — commits **three of six
-claims from the disclaimed Item 7.01 region at `HIGH`**, the marketing copy among
-them (`region_001`). T22 makes reliability a property of the span's *location*
-using the offsets T8/T10 already record, with regions declared by the caller for
-T14's reason. No regions declared changes nothing.
-
-**The other half is unstarted and needs its own sign-off.** Modality — settled
-fact versus expected event — is what produced `verify_001`'s 17-of-17 at 1.00 and
-its 100% recommendation, and **T22 does not touch it**: every one of those spans
-sits in Item 1.01, the accountable region. Closing it means a linguistic check on
-the cited span (locatable and auditable, but a heuristic, and T16 declined one) or
-asking the model, which answered `factual_claim` 17 times out of 17 including ten
-claims about the future. No obviously right answer; do not fold it into T22.
+- **Modality — settled fact versus expected event.** This is what produced
+  `verify_001`'s 17 of 17 claims at 1.00 and its 100% recommendation, and neither
+  T21 nor T22 touches it: T21 removed *certainty* but left 0.90 on a contested
+  merger, and every one of those spans sits in Item 1.01, the accountable region,
+  so no region rule reaches them. The document knows it matters and will not say
+  which sentence: the safe harbor declares that the filing *contains*
+  forward-looking statements and describes their subject matter, never marking
+  one. **The decision, and it is genuinely open:** a linguistic check on the cited
+  span — locatable, auditable, only ever lowering, but a heuristic and T16
+  declined one — or ask the model, which answered `factual_claim` 17 times out of
+  17 including ten claims plainly about the future. Neither is clean. Do not start
+  it without settling that.
 
 Nothing below is urgent. The first three are decisions before they are code, and
 belong to a human.
@@ -283,6 +274,10 @@ Read [`AGENTS.md`](./AGENTS.md). The hard invariant: **no operator mutates
   on and let this rule reprice it — do not add an exception.
 - **Reading a document is not observing the world** (T17). An extracted claim is
   `REPORTED`; `OBSERVED` is for an operator that genuinely sees the thing.
+- **A document is not one block of accountability** (T22). Reliability is a
+  property of the *span*, resolved from the caller's declared regions against the
+  offsets T8/T10 already record. Still the caller's fact, never the model's — T22
+  narrowed what is declared, it did not move the authority.
 - **No claim read out of a document is certain** (T21). A `REPORTED` claim
   carries at most `GROUNDING_FACTOR[REPORTED]` however accountable its source —
   T17's rule reaching the number, not just the label. The two damping rules
