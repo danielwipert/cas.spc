@@ -13,9 +13,9 @@
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T21** and
-empty again. Everything through T20 is merged to `main` (PRs #2–#17); **T21 is
-the work in this branch.**
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T21**, with
+**T22 queued and unstarted** — it needs one ergonomic decision before code moves.
+Everything through T21 is merged to `main` (PRs #2–#18).
 
 **`VERIFIED` is proven on real data.** It had never fired on a live pairing until
 this session; it now has, and the run that proved it also found the defect T21
@@ -126,22 +126,35 @@ git fetch origin main && git checkout -B <branch> origin/main
 
 ## Next up
 
-**The backlog is empty.** The clearest next piece of work is the one T21 names
-and deliberately does not do:
+**Start with T22 — it is written up and waiting on one decision**, and it begins
+by correcting this file. "Per-assertion accountability" was recorded here as one
+item whose two markers were both "explicit document structure". Read against the
+actual filings, only one of them is:
 
-- **Per-assertion accountability.** T21 stopped a filing buying *certainty*, but
-  90% on a merger facing a hostile counter-bid is still too high, and the fix is
-  not a smaller constant. A filing is not one uniform block of accountability and
-  says so in its own text: the same 8-K carries Section 18 liability for its
-  historical statements and **disclaims its forward-looking ones** under the
-  PSLRA safe harbor, and WBD's says of its own exhibits that they *"shall not be
-  deemed 'filed' ... or otherwise subject to the liability of such section"*.
-  Both markers are explicit, locatable document structure rather than text
-  heuristics — which is what makes this tractable, and different from the
-  claim-text reading T16 rejected. T20 deferred it, T21 deferred it, and the
-  `verify_001` numbers are the evidence it is not academic: ten of those
-  seventeen claims are about the future and the model labelled all seventeen
-  `factual_claim`.
+- **Furnished-versus-filed is a real region boundary**, declared by the document
+  itself: *"The information contained in this Item 7.01, including Exhibit 99.1,
+  shall not be deemed 'filed' ... or otherwise subject to the liabilities of that
+  section."* Locatable, structural, no judgement needed.
+- **The safe harbor is not a per-sentence marker.** It says the document
+  *contains* forward-looking statements and describes their subject matter. It
+  never says which sentences. Applying it still needs the judgement T16 declined.
+
+So the item is two tasks. **T22 is the structural half**, and the defect is
+demonstrated rather than argued: EDGAR serves each filing as one complete
+submission concatenating the 8-K with its exhibits, so declaring the Netflix 8-K
+`regulatory_filing` — as any reasonable user would — commits **three of six
+claims from the disclaimed Item 7.01 region at `HIGH`**, the marketing copy among
+them (`region_001`). T22 makes reliability a property of the span's *location*
+using the offsets T8/T10 already record, with regions declared by the caller for
+T14's reason. No regions declared changes nothing.
+
+**The other half is unstarted and needs its own sign-off.** Modality — settled
+fact versus expected event — is what produced `verify_001`'s 17-of-17 at 1.00 and
+its 100% recommendation, and **T22 does not touch it**: every one of those spans
+sits in Item 1.01, the accountable region. Closing it means a linguistic check on
+the cited span (locatable and auditable, but a heuristic, and T16 declined one) or
+asking the model, which answered `factual_claim` 17 times out of 17 including ten
+claims about the future. No obviously right answer; do not fold it into T22.
 
 Nothing below is urgent. The first three are decisions before they are code, and
 belong to a human.
