@@ -31,12 +31,24 @@ So a claim is damped by the source under it before anything reads it.
 shakiest thing it depends on. Averaging would let four restatements of a press
 release outvote the one claim that was actually questioned, which is backwards:
 
-    ceiling(c) = c.confidence * reliability_factor(c)
+    ceiling(c) = c.confidence * min(reliability_factor(c), grounding_factor(c))
     ceiling(h) = min over c in h.supporting_claims of ceiling(c)
 
 where `reliability_factor` is taken from the *best* evidence the claim cites —
 one solid source is enough to ground a claim, so the strongest span wins,
 where across claims the weakest wins.
+
+`grounding_factor` is T21, and it closes the hole the other one leaves open at
+the top. `RELIABILITY_FACTOR[HIGH]` is 1.0, so a claim citing an accountable
+source was discounted by nothing at all: a live run over two SEC filings
+committed **17 of 17 claims at 1.00** and recommended proceeding with a
+contested merger at **100%** — a higher number than the press release that
+started this whole arc ever produced. A filing is accountable for *"we signed
+this contract"*; it is not a warrant for certainty about what happens next. So
+a `REPORTED` claim carries at most 0.9 however good its source, which is T17's
+rule — reading is not observing — finally reaching the number rather than only
+the label. The two factors combine by **min**, not by product: see
+`claim_factor`.
 
 **It is a discount, not a ceiling**, and that is deliberate. The factor scales
 a claim's confidence rather than clipping it at a maximum, so a claim stated at
@@ -81,6 +93,7 @@ from collections.abc import Mapping
 
 from ..models import (
     Claim,
+    EpistemicStatus,
     Hypothesis,
     PatchStatus,
     Perspective,
@@ -105,6 +118,39 @@ RELIABILITY_FACTOR: dict[Reliability, float] = {
     Reliability.HIGH: 1.0,
     Reliability.MEDIUM: 0.8,
     Reliability.LOW: 0.6,
+}
+
+#: How much of a claim's confidence survives **how it entered state** (T21).
+#:
+#: T17 established that reading a document establishes *that the document says
+#: so*, never that the thing is so, and made every extracted claim `REPORTED`.
+#: That rule never reached the number: because `RELIABILITY_FACTOR[HIGH]` is
+#: 1.0, a claim citing an accountable source was discounted by nothing, and a
+#: run over two SEC filings committed **17 of 17 claims at 1.00** and
+#: recommended "Proceed with the merger" at **100%** — on a transaction then
+#: facing a hostile counter-bid, a proxy contest, regulatory clearance and a
+#: shareholder vote. A filing is an excellent source for *"we signed this
+#: contract"*. It is not a licence to be certain about the future.
+#:
+#: So a reported claim cannot reach certainty however accountable its source.
+#: `0.9` is a pinned constant with no principled derivation, exactly as the
+#: `RELIABILITY_FACTOR` values are: it removes certainty without pretending to
+#: model the risk of the thing not happening, and leaves a filing meaningfully
+#: stronger than the `MEDIUM` 0.8 it would otherwise collapse toward. Changing
+#: it should be a deliberate edit, so it is pinned by a test.
+#:
+#: Every other status is 1.0, and that is a decision rather than an oversight.
+#: `OBSERVED` is first-hand, so nothing about *reading* discounts it.
+#: `INFERRED` draws its warrant from its premises, which carry their own caps.
+#: `ASSUMED` and `SPECULATIVE` already say out loud that nothing supports them.
+#: The table is exhaustive on purpose: adding a member to `EpistemicStatus`
+#: should force a decision here rather than silently default.
+GROUNDING_FACTOR: dict[EpistemicStatus, float] = {
+    EpistemicStatus.OBSERVED: 1.0,
+    EpistemicStatus.REPORTED: 0.9,
+    EpistemicStatus.INFERRED: 1.0,
+    EpistemicStatus.ASSUMED: 1.0,
+    EpistemicStatus.SPECULATIVE: 1.0,
 }
 
 #: A claim citing no evidence at all is treated as the lowest tier rather than
@@ -144,14 +190,34 @@ def best_reliability(claim: Claim, view: ProjectionView) -> Reliability | None:
     return max(reliabilities, key=lambda r: RELIABILITY_FACTOR[r])
 
 
-def claim_ceiling(claim: Claim, view: ProjectionView) -> float:
-    """The most confidence `claim` can carry, given the source it rests on.
+def claim_factor(claim: Claim, view: ProjectionView) -> tuple[float, str]:
+    """The one factor that damps this claim, and which rule supplied it.
 
-    Its own confidence, discounted by the best evidence it cites — a claim is
-    no more certain than where it came from.
+    Two things can limit a claim: the source it rests on (T14/T16) and the way
+    it entered state (T17/T21). The **smaller** wins — deliberately `min` and
+    not a product. T16 settled that a claim is damped *once*; multiplying two
+    factors that never agreed to meet is the double discount it ruled out, and
+    would drop a press-release claim from 0.60 to 0.54 for no considered reason.
+
+    Under `min` nothing about T14–T16 moves: a `LOW` press release still caps at
+    0.60, because 0.6 is already below the 0.9 a reported claim allows. Only the
+    `HIGH` tier changes, which is the tier that was wrong.
     """
     best = best_reliability(claim, view)
-    factor = _UNSOURCED_FACTOR if best is None else RELIABILITY_FACTOR[best]
+    reliability = _UNSOURCED_FACTOR if best is None else RELIABILITY_FACTOR[best]
+    grounding = GROUNDING_FACTOR[claim.epistemic_status]
+    if grounding < reliability:
+        return grounding, "grounding"
+    return reliability, "source"
+
+
+def claim_ceiling(claim: Claim, view: ProjectionView) -> float:
+    """The most confidence `claim` can carry, given what it rests on.
+
+    Its own confidence, discounted by whichever binds harder: the best evidence
+    it cites, or the fact that it was only ever *read* rather than seen.
+    """
+    factor, _bound_by = claim_factor(claim, view)
     return _floor2(claim.confidence * factor)
 
 
@@ -177,9 +243,17 @@ def _source_phrase(claim: Claim, view: ProjectionView) -> str:
 
 
 def _claim_reason(claim: Claim, view: ProjectionView, ceiling: float) -> str:
-    """Why this claim was discounted, naming the source responsible."""
-    best = best_reliability(claim, view)
-    factor = _UNSOURCED_FACTOR if best is None else RELIABILITY_FACTOR[best]
+    """Why this claim was discounted, naming the rule that bound it."""
+    factor, bound_by = claim_factor(claim, view)
+    if bound_by == "grounding":
+        return (
+            f"Discounted to {ceiling:.2f} from {claim.confidence:.2f}: a "
+            f"{claim.epistemic_status.value} claim carries {factor:.0%} of its "
+            "stated confidence however accountable its source. Reading a "
+            "document establishes that the document says so, which is not the "
+            "same as the thing being so — so no claim read out of one is "
+            "certain."
+        )
     return (
         f"Discounted to {ceiling:.2f} from {claim.confidence:.2f}: "
         f"{_source_phrase(claim, view)} carries {factor:.0%} of a claim's "
@@ -338,9 +412,11 @@ class CalibrationOperator(Operator):
 
 
 __all__ = [
+    "GROUNDING_FACTOR",
     "RELIABILITY_FACTOR",
     "CalibrationOperator",
     "best_reliability",
     "ceiling_for",
     "claim_ceiling",
+    "claim_factor",
 ]

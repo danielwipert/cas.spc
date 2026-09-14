@@ -21,12 +21,13 @@ import json
 from pathlib import Path
 
 from spc_state.epistemics import Corroboration, corroboration_of
-from spc_state.models import EpistemicStatus
+from spc_state.models import EpistemicStatus, Reliability
 from spc_state.operators import (
     CalibrationOperator,
     LLMCorroborationOperator,
     LLMExtractOperator,
 )
+from spc_state.operators.calibration import GROUNDING_FACTOR, RELIABILITY_FACTOR
 from spc_state.providers.mock import MockProvider
 from spc_state.runtime import FixedClock, Runtime, bootstrap_state
 from spc_state.source_types import SourceType
@@ -252,20 +253,33 @@ def test_the_calibrator_then_reprices_the_corroborated_claim(
 
     A press-release claim stated at 0.90 carries 0.54 — T16 discounts it by the
     only source it cites. Once a regulator's span genuinely supports it, the
-    best evidence it cites is `HIGH` and the *same untouched rule* lets it carry
-    0.90. Corroboration raised nothing; it changed what the claim rests on.
+    best evidence it cites is `HIGH` and the *same untouched rules* let it carry
+    more. Corroboration raised nothing; it changed what the claim rests on.
+
+    T21 moved the upper endpoint from 0.90 to 0.81 and left the design intact.
+    The claim is still only *reported* — a regulator agreeing does not mean
+    anyone here observed the thing — so grounding now binds where the source no
+    longer does. Both numbers are derived from the constants rather than typed,
+    so this test says which rules produced them.
     """
+    stated = 0.90
     uncorroborated = _run(
         tmp_path / "a", corroboration=[_pairs(), _keep()], calibrate=True
     ).final_state
-    assert uncorroborated.claims["claim_001"].confidence == 0.54
+    low = min(RELIABILITY_FACTOR[Reliability.LOW], GROUNDING_FACTOR[EpistemicStatus.REPORTED])
+    assert uncorroborated.claims["claim_001"].confidence == round(stated * low, 2)
 
     corroborated = _run(
         tmp_path / "b",
         corroboration=[_pairs(("claim_001", "d2_claim_001")), _keep(1)],
         calibrate=True,
     ).final_state
-    assert corroborated.claims["claim_001"].confidence == 0.9
+    high = min(RELIABILITY_FACTOR[Reliability.HIGH], GROUNDING_FACTOR[EpistemicStatus.REPORTED])
+    assert corroborated.claims["claim_001"].confidence == round(stated * high, 2)
+    assert (
+        corroborated.claims["claim_001"].confidence
+        > uncorroborated.claims["claim_001"].confidence
+    ), "corroboration still pays, by changing what the claim rests on"
 
 
 # ---------------------------------------------------------------------------
