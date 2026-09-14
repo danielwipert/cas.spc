@@ -1895,6 +1895,115 @@ no regions — and that is to be verified, not assumed.
 
 ---
 
+## T23 — An accountable source cannot settle a future event · ✅ DONE
+
+**Sign-off given 2026-09-14** on the one question it was blocked on: read the
+language, rather than ask the model.
+
+**Why, with the numbers.** T21 stopped a filing buying certainty and left
+`verify_001` at **0.90** on a merger then facing a hostile counter-bid. The reason
+was visible in the spans all along — ten of its seventeen claims are about the
+future (*"WBD **will** become a wholly owned subsidiary"*, *"each share **shall**
+be converted"*) and seven are about completed acts (*"the boards **have
+unanimously approved**"*). Nothing read the difference. The model was asked:
+`claim_type` offers `predictive_claim`, and it answered `factual_claim` **17 times
+out of 17**.
+
+T22 established there is nothing structural left to read. Furnished-versus-filed
+is a real region boundary and T22 took it; the PSLRA safe harbor is not, because
+it says a filing *contains* forward-looking statements and describes their subject
+matter without ever marking a sentence.
+
+**So this reads language — the narrow, deliberate exception T16 declined.** Four
+constraints make it auditable rather than magic, and each is pinned by a test:
+
+1. **It reads the source's words, not the model's.** The check runs on the quoted
+   span, which T8 verified is really in the document. The claim text is the
+   model's paraphrase; the span is evidence.
+2. **It only ever lowers.** A miss leaves the number where it was, so the failure
+   mode is doing nothing — never inventing confidence.
+3. **It names what it found.** Every discount records the marker, so a reader can
+   check the span. That is what separates an auditable heuristic from a
+   classifier nobody can question.
+4. **It is biased against firing.** A claim is unsettled only when **every** span
+   it cites is; one settled span settles it, mirroring `best_reliability`.
+
+**The marker set is measured, not invented.** Against the sixteen distinct spans
+committed in `verify_001`: **9 of the 11 forward-looking ones caught, 0 false
+positives** on the 5 settled. `will` and `shall` did all the work on merger 8-Ks;
+the rest (`may`, `might`, `could`, `expects`, `anticipates`, `intends`, `subject
+to`, `contingent on`) cover the guidance and risk language a 10-K carries.
+
+**`can` is excluded on principle.** It expresses *capability*, not contingency:
+"the library can parse JSON" is a settled fact about the library. It also happens
+to be the demo's one hedged span ("coding assistants **can** accelerate routine
+tasks") — the two coincide, and the principle is what decides it. Stated plainly
+because the coincidence is convenient and should not pass unexamined.
+
+**The composition is the real design decision.** The two axes combine differently:
+
+```
+ceiling(c) = c.confidence x min(reliability, grounding) x modality
+```
+
+Reliability and grounding both answer *how much is this telling worth*, so the
+harder binds and the other stands down — `min`, exactly as T16 settled, untouched.
+Modality answers whether the **proposition** is settled, which no amount of source
+quality changes: a merger agreement is a perfect source for *"we signed this"* and
+tells you nothing about whether the merger completes. Folding it into the same
+`min` would let a good source mask an unsettled claim — which is precisely how
+`verify_001` reached 0.90. So it multiplies, and a test pins that
+`min(a, b) * m != min(a, b, m)`.
+
+**Measured.** `verify_001`'s pre-calibration state re-calibrated, identical claims
+and model output, only the arithmetic differing:
+
+| | pre-T21 | T21 | **T21 + T23** |
+|---|---|---|---|
+| claims at 1.00 | 17 of 17 | 0 | 0 |
+| claim confidences | all 1.00 | all 0.90 | **0.72 x10, 0.90 x7** |
+| recommendation | 100% | 90% | **72%** |
+
+**Exactly 10 of 17**, matching the hand count of forward-looking claims. The seven
+completed acts keep 0.90 — the axis discriminates rather than sweeping. Each of
+the ten records why:
+
+> *"…and every span it cites is about something not yet settled ('will'), which
+> carries a further 80% — an accountable source cannot make a future event
+> certain."*
+
+**Three existing tests moved, and one of them found a better answer than the test
+had.** `test_the_calibrator_then_reprices_the_corroborated_claim` asserted T19's
+0.54 → 0.81. Its fixture claim reads *"may face regulatory risk"*, so modality
+fires uncorroborated — but once the regulator's span (*"cleared the acquisition"*,
+a completed act) joins the claim, modality stops applying entirely. **Corroboration
+now pays twice**: a better source, and a span about something that has happened.
+That fell out of the every-span rule rather than being designed, and is now
+asserted as two separate facts.
+
+**Verified by mutation.** Modality never firing turns 4 red; joining the `min`
+instead of multiplying, 4; *any* unsettled span sufficing instead of every, 2; an
+empty span list counting as unsettled, 3; admitting `can`, 1; dropping word
+boundaries so `will` fires inside `goodwill`, 1; the receipt no longer naming the
+marker, 1. No survivors.
+
+482 tests (was 459). `DEMO.md` byte-identical, verified rather than assumed.
+
+**The limits, pinned as tests so they stay known rather than discovered.**
+
+- **It misses modal-free future statements.** Two of `verify_001`'s spans are the
+  same gerund — *"the stockholders … **becoming** the stockholders of Newco"* — a
+  future event with no modal. The check does nothing and the number stands.
+- **It is English-only.** `live_document_german.txt` contains none of these
+  markers and never will, so a non-English run simply gets pre-T23 behaviour.
+  The engine is not multilingual here and should not pretend otherwise.
+- **It does not forecast.** 0.72 is not a probability that the merger closes.
+  Whether a deal completes is not something a pipeline reading two documents can
+  know, and T23 claims only that an expectation is worth less than a completed
+  act.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

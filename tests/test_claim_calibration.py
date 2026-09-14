@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 
 from spc_state.analyze import run_analysis
+from spc_state.modality import spans_are_unsettled
 from spc_state.models import (
     Claim,
     EpistemicStatus,
@@ -39,6 +40,7 @@ from spc_state.models import (
 from spc_state.operators import CalibrationOperator
 from spc_state.operators.calibration import (
     GROUNDING_FACTOR,
+    MODALITY_FACTOR,
     RELIABILITY_FACTOR,
     _claim_reason,
     claim_ceiling,
@@ -360,6 +362,12 @@ def test_the_same_recording_read_as_a_filing_is_discounted_least(
     the source. The discount is the grounding one, not the source one — pinned
     here, because a filing falling to the `LOW` factor would be a different and
     much worse bug than the one T21 fixed.
+
+    T23 adds the second axis on top, and this recording exercises it: the
+    document says Northwind *will* acquire Harbor Freight, so those claims take
+    `MODALITY_FACTOR` as well. The two are asserted together rather than merged,
+    because a filing sliding to `LOW`, or modality firing on a settled span,
+    would each be a different bug from the other.
     """
     result = _replay(tmp_path, SourceType.REGULATORY_FILING)
     state = result.run.final_state
@@ -369,13 +377,25 @@ def test_the_same_recording_read_as_a_filing_is_discounted_least(
     assert before is not None
 
     grounding = GROUNDING_FACTOR[EpistemicStatus.REPORTED]
+    unsettled = 0
     for cid, claim in state.claims.items():
         if claim.epistemic_status is not EpistemicStatus.REPORTED:
             continue
-        expected = math.floor(before.claims[cid].confidence * grounding * 100) / 100
+        quotes = [
+            state.evidence[eid].quote_or_span
+            for eid in claim.supporting_evidence
+            if eid in state.evidence
+        ]
+        modality = MODALITY_FACTOR if spans_are_unsettled(quotes) else 1.0
+        unsettled += modality != 1.0
+        stated = before.claims[cid].confidence
+        expected = math.floor(stated * grounding * modality * 100) / 100
         assert claim.confidence == expected, (
-            f"{cid}: a reported claim on a filing is damped by grounding alone"
+            f"{cid}: damped by grounding, and by modality only where the span "
+            "the claim cites is about something not yet settled"
         )
+    assert unsettled, "this recording must contain a forward-looking span"
+
 
     assert not any(c.confidence == 1.0 for c in state.claims.values()), (
         "nothing read out of a document commits at certainty — the whole of T21"
@@ -492,7 +512,9 @@ def test_the_two_rules_compose_by_min_and_not_by_product() -> None:
     view = _view_of(claim, [_ev("ev_001", Reliability.LOW)])
     low = RELIABILITY_FACTOR[Reliability.LOW]
     assert claim_ceiling(claim, view) == round(0.90 * low, 2)
-    assert claim_factor(claim, view) == (low, "source")
+    damping = claim_factor(claim, view)
+    assert (damping.warrant, damping.bound_by) == (low, "source")
+    assert damping.modality == 1.0, "a settled span adds no second discount"
 
 
 @pytest.mark.parametrize(
@@ -509,9 +531,9 @@ def test_the_harder_of_the_two_rules_binds(
     """Only the `HIGH` tier changed, which is the tier that was wrong."""
     claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
     view = _view_of(claim, [_ev("ev_001", reliability)])
-    factor, bound_by = claim_factor(claim, view)
-    assert bound_by == binds
-    assert factor == min(
+    damping = claim_factor(claim, view)
+    assert damping.bound_by == binds
+    assert damping.warrant == min(
         RELIABILITY_FACTOR[reliability], GROUNDING_FACTOR[EpistemicStatus.REPORTED]
     )
 
@@ -561,3 +583,94 @@ def test_no_committed_claim_reaches_certainty_on_any_source(
     assert all(h.confidence < 1.0 for h in state.hypotheses.values()), (
         "a recommendation resting on read claims cannot be certain either"
     )
+
+
+# ---------------------------------------------------------------------------
+# T23 — the modality axis, and how it composes with the warrant axis
+# ---------------------------------------------------------------------------
+
+
+def _ev_quoting(eid: str, reliability: Reliability, quote: str) -> Evidence:
+    return Evidence(
+        id=eid,
+        source_type="input_document",
+        source_id="doc_001",
+        quote_or_span=quote,
+        reliability=reliability,
+    )
+
+
+SETTLED_SPAN = "The boards have unanimously approved the Merger Agreement"
+UNSETTLED_SPAN = "Merger Sub will merge with and into WBD"
+
+
+def test_an_accountable_source_cannot_settle_a_future_event() -> None:
+    """The defect T23 exists for, at its smallest.
+
+    `verify_001`'s ten forward-looking claims sat at the same weight as its
+    settled ones because nothing read the difference.
+    """
+    claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev_quoting("ev_001", Reliability.HIGH, UNSETTLED_SPAN)])
+    grounding = GROUNDING_FACTOR[EpistemicStatus.REPORTED]
+    assert claim_ceiling(claim, view) == round(grounding * MODALITY_FACTOR, 2)
+
+
+def test_the_same_source_reporting_a_completed_act_is_not_discounted_twice() -> None:
+    claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev_quoting("ev_001", Reliability.HIGH, SETTLED_SPAN)])
+    assert claim_ceiling(claim, view) == GROUNDING_FACTOR[EpistemicStatus.REPORTED]
+
+
+def test_the_warrant_axis_still_damps_once_and_modality_multiplies() -> None:
+    """The composition decision, pinned in one assertion.
+
+    Reliability and grounding both answer *how much is this telling worth*, so
+    the harder binds and the other stands down — T16's rule, untouched. Modality
+    answers whether the **proposition** is settled, which no amount of source
+    quality changes, so it multiplies on top. Folding it into the same `min`
+    would let a good source mask an unsettled claim, which is how `verify_001`
+    reached 0.90 on a contested deal.
+    """
+    claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev_quoting("ev_001", Reliability.LOW, UNSETTLED_SPAN)])
+    damping = claim_factor(claim, view)
+
+    low = RELIABILITY_FACTOR[Reliability.LOW]
+    grounding = GROUNDING_FACTOR[EpistemicStatus.REPORTED]
+    assert damping.warrant == min(low, grounding), "the warrant axis damps once"
+    assert damping.modality == MODALITY_FACTOR
+    assert damping.factor == min(low, grounding) * MODALITY_FACTOR
+    assert damping.factor != min(low, grounding, MODALITY_FACTOR), (
+        "a third term in the min would let the source mask the modality"
+    )
+
+
+def test_confidence_still_only_ever_moves_downward() -> None:
+    """T15/T16's invariant, re-checked where a new factor could have broken it."""
+    for reliability in Reliability:
+        for span in (SETTLED_SPAN, UNSETTLED_SPAN):
+            claim = _c(EpistemicStatus.REPORTED, 0.5, ["ev_001"])
+            view = _view_of(claim, [_ev_quoting("ev_001", reliability, span)])
+            assert claim_ceiling(claim, view) <= claim.confidence
+
+
+def test_the_receipt_names_the_marker_that_bound_the_number() -> None:
+    """An auditor must be able to check the span for themselves."""
+    claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev_quoting("ev_001", Reliability.HIGH, UNSETTLED_SPAN)])
+    reason = _claim_reason(claim, view, claim_ceiling(claim, view))
+    assert "will" in reason
+    assert "not yet settled" in reason
+
+
+def test_the_receipt_says_nothing_about_modality_when_it_did_not_apply() -> None:
+    claim = _c(EpistemicStatus.REPORTED, 1.0, ["ev_001"])
+    view = _view_of(claim, [_ev_quoting("ev_001", Reliability.HIGH, SETTLED_SPAN)])
+    reason = _claim_reason(claim, view, claim_ceiling(claim, view))
+    assert "not yet settled" not in reason
+
+
+def test_the_modality_factor_is_pinned() -> None:
+    """A constant with no principled derivation, so changing it is deliberate."""
+    assert MODALITY_FACTOR == 0.8
