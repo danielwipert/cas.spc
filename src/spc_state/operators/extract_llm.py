@@ -32,6 +32,7 @@ way the assembled ones are.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 
 from ..models import (
     Assumption,
@@ -43,6 +44,7 @@ from ..models import (
     PatchStatus,
     Perspective,
     Projection,
+    Reliability,
     SemanticPatch,
     SemanticState,
     TransformRecord,
@@ -51,6 +53,7 @@ from ..models.patch import AddObjects
 from ..projection import ProjectionView, resolve_view
 from ..provenance import locate_span
 from ..providers import LLMProvider, ProviderRequest
+from ..regions import SourceRegion, resolve_regions, source_type_at
 from ..runtime.clock import Clock, WallClock
 from ..source_types import (
     DEFAULT_SOURCE_TYPE,
@@ -199,6 +202,7 @@ class LLMExtractOperator(LLMOperator):
         source_id: str = "doc_001",
         source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
         derives_from: str | None = None,
+        regions: Sequence[SourceRegion] = (),
         id_prefix: str = "",
     ) -> None:
         super().__init__(provider, max_attempts=max_attempts)
@@ -217,11 +221,27 @@ class LLMExtractOperator(LLMOperator):
         #: here, never taken from the model (see `source_types`).
         self.source_type = coerce_source_type(source_type)
         self.reliability = reliability_for(self.source_type)
+        #: Where the document stops being one block of accountability (T22).
+        #: Resolved here, at construction, so a marker that does not occur fails
+        #: the run rather than leaving a document that looks region-aware and is
+        #: not. Empty for a document the caller did not carve up, in which case
+        #: every span takes `self.source_type` exactly as before.
+        self.regions = resolve_regions(input_text, regions)
         #: Prepended to every id this operator mints. Empty for the first
         #: document in a run; a second extraction into the same state needs its
         #: own namespace, because `claim_001` is already taken and L2 rejects
         #: the collision by design (`L2.DUPLICATE_OBJECT_ID`).
         self.id_prefix = id_prefix
+
+    def _weigh(self, offset: int) -> tuple[SourceType, Reliability]:
+        """How to weigh a span starting at `offset` (T22).
+
+        The document's own declaration unless a region says otherwise, and the
+        reliability derived from whichever wins — never taken from the model, on
+        either route in.
+        """
+        source_type = source_type_at(offset, self.regions, self.source_type)
+        return source_type, reliability_for(source_type)
 
     def build_request(
         self, view: ProjectionView, feedback: list[str]
@@ -283,11 +303,15 @@ class LLMExtractOperator(LLMOperator):
     def _is_this_document(self, item: Evidence) -> bool:
         """Does this `Evidence` claim to come from the document we were given?
 
-        Either it names the source type the caller declared, or it uses the
-        vocabulary the pipeline wrote before source types existed. Anything
-        else names a source we were not handed and cannot speak for.
+        Either it names the source type the caller declared, or one a declared
+        region carries (T22 — a span inside a furnished exhibit legitimately
+        reads `press_release` while the document is a `regulatory_filing`), or it
+        uses the vocabulary the pipeline wrote before source types existed.
+        Anything else names a source we were not handed and cannot speak for.
         """
-        return item.source_type in (self.source_type.value, LEGACY_INPUT_DOCUMENT)
+        mine = {self.source_type.value, LEGACY_INPUT_DOCUMENT}
+        mine.update(r.source_type.value for r in self.regions)
+        return item.source_type in mine
 
     def _ground_patch_claims(self, patch: SemanticPatch) -> None:
         """Hold a model-authored patch to the reading rule too (T17).
@@ -322,20 +346,28 @@ class LLMExtractOperator(LLMOperator):
             # Only spans claiming to come from *this* document are ours.
             if not self._is_this_document(item):
                 continue
-            item.source_type = self.source_type.value
-            item.reliability = self.reliability
             # Declared lineage is overwritten for exactly the reason reliability
             # is: it is the caller's fact about this document, and a patch that
             # arrives asserting its own independence must not keep it.
             item.derives_from = self.derives_from
             quote = (item.quote_or_span or "").strip()
             if not quote:
+                item.source_type = self.source_type.value
+                item.reliability = self.reliability
                 continue
             span = locate_span(quote, self.input_text)
             if span is None:
                 unlocatable.append(quote)
+                item.source_type = self.source_type.value
+                item.reliability = self.reliability
             else:
                 item.location = {"start": span.start, "end": span.end}
+                # T22: which region the span landed in decides how it is weighed,
+                # and the offset is only known once it is located. Same rule as
+                # the assembled route, applied at the same point.
+                source_type, reliability = self._weigh(span.start)
+                item.source_type = source_type.value
+                item.reliability = reliability
 
         if unlocatable:
             raise ExtractionError(_unlocatable_message(unlocatable))
@@ -384,14 +416,17 @@ class LLMExtractOperator(LLMOperator):
                     unlocatable.append(quote)
                 else:
                     eid = f"{self.id_prefix}ev_{i:03d}"
+                    # T22: the region the span landed in decides how it is
+                    # weighed, so this waits until the offset is known.
+                    span_source_type, span_reliability = self._weigh(span.start)
                     evidence.append(
                         Evidence(
                             id=eid,
-                            source_type=self.source_type.value,
+                            source_type=span_source_type.value,
                             source_id=self.source_id,
                             quote_or_span=quote,
                             location={"start": span.start, "end": span.end},
-                            reliability=self.reliability,
+                            reliability=span_reliability,
                             derives_from=self.derives_from,
                             extracted_by=self.transform_id,
                         )

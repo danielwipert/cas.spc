@@ -32,6 +32,7 @@ from .models import EpistemicStatus, SemanticState
 from .operators import CriticOperator, ExtractOperator, LLMCriticOperator, Operator, PlannerOperator
 from .providers import OpenRouterConfigError, OpenRouterProvider
 from .receipt import FollowUps, write_run_artifacts
+from .regions import RegionError, parse_region, resolve_regions
 from .runtime import Clock, FixedClock, Runtime, WallClock, bootstrap_state
 from .source_types import DEFAULT_SOURCE_TYPE, SourceType, reliability_for
 from .store import RunPaths, StateStore
@@ -130,6 +131,16 @@ def analyze(
         case_sensitive=False,
         help="Source type for each --also-input, in the same order.",
     ),
+    region: list[str] = typer.Option(
+        [],
+        "--region",
+        help="Carve --input into stretches weighed differently, as "
+        "'<marker>:<source_type>' — e.g. 'Item 7.01:press_release'. A span "
+        "takes the source type of the last region beginning at or before it. A "
+        "filing is not one block of accountability: an 8-K's Item 7.01 exhibits "
+        "are furnished rather than filed, and say so themselves. Repeatable; "
+        "omit entirely to weigh the whole document as --source-type.",
+    ),
     also_derives_from: list[str] = typer.Option(
         [],
         "--also-derives-from",
@@ -190,6 +201,16 @@ def analyze(
     ] * len(also_input)
 
     document = input.read_text(encoding="utf-8")
+    try:
+        regions = tuple(parse_region(spec) for spec in region)
+        # Resolved per declaration rather than in bulk: `resolve_regions`
+        # returns them in *document* order, which is what the extractor wants
+        # and not what the caller typed. Pairing the two would misreport a
+        # marker declared out of order.
+        located = [(r, resolve_regions(document, [r])[0].start) for r in regions]
+    except RegionError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
     extras = [
         SourceDocument(
             text=path.read_text(encoding="utf-8"), source_type=st, derives_from=parent
@@ -219,6 +240,12 @@ def analyze(
         f"[yellow]source type:[/yellow] {source_type.value} "
         f"[dim](evidence reliability: {reliability_for(source_type).value})[/dim]"
     )
+    for declared, start in located:
+        _console.print(
+            f"[yellow]region:[/yellow] {declared.source_type.value} "
+            f"[dim]({reliability_for(declared.source_type).value}) from "
+            f"offset {start} — {declared.marker!r}[/dim]"
+        )
     for i, (path, st, parent) in enumerate(
         zip(also_input, also_source_type, lineage, strict=True), start=2
     ):
@@ -236,6 +263,7 @@ def analyze(
         question=question,
         extract_only=extract_only,
         source_type=source_type,
+        regions=regions,
         extra_documents=extras,
     )
 

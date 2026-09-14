@@ -33,6 +33,7 @@ from .operators import (
 )
 from .providers import LLMProvider
 from .receipt import ReceiptArtifacts, write_run_artifacts
+from .regions import SourceRegion
 from .runtime import Clock, RunResult, Runtime, WallClock, bootstrap_state
 from .source_types import DEFAULT_SOURCE_TYPE, SourceType
 from .store import RunPaths
@@ -67,6 +68,7 @@ class SourceDocument:
     text: str
     source_type: SourceType | str = DEFAULT_SOURCE_TYPE
     derives_from: str | None = None
+    regions: tuple[SourceRegion, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,7 @@ def build_analysis_operators(
     clock: Clock,
     extract_only: bool = False,
     source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
+    regions: Sequence[SourceRegion] = (),
     extra_documents: Sequence[SourceDocument] = (),
 ) -> list[Operator]:
     """The six-stage operator list, plus corroboration when sources differ.
@@ -111,13 +114,24 @@ def build_analysis_operators(
     of every span the extraction records, and so how hard the Retriever looks
     for corroboration downstream — see `source_types`.
 
+    `regions` carves the document into stretches weighed differently (T22). A
+    filing is not one block of accountability — an 8-K's Item 7.01 exhibits are
+    furnished rather than filed, and the document says so itself — so a span
+    takes the source type of the last region beginning at or before it. Declared
+    by the caller for T14's reason; empty means the whole document is one region
+    and every span is weighed exactly as before.
+
     `extra_documents` adds one extraction stage per further source, each with
-    its own declared `source_type` and its own id namespace, before the shared
-    stages run over the combined state.
+    its own declared `source_type`, its own regions and its own id namespace,
+    before the shared stages run over the combined state.
     """
     operators: list[Operator] = [
         LLMExtractOperator(
-            provider, input_text=document, clock=clock, source_type=source_type
+            provider,
+            input_text=document,
+            clock=clock,
+            source_type=source_type,
+            regions=regions,
         )
     ]
     for i, extra in enumerate(extra_documents, start=2):
@@ -134,6 +148,7 @@ def build_analysis_operators(
                 transform_id=f"transform_extract_{i:03d}",
                 source_id=f"doc_{i:03d}",
                 derives_from=extra.derives_from,
+                regions=extra.regions,
                 id_prefix=f"d{i}_",
             )
         )
@@ -164,6 +179,7 @@ def run_analysis(
     question: str = DEFAULT_QUESTION,
     extract_only: bool = False,
     source_type: SourceType | str = DEFAULT_SOURCE_TYPE,
+    regions: Sequence[SourceRegion] = (),
     extra_documents: Sequence[SourceDocument] = (),
 ) -> AnalysisResult:
     """Run the pipeline and project its Reasoning Receipt + Decision Memo."""
@@ -174,6 +190,7 @@ def run_analysis(
         clock=clock,
         extract_only=extract_only,
         source_type=source_type,
+        regions=regions,
         extra_documents=extra_documents,
     )
 
