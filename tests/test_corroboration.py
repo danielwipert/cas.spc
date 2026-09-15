@@ -27,7 +27,11 @@ from spc_state.operators import (
     LLMCorroborationOperator,
     LLMExtractOperator,
 )
-from spc_state.operators.calibration import GROUNDING_FACTOR, RELIABILITY_FACTOR
+from spc_state.operators.calibration import (
+    GROUNDING_FACTOR,
+    MODALITY_FACTOR,
+    RELIABILITY_FACTOR,
+)
 from spc_state.providers.mock import MockProvider
 from spc_state.runtime import FixedClock, Runtime, bootstrap_state
 from spc_state.source_types import SourceType
@@ -259,15 +263,32 @@ def test_the_calibrator_then_reprices_the_corroborated_claim(
     T21 moved the upper endpoint from 0.90 to 0.81 and left the design intact.
     The claim is still only *reported* — a regulator agreeing does not mean
     anyone here observed the thing — so grounding now binds where the source no
-    longer does. Both numbers are derived from the constants rather than typed,
-    so this test says which rules produced them.
+    longer does.
+
+    T23 then adds the modality axis, and this fixture exercises it in both
+    directions — which is why the two endpoints now move by different rules:
+
+    - **Uncorroborated**, the claim cites one span, *"The deal **may** face risks
+      from regulatory clearance"*. Unsettled, so `MODALITY_FACTOR` applies.
+    - **Corroborated**, it also cites the regulator's span, which *"cleared the
+      acquisition"* — a completed act. One settled span is enough to settle a
+      claim, mirroring `best_reliability`, so modality stops applying entirely.
+
+    So corroboration now pays **twice**: a better source, and a span about
+    something that has actually happened. That is the design working rather than
+    a coincidence of this fixture, and it is asserted as two separate facts so a
+    regression in either one is visible.
     """
     stated = 0.90
+
     uncorroborated = _run(
         tmp_path / "a", corroboration=[_pairs(), _keep()], calibrate=True
     ).final_state
     low = min(RELIABILITY_FACTOR[Reliability.LOW], GROUNDING_FACTOR[EpistemicStatus.REPORTED])
-    assert uncorroborated.claims["claim_001"].confidence == round(stated * low, 2)
+    assert uncorroborated.claims["claim_001"].confidence == round(
+        stated * low * MODALITY_FACTOR, 2
+    ), "one span, and it says 'may'"
+
 
     corroborated = _run(
         tmp_path / "b",
@@ -275,7 +296,9 @@ def test_the_calibrator_then_reprices_the_corroborated_claim(
         calibrate=True,
     ).final_state
     high = min(RELIABILITY_FACTOR[Reliability.HIGH], GROUNDING_FACTOR[EpistemicStatus.REPORTED])
-    assert corroborated.claims["claim_001"].confidence == round(stated * high, 2)
+    assert corroborated.claims["claim_001"].confidence == round(stated * high, 2), (
+        "the regulator's span is a completed act, so modality no longer applies"
+    )
     assert (
         corroborated.claims["claim_001"].confidence
         > uncorroborated.claims["claim_001"].confidence

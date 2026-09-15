@@ -90,7 +90,9 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
 
+from ..modality import ModalMarker, spans_are_unsettled
 from ..models import (
     Claim,
     EpistemicStatus,
@@ -153,6 +155,22 @@ GROUNDING_FACTOR: dict[EpistemicStatus, float] = {
     EpistemicStatus.SPECULATIVE: 1.0,
 }
 
+#: How much of a claim's confidence survives the thing **not having happened
+#: yet** (T23). `verify_001` committed ten claims about the future — "WBD *will*
+#: become a wholly owned subsidiary", "each share *shall* be converted" — at the
+#: same weight as "the boards *have approved*", because nothing read the
+#: difference. The model was asked and answered `factual_claim` 17 times out of
+#: 17, so this is derived from the source's own words instead
+#: (`spc_state.modality`).
+#:
+#: It **multiplies** rather than joining the `min`: see `ClaimDamping`. A source
+#: cannot settle a future event however accountable it is, so the two are
+#: independent and compose. `0.8` is a pinned constant with no principled
+#: derivation, exactly as the other factors are — it says an expectation is worth
+#: meaningfully less than a completed act without pretending to forecast whether
+#: the thing happens, which a pipeline reading documents has no business doing.
+MODALITY_FACTOR = 0.8
+
 #: A claim citing no evidence at all is treated as the lowest tier rather than
 #: as zero. "Unsourced" is not more misleading than "sourced to an interested
 #: party", which is the most three buckets can honestly express — and the
@@ -190,35 +208,66 @@ def best_reliability(claim: Claim, view: ProjectionView) -> Reliability | None:
     return max(reliabilities, key=lambda r: RELIABILITY_FACTOR[r])
 
 
-def claim_factor(claim: Claim, view: ProjectionView) -> tuple[float, str]:
-    """The one factor that damps this claim, and which rule supplied it.
+@dataclass(frozen=True)
+class ClaimDamping:
+    """Everything that limits one claim, kept apart so a receipt can name it.
 
-    Two things can limit a claim: the source it rests on (T14/T16) and the way
-    it entered state (T17/T21). The **smaller** wins — deliberately `min` and
-    not a product. T16 settled that a claim is damped *once*; multiplying two
-    factors that never agreed to meet is the double discount it ruled out, and
-    would drop a press-release claim from 0.60 to 0.54 for no considered reason.
+    Two axes, and they compose differently on purpose.
 
-    Under `min` nothing about T14–T16 moves: a `LOW` press release still caps at
-    0.60, because 0.6 is already below the 0.9 a reported claim allows. Only the
-    `HIGH` tier changes, which is the tier that was wrong.
+    **The warrant axis damps once.** The source a claim rests on (T14/T16) and
+    the way it entered state (T17/T21) are both answers to *how much is this
+    telling worth*, so the harder of the two binds and the other stands down —
+    `min`, never a product. T16 settled that: multiplying two factors that never
+    agreed to meet would drop a press-release claim from 0.60 to 0.54 for no
+    considered reason.
+
+    **The modality axis multiplies on top** (T23), because it is not a fact about
+    the telling at all. It asks whether the *proposition* is settled, and no
+    amount of source quality settles a future event: a merger agreement is a
+    perfect source for "we signed this" and tells you nothing about whether the
+    merger completes. Folding it into the same `min` would let a good source
+    mask an unsettled claim, which is precisely how `verify_001` reached 0.90 on
+    a contested deal. So `warrant x modality` — and T16's rule is untouched,
+    because it was a rule about the warrant axis.
     """
+
+    warrant: float
+    bound_by: str
+    modality: float
+    marker: ModalMarker | None
+
+    @property
+    def factor(self) -> float:
+        return self.warrant * self.modality
+
+
+def claim_factor(claim: Claim, view: ProjectionView) -> ClaimDamping:
+    """Everything that damps this claim, and which rule supplied each part."""
     best = best_reliability(claim, view)
     reliability = _UNSOURCED_FACTOR if best is None else RELIABILITY_FACTOR[best]
     grounding = GROUNDING_FACTOR[claim.epistemic_status]
     if grounding < reliability:
-        return grounding, "grounding"
-    return reliability, "source"
+        warrant, bound_by = grounding, "grounding"
+    else:
+        warrant, bound_by = reliability, "source"
+
+    quotes = [
+        e.quote_or_span
+        for eid in claim.supporting_evidence
+        if (e := view.evidence.get(eid)) is not None
+    ]
+    marker = spans_are_unsettled(quotes)
+    modality = MODALITY_FACTOR if marker is not None else 1.0
+    return ClaimDamping(warrant, bound_by, modality, marker)
 
 
 def claim_ceiling(claim: Claim, view: ProjectionView) -> float:
     """The most confidence `claim` can carry, given what it rests on.
 
-    Its own confidence, discounted by whichever binds harder: the best evidence
-    it cites, or the fact that it was only ever *read* rather than seen.
+    Its own confidence, discounted by whichever warrant rule binds harder, and
+    again by whether the thing it asserts has actually happened yet.
     """
-    factor, _bound_by = claim_factor(claim, view)
-    return _floor2(claim.confidence * factor)
+    return _floor2(claim.confidence * claim_factor(claim, view).factor)
 
 
 def ceiling_for(hypothesis: Hypothesis, capped: Mapping[str, float]) -> float:
@@ -243,23 +292,30 @@ def _source_phrase(claim: Claim, view: ProjectionView) -> str:
 
 
 def _claim_reason(claim: Claim, view: ProjectionView, ceiling: float) -> str:
-    """Why this claim was discounted, naming the rule that bound it."""
-    factor, bound_by = claim_factor(claim, view)
-    if bound_by == "grounding":
-        return (
-            f"Discounted to {ceiling:.2f} from {claim.confidence:.2f}: a "
-            f"{claim.epistemic_status.value} claim carries {factor:.0%} of its "
-            "stated confidence however accountable its source. Reading a "
-            "document establishes that the document says so, which is not the "
-            "same as the thing being so — so no claim read out of one is "
-            "certain."
+    """Why this claim was discounted, naming every rule that bound it."""
+    damping = claim_factor(claim, view)
+    if damping.bound_by == "grounding":
+        warrant = (
+            f"a {claim.epistemic_status.value} claim carries "
+            f"{damping.warrant:.0%} of its stated confidence however accountable "
+            "its source, because reading a document establishes that the "
+            "document says so, which is not the same as the thing being so"
         )
-    return (
-        f"Discounted to {ceiling:.2f} from {claim.confidence:.2f}: "
-        f"{_source_phrase(claim, view)} carries {factor:.0%} of a claim's "
-        "stated confidence. A claim is no more certain than the source it "
-        "rests on — a document saying so establishes that the document says so."
-    )
+    else:
+        warrant = (
+            f"{_source_phrase(claim, view)} carries {damping.warrant:.0%} of a "
+            "claim's stated confidence, because a claim is no more certain than "
+            "the source it rests on"
+        )
+    modality = ""
+    if damping.marker is not None:
+        modality = (
+            "; and every span it cites is about something not yet settled "
+            f"({damping.marker.word!r}), which carries a further "
+            f"{damping.modality:.0%} — an accountable source cannot make a "
+            "future event certain"
+        )
+    return f"Discounted to {ceiling:.2f} from {claim.confidence:.2f}: {warrant}{modality}."
 
 
 def _hypothesis_reason(
@@ -413,8 +469,10 @@ class CalibrationOperator(Operator):
 
 __all__ = [
     "GROUNDING_FACTOR",
+    "MODALITY_FACTOR",
     "RELIABILITY_FACTOR",
     "CalibrationOperator",
+    "ClaimDamping",
     "best_reliability",
     "ceiling_for",
     "claim_ceiling",

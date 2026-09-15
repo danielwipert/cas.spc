@@ -13,8 +13,8 @@
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T22** and
-empty again. Everything through T21 is merged to `main` (PRs #2–#18); **T22 is
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T23** and
+empty again. Everything through T22 is merged to `main` (PRs #2–#19); **T23 is
 the work in this branch.**
 
 **`VERIFIED` is proven on real data.** It had never fired on a live pairing until
@@ -42,12 +42,19 @@ can carve a document into regions (`--region "Item 7.01:press_release"`) and a
 span takes the last region beginning at or before it, because a filing is not one
 block of accountability and says so itself. No region declared changes nothing.
 
+Since T23, a claim is damped on **two axes**: `confidence x min(reliability,
+grounding) x modality`. The warrant axis damps once, as T16 settled; modality
+multiplies on top, because no source however accountable settles a future event.
+It is derived from the **source's own words** (`spc_state.modality`) — the one
+place the engine reads language rather than structure, and it does so only ever
+downward, naming the marker it found.
+
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
-python -m mypy              ->  Success: no issues found in 73 source files
-pytest                      ->  459 passed   (was 388 at the start of the session)
+python -m mypy              ->  Success: no issues found in 74 source files
+pytest                      ->  482 passed   (was 388 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -131,21 +138,20 @@ git fetch origin main && git checkout -B <branch> origin/main
 
 ## Next up
 
-**The backlog is empty.** One piece of work stands out, and it is the half T22
-split off and deliberately did not do:
+**The backlog is empty**, and for the first time in the T14–T23 arc there is no
+obvious successor: every judgement the model was making about its own work has
+been replaced by something derived. The remaining items below are the ones that
+were always parked, plus two housekeeping gaps this session exposed.
 
-- **Modality — settled fact versus expected event.** This is what produced
-  `verify_001`'s 17 of 17 claims at 1.00 and its 100% recommendation, and neither
-  T21 nor T22 touches it: T21 removed *certainty* but left 0.90 on a contested
-  merger, and every one of those spans sits in Item 1.01, the accountable region,
-  so no region rule reaches them. The document knows it matters and will not say
-  which sentence: the safe harbor declares that the filing *contains*
-  forward-looking statements and describes their subject matter, never marking
-  one. **The decision, and it is genuinely open:** a linguistic check on the cited
-  span — locatable, auditable, only ever lowering, but a heuristic and T16
-  declined one — or ask the model, which answered `factual_claim` 17 times out of
-  17 including ten claims plainly about the future. Neither is clean. Do not start
-  it without settling that.
+- **`verify_001` is not reproducible from the repo.** The EDGAR documents and the
+  five live runs (`verify_001`, `lineage_off`/`on`, `region_001`/`002`) live in a
+  scratchpad and in gitignored `runs/`. Every measurement quoted in T20–T23 rests
+  on them, and none can be re-run from a clean clone. Committing the trimmed
+  source documents as fixtures plus recorded cassettes would make the whole arc's
+  evidence checkable; it needs `OPENROUTER_API_KEY` to record.
+- **The committed `schemas/` have no test.** T20 found a `TokenUsage` block
+  missing since T5 — they had drifted for fifteen tasks and nothing noticed. A
+  test asserting `build_schemas()` matches what is on disk would be a few lines.
 
 Nothing below is urgent. The first three are decisions before they are code, and
 belong to a human.
@@ -274,6 +280,12 @@ Read [`AGENTS.md`](./AGENTS.md). The hard invariant: **no operator mutates
   on and let this rule reprice it — do not add an exception.
 - **Reading a document is not observing the world** (T17). An extracted claim is
   `REPORTED`; `OBSERVED` is for an operator that genuinely sees the thing.
+- **An accountable source cannot settle a future event** (T23). Modality is read
+  from the cited span's own words, never asked of the model, and only ever lowers.
+  It multiplies with the warrant axis rather than joining its `min` — a good
+  source must not be able to mask an unsettled claim. This is the engine's one
+  linguistic heuristic: keep it auditable (it names its marker), biased against
+  firing (every cited span must be unsettled), and honest about its limits.
 - **A document is not one block of accountability** (T22). Reliability is a
   property of the *span*, resolved from the caller's declared regions against the
   offsets T8/T10 already record. Still the caller's fact, never the model's — T22
