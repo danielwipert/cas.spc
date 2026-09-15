@@ -2004,6 +2004,49 @@ marker, 1. No survivors.
 
 ---
 
+## T24 — The committed schemas must match the models · ✅ DONE
+
+**Why.** `schemas/` is a committed artifact generated from the models, and
+nothing compared the two. T20 regenerated them and the diff picked up a
+`TokenUsage` block **missing since T5** — ten tasks of schema changes had landed
+without anyone noticing.
+
+The three existing tests all passed throughout that drift, and it is worth being
+precise about why: they wrote schemas to a `tmp_path` and checked the output was
+well-formed JSON with the right required fields. Every one of them was a test of
+`build_schemas`, and none of them was a test of `schemas/`. The artifact a reader
+actually opens was the one thing unchecked.
+
+**What landed.** Three tests in `tests/test_schema_export.py`:
+
+- every exported model has a committed schema;
+- no committed schema **outlives its model** — T20 removed two `EpistemicStatus`
+  members and a whole model could go the same way, leaving a file that documents
+  something gone;
+- every committed schema matches what `write_schemas` produces **as exact text**.
+
+Text and not parsed JSON, because the committed file *is* the artifact: a
+hand-edit or a change to the writer's own indentation is drift too. The expected
+bytes come from `write_schemas` itself, so this can never disagree with it about
+formatting.
+
+Each failure names the regeneration command. A contributor who adds a field sees:
+
+> *schemas/ is out of date for ['semantic_patch', 'semantic_state'] — the models
+> changed and the committed artifact did not. Run: `python -m
+> spc_state.models.schema_export schemas`*
+
+**Verified against real drift, not by mutating the test.** A passing test proves
+nothing here — the old ones passed for fifteen tasks. So each scenario was staged
+against the real tree and reverted: a model gaining a field turns 1 red; a
+committed schema hand-edited, 1; a committed schema missing, 1; a schema left
+behind after its model is gone, 1.
+
+485 tests (was 482). `DEMO.md` byte-identical. The committed schemas were already
+in sync — T20 regenerated them — so this adds a guard rather than a fix.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

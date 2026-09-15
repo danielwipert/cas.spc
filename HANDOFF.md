@@ -13,8 +13,8 @@
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T23** and
-empty again. Everything through T22 is merged to `main` (PRs #2–#19); **T23 is
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T24** and
+empty again. Everything through T23 is merged to `main` (PRs #2–#20); **T24 is
 the work in this branch.**
 
 **`VERIFIED` is proven on real data.** It had never fired on a live pairing until
@@ -54,7 +54,7 @@ All four definition-of-done gates pass, locally and in CI on every PR:
 ```
 ruff check src tests tools  ->  All checks passed
 python -m mypy              ->  Success: no issues found in 74 source files
-pytest                      ->  482 passed   (was 388 at the start of the session)
+pytest                      ->  485 passed   (was 388 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -141,7 +141,8 @@ git fetch origin main && git checkout -B <branch> origin/main
 **The backlog is empty**, and for the first time in the T14–T23 arc there is no
 obvious successor: every judgement the model was making about its own work has
 been replaced by something derived. The remaining items below are the ones that
-were always parked, plus two housekeeping gaps this session exposed.
+were always parked, plus the one housekeeping gap this session exposed that is
+still open — the other, the untested `schemas/`, is closed by T24.
 
 - **`verify_001` is not reproducible from the repo.** The EDGAR documents and the
   five live runs (`verify_001`, `lineage_off`/`on`, `region_001`/`002`) live in a
@@ -149,9 +150,6 @@ were always parked, plus two housekeeping gaps this session exposed.
   on them, and none can be re-run from a clean clone. Committing the trimmed
   source documents as fixtures plus recorded cassettes would make the whole arc's
   evidence checkable; it needs `OPENROUTER_API_KEY` to record.
-- **The committed `schemas/` have no test.** T20 found a `TokenUsage` block
-  missing since T5 — they had drifted for fifteen tasks and nothing noticed. A
-  test asserting `build_schemas()` matches what is on disk would be a few lines.
 
 Nothing below is urgent. The first three are decisions before they are code, and
 belong to a human.
