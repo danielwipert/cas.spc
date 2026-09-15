@@ -2134,6 +2134,100 @@ carrying the load, so it went first.
 
 ---
 
+## T26 — The lineage gate, reproducible from a clean clone · ✅ DONE
+
+**Why.** T25 committed the pairing that proves `VERIFIED` and named the four live
+runs it left behind. `lineage_off` / `lineage_on` were the first two: the same
+joint press release filed by both counterparties, three false corroborations that
+one honest `--also-derives-from` removed. They demonstrated the bar T20 exists to
+enforce, and they lived in a scratchpad — so the gate that stops one source
+counting as two was the part of the arc nobody else could check.
+
+**What landed.**
+
+- **The one press release, committed twice.** `tests/fixtures/joint_pr_netflix.txt`
+  and `joint_pr_wbd.txt` — Exhibit 99.1 of each counterparty's Form 8-K, which is
+  the *same* joint release under two accession numbers. The retained text is
+  word-for-word identical; the files differ only in where each filer's HTML wraps
+  the headline, and the fixtures **keep that** rather than normalising it away,
+  because two identical files would be a fabricated pair rather than a found one.
+  Provenance is in `tests/fixtures/SEC_SOURCES.md`, as T25 established.
+- **Two cassettes**, `analyze_joint_pr_undeclared.json` (7 exchanges) and
+  `analyze_joint_pr_declared.json` (6). Both replay with no key and no network,
+  verified with `OPENROUTER_API_KEY` and the proxy variables unset.
+- **`tests/test_lineage_replay.py`**, 13 tests. 508 total (was 495).
+
+**Two recordings, and the reason is the finding.** Lineage changes no prompt — it
+is the caller's fact, invisible to the model — so both runs send an identical
+extraction and an identical first corroboration request. It changes what
+*commits*, and from there the runs diverge for real: the planner in the
+undeclared run reads a state carrying ten corroboration links. One cassette
+cannot cover both without replaying one run's model output against the other's
+state, so the recorder grew `--also-derives-from` and each setting was recorded
+separately.
+
+| | undeclared | declared |
+|---|---|---|
+| corroboration links | **10** | **0** |
+| claims reading `corroborated` | **10** | **0** |
+| claims reaching `verified` | 0 | 0 |
+| the memo a stakeholder opens | says *corroborated* | does not |
+| model calls | 7 | **6** |
+
+**Who refuses, and where.** The model proposed the pairs in **both** runs — it
+cannot do otherwise, because whether one document was written off another is a
+fact about the world outside both of them (T14). The declared run's cassette
+holds those proposals and its committed state holds none of them, and the test
+asserts exactly that, out of the recording: the refusal is `_candidates` reading
+the caller's declaration, not the model changing its mind. The gate also sits
+**before** the skeptic pass, so refusing is the cheaper path — one model call
+fewer over identical documents, which is the 7-vs-6 above.
+
+**What the false corroboration could not buy, which is worth as much as what it
+could.** Not one claim reached `VERIFIED` even with ten bad links committed:
+`VERIFIED` needs an accountable source among the two, and a press release is a
+party with a stake in the conclusion (T14/T20). The lineage gate is the second of
+two locks, and this run shows the first one holding while the second is open.
+Nor did the links move a number here — both copies are `LOW`, so the best evidence
+a corroborated claim cited was no better than what it already had. **The whole
+damage was the word `corroborated` reaching a reader**, which is precisely why
+the memo is asserted and not only the state.
+
+**The two runs' claim sets are not compared, deliberately.** They come from two
+recordings of a non-deterministic model (24 claims and 17), and a test that
+diffed them would be measuring the model, not the rule. Every assertion is about
+one run's own outcome, or about a fact the recording itself pins.
+
+**To re-record**, if a prompt changes — both, and the pair must stay in step:
+
+```
+python tools/record_cassette.py record \
+    --input tests/fixtures/joint_pr_netflix.txt --source-type press_release \
+    --also-input tests/fixtures/joint_pr_wbd.txt --also-source-type press_release \
+    --question "What did Netflix and WBD announce, and on what terms?" \
+    --out tests/fixtures/cassettes/analyze_joint_pr_undeclared.json
+
+python tools/record_cassette.py record \
+    --input tests/fixtures/joint_pr_netflix.txt --source-type press_release \
+    --also-input tests/fixtures/joint_pr_wbd.txt --also-source-type press_release \
+    --also-derives-from doc_001 \
+    --question "What did Netflix and WBD announce, and on what terms?" \
+    --out tests/fixtures/cassettes/analyze_joint_pr_declared.json
+```
+
+**The recorder's new flag validates like the CLI's.** `--also-derives-from` takes
+one value per `--also-input` (or `none`), and a parent that is not a source in
+the run is **refused** rather than swallowed — a typo'd lineage silently buys
+back the independence the flag was passed to deny, and the failure mode is a
+corroboration nobody checked. Same rule as `cli._lineage_arg`, same message.
+
+508 tests (was 495). `DEMO.md` byte-identical.
+
+**Still not reproducible.** `region_001` / `region_002`, which demonstrate T22's
+regions, remain scratchpad-only. The pattern is now established twice.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

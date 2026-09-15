@@ -6,22 +6,18 @@
 > never append. The durable record lives in git history, `ROADMAP.md`, and
 > `TASKS.md` — not here.
 
-**Last session:** 2026-09-13 · **Branch:** `claude/eager-hypatia-h20zn9`
-(reset from `main`; T20 is merged — see *Starting work*)
+**Last session:** 2026-09-15 · **Branch:** `claude/practical-edison-pdc2k7`
+(reset from `main`; T25 is merged — see *Starting work*)
 
 ---
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T25** and
-empty again. T0–T25 are all merged to `main` (PRs #2–#22); the T14–T23 arc
-closed with T25, and no task is part-landed.
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T26** and
+empty again. T0–T25 are merged to `main` (PRs #2–#23); T26 is this session's
+work and no task is part-landed.
 
-**`VERIFIED` is proven on real data.** It had never fired on a live pairing until
-this session; it now has, and the run that proved it also found the defect T21
-exists to fix.
-
-The live pipeline is now:
+The live pipeline is unchanged:
 
 ```
 extract (one stage per source)
@@ -29,106 +25,67 @@ extract (one stage per source)
   -> plan -> critique -> retrieve -> verify -> calibrate
 ```
 
-A claim's **support** and whether anything **contradicts** it are no longer
-stored anywhere. They are computed on read from committed state
-(`src/spc_state/epistemics.py`), so no operator can assert either one.
-
-And since T21, **nothing read out of a document commits at 1.00** — a `REPORTED`
-claim carries at most 0.9 however accountable its source, which is T17's rule
-finally reaching the number rather than only the label.
-
-Since T22, **reliability is a property of the span, not the document**. A caller
-can carve a document into regions (`--region "Item 7.01:press_release"`) and a
-span takes the last region beginning at or before it, because a filing is not one
-block of accountability and says so itself. No region declared changes nothing.
-
-Since T23, a claim is damped on **two axes**: `confidence x min(reliability,
-grounding) x modality`. The warrant axis damps once, as T16 settled; modality
-multiplies on top, because no source however accountable settles a future event.
-It is derived from the **source's own words** (`spc_state.modality`) — the one
-place the engine reads language rather than structure, and it does so only ever
-downward, naming the marker it found.
+**Two of the three live runs the arc rested on are now reproducible from a
+clean clone.** T25 committed `verify_001` — the honest pairing where a claim
+reaches `VERIFIED`. T26 commits its mirror image: `lineage_off` / `lineage_on`,
+the same joint press release filed by **both** counterparties, where every
+corroboration is false and one declaration removes them all.
 
 All four definition-of-done gates pass, locally and in CI on every PR:
 
 ```
 ruff check src tests tools  ->  All checks passed
 python -m mypy              ->  Success: no issues found in 74 source files
-pytest                      ->  495 passed   (was 388 at the start of the session)
+pytest                      ->  508 passed   (was 495 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
-## What the last session did
+## What this session did
 
-**T20 — one status cannot hold three facts** (merged, PR #17). `EpistemicStatus`
-carried seven members answering *three* different questions: how a claim was
-acquired, how well it is supported, and whether anything contradicts it. One
-field holds one, so every write on a second axis destroyed the first — T19's
-corroboration overwrote `REPORTED` with `VERIFIED`, although a corroborated claim
-is still reported. The axis is now five members and one question; support and
-conflict are derived on read (`epistemics.py`) from what state already holds, and
-`VERIFIED` gained the bar it was missing: **source independence**, declared by the
-caller (`Evidence.derives_from`) for T14's reason.
+**T26 — the lineage gate, reproducible from a clean clone.** Netflix and WBD
+each filed the same joint press release as their own Exhibit 99.1, under two
+accession numbers. The retained text is word-for-word identical; the two
+fixtures differ only in where each filer's HTML wraps the headline, and they
+keep that difference rather than normalising it away — two identical files would
+be a fabricated pair rather than a found one.
 
-**Then T20's bar was put to a live test, and it holds.** Two experiments on real
-SEC filings, fetched from EDGAR:
-
-| run | documents | result |
+| | undeclared | declared (`--also-derives-from doc_001`) |
 |---|---|---|
-| `verify_001` | Netflix 8-K Item 1.01 **+** WBD 8-K Item 1.01, both `regulatory_filing` | **6 claims `VERIFIED`**, 6 corroboration links |
-| `lineage_off` | the joint press release as filed by **both** companies, lineage undeclared | 3 links, 3 claims `CORROBORATED` — **false** |
-| `lineage_on` | the same pair, `--also-derives-from doc_001` | **0 links, 0 corroborated** — correct |
+| corroboration links | **10** | **0** |
+| claims reading `corroborated` | **10** | **0** |
+| claims reaching `verified` | 0 | 0 |
+| the memo a stakeholder opens | says *corroborated* | does not |
+| model calls | 7 | **6** |
 
-The first is the honest pairing the backlog had been asking for since T19: two
-separate registrants, each legally accountable for its own Item 1.01, neither
-derived from the other, asserting the same facts in different words. The memo
-renders acquisition and support as two facts — `_(confidence 100%, reported,
-verified)_` — which is exactly what T20 was for.
+**Three things this pairing showed that a unit test would not have:**
 
-The second and third are the same document twice. Netflix and WBD each filed the
-**same joint press release** as their own Exhibit 99.1; the two texts are 99.93%
-identical. Undeclared, that reads as two independent sources and produces three
-false corroborations. One honest `--also-derives-from` and they vanish. That is
-the defect T20 was built to stop, caught in the wild rather than in a unit test.
+- **The model proposed the pairs in both runs, and the declared run's cassette
+  records it.** It cannot do otherwise — whether one document was written off
+  another is a fact about the world outside both of them (T14). So the test
+  asserts the proposals out of the recording and the absence out of committed
+  state: the refusal is demonstrably `_candidates` reading the caller's
+  declaration, not the model changing its mind.
+- **Refusing is the cheaper path.** The gate sits *before* the skeptic pass, so
+  the declared run makes one model call fewer over identical documents. That is
+  the 7-vs-6 above, and it is why the two runs needed two recordings: lineage
+  changes no prompt, but it changes which calls happen and what the planner
+  then reads.
+- **T20's other bar held while this one was open.** Not one claim reached
+  `VERIFIED` even with ten false links committed, because `VERIFIED` needs an
+  accountable source and a press release is a party with a stake. Nor did the
+  links move a number — both copies are `LOW`, so a corroborated claim's best
+  evidence was no better than what it already had. **The entire damage was the
+  word `corroborated` reaching a reader**, which is why the test asserts the
+  memo and not only the state.
 
-**Two results worth carrying forward, because they corrected me rather than
-confirmed me:**
-
-- **The proof run produced the worst number in the project's history.** Every one
-  of `verify_001`'s 17 claims committed at **1.00**, and the recommendation at
-  **100%** — on a merger that was, at the time of those filings, subject to a
-  competing hostile bid and a proxy contest. `RELIABILITY_FACTOR[HIGH] = 1.0`, so
-  an accountable source is discounted by nothing, and T15's cap had nothing left
-  to bind it. T14 stopped a press release buying certainty; nothing stops a
-  filing buying more of it. **That is T21.**
-- **The memo double-reports every corroborated fact.** Corroboration is
-  one-directional, so only one claim of a linked pair gains the span: the reader
-  sees the same fact twice, once `reported, verified` and once plain `reported`.
-  `verify_001` shows 17 findings for 11 distinct facts. Cosmetic next to the
-  above, but it makes the artifact a reader actually opens look wrong.
-
-**T21 — an accountable source is not a certain one** then fixed the first of
-those. `GROUNDING_FACTOR[REPORTED] = 0.9`, and a claim's ceiling is now
-`confidence x min(reliability_factor, grounding_factor)` — **min, not a
-product**, because T16 settled that a claim is damped once. Nothing about
-T14-T16 moves (a `LOW` press release was already below 0.9); only the `HIGH`
-tier changes, which is the tier that was wrong. Re-calibrating `verify_001`'s
-own pre-calibration state under the new rule, with identical claims and model
-output:
-
-| | before T21 | after T21 |
-|---|---|---|
-| claims at 1.00 | **17 of 17** | **0** |
-| recommendation | **100%** | 90% |
-
-Three existing assertions inverted and were rewritten rather than deleted —
-including T19's headline test, whose corroborated endpoint is now 0.81 because
-the claim is still only *reported*. Corroboration still pays; it no longer pays
-in certainty.
+**The recorder grew `--also-derives-from`**, validated the way `cli._lineage_arg`
+validates it: a parent that is not a source in the run is refused rather than
+swallowed, because a typo'd lineage silently buys back the independence the flag
+was passed to deny.
 
 ## Starting work — read this first
 
-**T20's PR (#17) is merged**, and this branch has already been reset to `main`'s
+**T25's PR (#23) is merged**, and this branch has already been reset to `main`'s
 tip. A merged PR is finished and cannot track new work — never stack commits on
 that history. If in doubt, reset again:
 
@@ -138,21 +95,17 @@ git fetch origin main && git checkout -B <branch> origin/main
 
 ## Next up
 
-**The backlog is empty**, and for the first time in the T14–T23 arc there is no
-obvious successor: every judgement the model was making about its own work has
-been replaced by something derived, and both housekeeping gaps this session
-exposed are closed (T24, T25).
+**The backlog is empty.** The queued work that remains from T25 is one item:
 
-The nearest thing to queued work is the rest of what T25 started:
-
-- **Four live runs are still scratchpad-only.** `lineage_off`/`on` demonstrate
-  T20's lineage gate — the same joint press release filed by two companies, three
-  false corroborations that one honest `--also-derives-from` removes — and
-  `region_001`/`002` demonstrate T22's regions. Each needs its own fixtures and a
-  recorded cassette. The machinery exists now (`tools/record_cassette.py` takes
-  `--also-input` since T25) and `tests/test_verify_replay.py` is the pattern to
-  copy. `verify_001` went first because it carried the load for T19–T23; these
-  carry one task each.
+- **`region_001` / `region_002` are still scratchpad-only.** They demonstrate
+  T22's regions — a span taking the source type of the region it falls in — and
+  they are the last of the four live runs T25 named. The pattern is now
+  established twice (`tests/test_verify_replay.py`, `tests/test_lineage_replay.py`)
+  and the recorder handles everything needed except `--region`, which it does
+  **not** yet take: that flag would have to be added the way `--also-input` was
+  in T25 and `--also-derives-from` in T26. A real 8-K whose Item 7.01 exhibit is
+  *furnished* rather than filed is the honest fixture, and WBD's own
+  0001193125-25-308759 (already cited in `SEC_SOURCES.md`) is one.
 
 Nothing below is urgent. The first three are decisions before they are code, and
 belong to a human.
@@ -160,17 +113,17 @@ belong to a human.
 - **The memo double-reports every corroborated fact.** Corroboration is
   one-directional — the better-sourced claim corroborates the weaker — so only
   one claim of a linked pair gains the span. The memo then lists the same fact
-  twice, once `reported, verified` and once plain `reported`: `verify_001` shows
-  17 findings for 11 distinct facts. Whether linked claims should be *merged* in
-  the projection, or the memo should render one line per link, is a presentation
-  decision — but it is the artifact a reader actually opens.
+  twice, once with the corroborating span and once without. T26's undeclared run
+  shows it at its worst: **24 findings for 15 distinct facts**, nine of them
+  printed twice, because the pair is one document read twice. Whether linked
+  claims should be *merged* in the projection, or the memo should render one line
+  per link, is a presentation decision — but it is the artifact a reader opens.
 
 - **A recommendation the pipeline cannot support still reads as "Proceed."**
-  The memo now reports honestly how little it is worth — under 50%, every
-  finding *reported* and *weakly supported*, antitrust and regulatory questions
-  open — but it never declines to recommend. Whether a recommendation below
-  some threshold should render as one at all is a **product** judgement, not a
-  calibration one.
+  The memo now reports honestly how little it is worth — T26's runs land at 43%
+  and 48%, every finding *reported*, most *uncorroborated* — but it never
+  declines to recommend. Whether a recommendation below some threshold should
+  render as one at all is a **product** judgement, not a calibration one.
 - **Should the extractor decline evaluative language?** T17 stopped the state
   *asserting* "one of the industry's most compelling portfolios" — it now says
   the seller said it, which is true. Whether a sentence with no truth value
@@ -188,10 +141,10 @@ belong to a human.
   check, and a derived `VERIFIED` is only as good as it. `verify_001` bears this
   out in both directions: 6 correct links, no visible false ones, and at least
   one miss.
-- **Corroboration recall is now measured once, and it misses.** `verify_001` is
-  the known-overlap pair that was needed: two filings describing one agreement,
-  8 and 9 claims, **6 links** — good recall for a deliberately precision-biased
-  pass, but not complete. At least one real miss is visible by eye:
+- **Corroboration recall is measured once, and it misses.** `verify_001` is the
+  known-overlap pair: two filings describing one agreement, 8 and 9 claims,
+  **6 links** — good recall for a deliberately precision-biased pass, but not
+  complete. At least one real miss is visible by eye:
 
   > `claim_004` *"After an internal reorganization, Merger Sub will merge with
   > WBD, with WBD surviving as a wholly owned subsidiary of Netflix"*
@@ -202,7 +155,9 @@ belong to a human.
   stockholders approve*) is correctly unlinked — only WBD's filing says it — so
   the pass is not merely timid. One run is not a recall measurement, but it is
   the first real evidence, and it says the matcher is the weak limb rather than
-  the lineage model.
+  the lineage model. T26 adds a data point from the other end: over two copies of
+  one document — 12 claims extracted from each — the matcher linked **10**, so it
+  is not timid at all when the wording is identical.
 - **The Retriever's gate is narrow.** It questions a claim only when confidence
   is below 0.75 *and* nothing `HIGH` supports it, so a confidently-stated claim
   resting on a press release is never questioned. Widening it is a design

@@ -224,6 +224,9 @@ def test_every_committed_cassette_is_exercised_by_a_test() -> None:
     covered = {
         "analyze_five_stage.json",
         "analyze_hyphenated.json",
+        # both replayed by test_lineage_replay.py
+        "analyze_joint_pr_declared.json",
+        "analyze_joint_pr_undeclared.json",
         "analyze_retry_path.json",
         "analyze_truncated.json",
         CASSETTE.name,
