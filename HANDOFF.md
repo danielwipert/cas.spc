@@ -14,8 +14,8 @@
 ## Where things stand
 
 Roadmap complete through **Phase 9**. `TASKS.md` is **done through T25** and
-empty again. Everything through T24 is merged to `main` (PRs #2–#21); **T25 is
-the work in this branch.**
+empty again. T0–T25 are all merged to `main` (PRs #2–#22); the T14–T23 arc
+closed with T25, and no task is part-landed.
 
 **`VERIFIED` is proven on real data.** It had never fired on a live pairing until
 this session; it now has, and the run that proved it also found the defect T21
