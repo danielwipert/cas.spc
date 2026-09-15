@@ -2228,6 +2228,92 @@ regions, remain scratchpad-only. The pattern is now established twice.
 
 ---
 
+## T27 — Regions, reproducible from a clean clone · ✅ DONE
+
+**Why.** The last of the four live runs T25 named. `region_001` / `region_002`
+were the measurement `regions.py` quotes in its own docstring — *three of six
+claims came from the disclaimed region at `HIGH`* — and the run behind that
+sentence lived in a scratchpad. T22's rule was the only one in the arc whose
+evidence a reader could not re-run.
+
+**What landed.**
+
+- **The complete submission, committed.** `tests/fixtures/sec_8k_netflix_complete.txt`
+  — Netflix's 8-K body (Item 1.01 and Item 7.01) followed by its Exhibit 99.1
+  press release, which is how EDGAR serves a filing and how anyone who downloads
+  "the 8-K" reads it. One document, two kinds of accountability, and **the filing
+  says so itself** in a sentence the fixture keeps: *"The information contained in
+  this Item 7.01, including Exhibit 99.1, shall not be deemed 'filed' for purposes
+  of Section 18 ..."*
+- **One cassette**, `analyze_8k_complete.json` — 4 exchanges, 6 committed stages.
+- **`tests/test_region_replay.py`**, 12 tests. 520 total (was 508).
+
+**One recording, replayed twice — which makes this the controlled experiment T26
+could not be.** A region changes neither the prompts nor which calls the run
+makes: it is resolved against offsets T8/T10 already recorded and applied when
+spans are stamped, *after* the model has answered. So both runs replay the same
+cassette with **zero drift** and identical call counts, and every difference
+below is attributable to the declaration alone. (Lineage is the contrast: it also
+changes no prompt, but it drops corroboration candidates before the skeptic pass,
+so T26 needed a recording per setting.)
+
+| | undeclared | `--region "Item 7.01:press_release"` |
+|---|---|---|
+| spans at `HIGH` / `LOW` | **11 / 0** | **6 / 5** |
+| claims from the furnished half | 0.90, 0.72, 0.64, 0.57, 0.36 | **0.60, 0.48, 0.43, 0.38, 0.24** |
+| claims from the filed half | unchanged | **unchanged** |
+| recommendation | 57% | **38%** |
+| open questions | 2 | **3** |
+
+**The split is exactly the marker.** Every span before offset 3416 stays `HIGH`
+and every span at or after it becomes `LOW` — asserted from the offsets rather
+than from claim ids, so the test states the rule instead of restating one
+recording's answer. Not one claim in the filed half moves by anything.
+
+**Two rules reprice themselves off the declaration without being told to.**
+Neither the calibrator nor the Retriever knows what a region is:
+
+- **T15 carries it up.** The recommendation is capped at the weakest claim it
+  cites; one of those claims now rests on a press release, so 57% becomes 38%
+  out of the existing rule.
+- **The Retriever asks one more question.** It questions a claim resting only on
+  lower-reliability evidence. Undeclared it had nothing to ask about the
+  furnished half, because that half was `HIGH`. Declared, it asks — so the
+  declaration does not merely lower numbers, it surfaces work a reader can act
+  on. The claim it asks about is *"The merger will offer more choice and greater
+  value for consumers"*, which is the marketing line, which is the point.
+
+**The arithmetic is read off the calibration patch's own `from`/`to`**, not
+diffed out of two states — the step records what it moved and why (AGENTS.md
+§III) — and checked against `RELIABILITY_FACTOR`, `GROUNDING_FACTOR` and
+`MODALITY_FACTOR` rather than typed. The `from` values are asserted identical
+across the two runs, which is what proves it is the same model output.
+
+**A defect found while wiring the recorder, and fixed.** `--region` with a marker
+that does not occur raised a `RegionError` from inside the pipeline as a
+traceback — and for `record`, only after real calls had been billed. The
+recorder now locates every marker in `_sources`, before anything is spent, and
+reports it as an error like any other bad argument. T22's invariant is also now
+exercised on the live path (`test_a_marker_that_does_not_occur_raises`) rather
+than only in a unit test.
+
+**To re-record**, if a prompt changes — one command covers both settings:
+
+```
+python tools/record_cassette.py record \
+    --input tests/fixtures/sec_8k_netflix_complete.txt \
+    --source-type regulatory_filing \
+    --question "What did Netflix agree to, and on what terms?" \
+    --out tests/fixtures/cassettes/analyze_8k_complete.json
+```
+
+520 tests (was 508). `DEMO.md` byte-identical.
+
+**The backlog T25 opened is now closed.** All four live runs — `verify_001`,
+`lineage_off`/`on`, `region_001`/`002` — are reproducible from a clean clone.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

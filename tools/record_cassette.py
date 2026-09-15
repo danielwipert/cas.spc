@@ -22,6 +22,11 @@ calls the run makes, which means each lineage setting is its own recording.
 `check` takes the same arguments, and must be given the same ones: a check that
 describes different sources replays against material the recording never saw.
 
+`--region` (T22) is the one declaration that needs no recording of its own. It
+is applied when spans are stamped, after the model has answered, so it changes
+neither the prompts nor the calls — one cassette replays with regions declared
+and without, which is what `tests/test_region_replay.py` does.
+
 `check` replays the cassette and reports drift — exchanges whose recorded
 request no longer matches what the code now sends. Drift is not a failure (a
 contributor without a key must still be able to run the suite); it means the
@@ -42,6 +47,7 @@ from spc_state.providers import (
     RecordingProvider,
     ReplayProvider,
 )
+from spc_state.regions import SourceRegion, parse_region, resolve_regions
 from spc_state.source_types import DEFAULT_SOURCE_TYPE
 from spc_state.store import RunPaths
 
@@ -67,11 +73,17 @@ def _lineage(value: str, known: set[str]) -> str | None:
     return cleaned
 
 
-def _sources(args: argparse.Namespace) -> tuple[str, list[SourceDocument], list[str]]:
-    """The primary document, the extra ones, and every text in reading order.
+def _sources(
+    args: argparse.Namespace,
+) -> tuple[str, list[SourceDocument], list[str], tuple[SourceRegion, ...]]:
+    """The primary document, the extra ones, every text in reading order, regions.
 
     The third is what the cassette pins: a multi-source run has no single
     document, so it records all of them, in the order the pipeline reads them.
+    The fourth carves `--input` into stretches weighed differently (T22). It is
+    located here as well as by the run, so a marker that does not occur is
+    refused before anything is spent — never silently dropped, which would leave
+    a run that looks region-aware and is not.
     """
     document = Path(args.input).read_text(encoding="utf-8")
     extra_paths = list(getattr(args, "also_input", []) or [])
@@ -99,7 +111,15 @@ def _sources(args: argparse.Namespace) -> tuple[str, list[SourceDocument], list[
         )
         for p, st, parent in zip(extra_paths, extra_types, lineage, strict=True)
     ]
-    return document, extras, [document, *(e.text for e in extras)]
+    regions = tuple(
+        parse_region(spec) for spec in (getattr(args, "region", []) or [])
+    )
+    # Located here rather than left to the pipeline, so a marker that does not
+    # occur is reported before the first billed call rather than as a traceback
+    # after several. The result is discarded: the run resolves them itself,
+    # against the same document.
+    resolve_regions(document, regions)
+    return document, extras, [document, *(e.text for e in extras)], regions
 
 
 def _add_source_args(parser: argparse.ArgumentParser) -> None:
@@ -129,6 +149,18 @@ def _add_source_args(parser: argparse.ArgumentParser) -> None:
         help="source type for each --also-input, in the same order",
     )
     parser.add_argument(
+        "--region",
+        action="append",
+        default=[],
+        help="carve --input into stretches weighed differently, as "
+        "'<marker>:<source_type>' — e.g. 'Item 7.01:press_release'. A span takes "
+        "the source type of the last region beginning at or before it. "
+        "Repeatable; omit entirely to weigh the whole document as "
+        "--source-type. Like lineage, this changes no prompt — but unlike "
+        "lineage it changes no call either, so one recording replays with "
+        "regions declared and without",
+    )
+    parser.add_argument(
         "--also-derives-from",
         action="append",
         default=[],
@@ -148,7 +180,7 @@ def _add_source_args(parser: argparse.ArgumentParser) -> None:
 
 def _record(args: argparse.Namespace) -> int:
     try:
-        document, extras, documents = _sources(args)
+        document, extras, documents, regions = _sources(args)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -183,6 +215,7 @@ def _record(args: argparse.Namespace) -> int:
             paths,
             question=args.question,
             source_type=args.source_type,
+            regions=regions,
             extra_documents=extras,
         )
 
@@ -213,7 +246,7 @@ def _record(args: argparse.Namespace) -> int:
 
 def _check(args: argparse.Namespace) -> int:
     try:
-        document, extras, documents = _sources(args)
+        document, extras, documents, regions = _sources(args)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -228,6 +261,7 @@ def _check(args: argparse.Namespace) -> int:
             paths,
             question=args.question,
             source_type=args.source_type,
+            regions=regions,
             extra_documents=extras,
         )
 

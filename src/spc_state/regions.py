@@ -19,6 +19,12 @@ region and a region the document disclaims. Measured (`region_001`): declared
 `HIGH` — the press release's marketing copy among them, weighed exactly as
 heavily as the merger agreement's terms.
 
+That run is reproducible since T27: `tests/test_region_replay.py` replays one
+recording twice over a committed complete submission, with the region declared
+and without. A region changes neither the prompts nor which calls the run makes
+— it is applied when spans are stamped, after the model has answered — so the
+two runs differ in the declaration and nothing else.
+
 **A region is declared, not detected.** Whether Item 7.01 is furnished is a fact
 about securities law, not something visible from inside the sentence, so it comes
 from the caller for exactly T14's reason. A pipeline that silently knew what an
