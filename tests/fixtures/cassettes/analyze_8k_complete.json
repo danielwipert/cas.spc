@@ -1,0 +1,78 @@
+{
+  "document_sha256": "11a3da0cbe7702ca9bce850b2e4607dcad9b4ec4f5efbfb02c2cc7505b9ef392",
+  "exchanges": [
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "f5d790d4aa5215a4b49f3e4ad09b87222b151e20ff78dc344f47e39baa51769d",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Netflix, Inc. and Warner Bros. Discovery, Inc. entered into a merger agreement on December 4, 2025.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"On December 4, 2025, Netflix, Inc., a Delaware corporation (“Netflix”), Nightingale Sub, Inc., a Delaware corporation and wholly owned subsidiary of Netflix (“Merger Sub”), Warner Bros. Discovery, Inc., a Delaware corporation (“WBD”), and New Topco 25, Inc., a newly formed Delaware corporation and wholly owned subsidiary of WBD (“Newco”), entered into an Agreement and Plan of Merger (the “Merger Agreement”).\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The merger agreement includes a Holdco Merger where a newly formed subsidiary of Newco will merge with WBD, making WBD a wholly owned subsidiary of Newco.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"a newly formed Delaware corporation and wholly owned subsidiary of Newco will merge with and into WBD (the “Holdco Merger”) in accordance with Section 251(g) of the General Corporation Law of the State of Delaware, with WBD surviving as a wholly owned subsidiary of Newco.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"Following the Holdco Merger, Merger Sub will merge with WBD, making WBD a wholly owned subsidiary of Netflix.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Merger Sub will merge with and into WBD, with WBD surviving as a wholly owned subsidiary of Netflix (the “Merger”).\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The Boards of Directors of Netflix and WBD unanimously approved the Merger Agreement.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The Boards of Directors of Netflix and WBD have unanimously approved the Merger Agreement, including the Merger and the other transactions contemplated thereby.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"Each share of WBD Common Stock will be converted into cash and shares of Netflix Common Stock at the Effective Time.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"each share of WBD Common Stock issued and outstanding immediately prior to the Effective Time (other than shares of WBD Common Stock to be canceled in accordance with the Merger Agreement or as to which appraisal rights have been properly exercised) shall be converted into the right to receive (i) an amount in cash equal to $23.25, without interest (the “Cash Consideration”), and (ii) such number of validly issued, fully paid and nonassessable shares of common stock of Netflix, par value $0.001 per share (the “Buyer Common Stock”) equal to the Exchange Ratio (“Stock Consideration” and together with the Cash Consideration, the “Merger Consideration”).\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The Exchange Ratio for the Merger Consideration depends on the Average Buyer Stock Price.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The “Exchange Ratio” will be determined based on the per share volume-weighted average trading price of Buyer Common Stock for the fifteen (15) consecutive trading days ending on (and including) the trading day that is three (3) trading days prior to the closing date of the Merger (the “Average Buyer Stock Price”).\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"Netflix and WBD issued a joint press release announcing the execution of the Merger Agreement on December 5, 2025.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"On December 5, 2025, Netflix and WBD issued a joint press release announcing the execution of the Merger Agreement.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The total enterprise value of the transaction is approximately $82.7 billion.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The cash and stock transaction is valued at $27.75 per WBD share (subject to a collar as detailed below), with a total enterprise value of approximately $82.7 billion (equity value of $72.0 billion).\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The transaction is expected to close after the separation of WBD’s Global Networks division, Discovery Global, into a new publicly-traded company.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 0.9,\n      \"evidence_quote\": \"The transaction is expected to close after the previously announced separation of WBD’s Global Networks division, Discovery Global, into a new publicly-traded company, which is now expected to be completed in Q3 2026.\",\n      \"assumption\": \"The separation of Discovery Global will proceed as planned.\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"Netflix expects to maintain Warner Bros.’ current operations and build on its strengths.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 0.8,\n      \"evidence_quote\": \"Netflix expects to maintain Warner Bros.’ current operations and build on its strengths, including theatrical releases for films.\",\n      \"assumption\": \"Netflix will successfully integrate Warner Bros. operations.\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"The merger will offer more choice and greater value for consumers.\",\n      \"claim_type\": \"analytical_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 0.7,\n      \"evidence_quote\": \"Combination Will Offer More Choice and Greater Value for Consumers, Create More Opportunities for the Creative Community and Generate Shareholder Value.\",\n      \"assumption\": \"The integration of Netflix and Warner Bros. will proceed smoothly.\",\n      \"assumption_impact\": \"high\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1575,
+        "prompt_tokens": 1705
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "a1ff3b08c7c413fcf9e322def7ca08fc9d6fb38b07c289207dcb85972c9cffe2",
+      "response_text": "{\n  \"hypothesis\": {\n    \"text\": \"Proceed with the merger as planned, ensuring smooth integration of Warner Bros. operations into Netflix.\",\n    \"confidence\": 0.85,\n    \"supporting_claims\": [\"claim_001\", \"claim_003\", \"claim_010\"]\n  },\n  \"questions\": [\n    {\n      \"text\": \"What is the expected timeline for the separation of Discovery Global?\",\n      \"priority\": \"high\",\n      \"linked_claims\": [\"claim_009\"]\n    }\n  ],\n  \"dependencies\": [\n    { \"claim\": \"claim_009\", \"assumption\": \"assumption_001\" },\n    { \"claim\": \"claim_010\", \"assumption\": \"assumption_002\" }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 164,
+        "prompt_tokens": 667
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "f6bb721b7e18220e4d567abcbdc6227c0099051e4c24f317f9e5fd9f3c22a38e",
+      "response_text": "{\n  \"confidence_updates\": [\n    {\n      \"claim\": \"claim_011\",\n      \"new_confidence\": 0.50,\n      \"reason\": \"The claim lacks specific evidence or data to substantiate the assertion of increased choice and value for consumers.\"\n    }\n  ],\n  \"questions\": [\n    {\n      \"text\": \"What specific evidence supports the claim that the merger will offer more choice and greater value for consumers?\",\n      \"priority\": \"high\",\n      \"challenges_claim\": \"claim_011\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 117,
+        "prompt_tokens": 249
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "b9874ac45aa20b8d301edd922fa9ec58c22fed94fb9157f2f045aa18ed0728b1",
+      "response_text": "{\"contradictions\": []}",
+      "usage": {
+        "completion_tokens": 8,
+        "prompt_tokens": 729
+      }
+    }
+  ],
+  "model": "deepseek/deepseek-chat",
+  "note": "Netflix's 8-K as EDGAR serves the complete submission: Item 1.01 filed, Item 7.01 and Exhibit 99.1 furnished.",
+  "provider": "openrouter",
+  "recorded_at": "2026-09-15T09:14:34.696635Z",
+  "version": 1
+}

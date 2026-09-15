@@ -222,6 +222,8 @@ def test_every_committed_cassette_is_exercised_by_a_test() -> None:
     by nothing. Adding a cassette must mean adding it to a test.
     """
     covered = {
+        # replayed twice by test_region_replay.py, with regions and without
+        "analyze_8k_complete.json",
         "analyze_five_stage.json",
         "analyze_hyphenated.json",
         # both replayed by test_lineage_replay.py

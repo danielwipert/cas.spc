@@ -1,0 +1,33 @@
+Item 1.01 Entry into a Material Definitive Agreement.
+
+Agreement and Plan of Merger
+
+On December 4, 2025, Netflix, Inc., a Delaware corporation (“Netflix”), Nightingale Sub, Inc., a Delaware corporation and wholly owned subsidiary of Netflix (“Merger Sub”), Warner Bros. Discovery, Inc., a Delaware corporation (“WBD”), and New Topco 25, Inc., a newly formed Delaware corporation and wholly owned subsidiary of WBD (“Newco”), entered into an Agreement and Plan of Merger (the “Merger Agreement”), pursuant to which, subject to the terms of the Merger Agreement, among other things, (i) a newly formed Delaware corporation and wholly owned subsidiary of Newco will merge with and into WBD (the “Holdco Merger”) in accordance with Section 251(g) of the General Corporation Law of the State of Delaware, with WBD surviving as a wholly owned subsidiary of Newco and with the stockholders of WBD immediately prior to the effective time of the Holdco Merger becoming the stockholders of Newco at and immediately following the effective time of the Holdco Merger, and (ii) following an internal reorganization and the separation and distribution of WBD’s Global Linear Networks business and certain other assets as further described below, as a result of which WBD will hold the Streaming & Studios businesses of WBD (the “Retained Business”), Merger Sub will merge with and into WBD, with WBD surviving as a wholly owned subsidiary of Netflix (the “Merger”). The Boards of Directors of Netflix and WBD have unanimously approved the Merger Agreement, including the Merger and the other transactions contemplated thereby. For the avoidance of doubt, all references to WBD with respect to a matter occurring after the completion of the Holdco Merger will be deemed to be references to Newco.
+
+Effect on Capital Stock
+
+Following the consummation of the Separation and the Distribution, at the Effective Time, subject to the terms and conditions of the Merger Agreement, each share of WBD Common Stock issued and outstanding immediately prior to the Effective Time (other than shares of WBD Common Stock to be canceled in accordance with the Merger Agreement or as to which appraisal rights have been properly exercised) shall be converted into the right to receive (i) an amount in cash equal to $23.25, without interest (the “Cash Consideration”), and (ii) such number of validly issued, fully paid and nonassessable shares of common stock of Netflix, par value $0.001 per share (the “Buyer Common Stock”) equal to the Exchange Ratio (“Stock Consideration” and together with the Cash Consideration, the “Merger Consideration”), plus cash in lieu of any fractional shares to which such share would otherwise be entitled. The “Exchange Ratio” will be determined based on the per share volume-weighted average trading price of Buyer Common Stock for the fifteen (15) consecutive trading days ending on (and including) the trading day that is three (3) trading days prior to the closing date of the Merger (the “Average Buyer Stock Price”), and which will be (x) 0.0376, if the Average Buyer Stock Price is equal to or greater than $119.67, (y) the quotient obtained by dividing $4.50 by the Average Buyer Stock Price if the Average Buyer Stock Price is greater than $97.91 but less than $119.67 and (z) 0.0460, if the Average Buyer Stock Price is less than or equal to $97.91, in each case, subject to any Net Debt Adjustment.
+
+Item 7.01 Regulation FD Disclosure
+
+On December 5, 2025, Netflix and WBD issued a joint press release announcing the execution of the Merger Agreement. A copy of the press release is attached as Exhibit 99.1 hereto and incorporated by reference herein. The press release also announced that Netflix will be hosting an investor conference call and webcast at 5 a.m. Pacific time, on December 5, 2025, to discuss the transactions contemplated by the Merger Agreement.
+
+The information contained in this Item 7.01, including Exhibit 99.1, shall not be deemed “filed” for purposes of Section 18 of the Securities Exchange Act of 1934, as amended (the “Exchange Act”), or otherwise subject to the liabilities of that section, nor shall it be incorporated by reference into any filing under the Securities Act of 1933, as amended, or the Exchange Act, except as expressly set forth by specific reference in such filing.
+
+Exhibit 99.1
+
+NETFLIX TO ACQUIRE WARNER BROS. FOLLOWING THE SEPARATION OF DISCOVERY GLOBAL FOR A TOTAL ENTERPRISE VALUE OF $82.7 BILLION
+
+(Equity Value of $72.0 Billion)
+
+Transaction Unites Warner Bros.’ Iconic Franchises and Storied Libraries with Netflix’s Leading Entertainment Service, Creating an Extraordinary Offering for Consumers
+
+Combination Will Offer More Choice and Greater Value for Consumers, Create More Opportunities for the Creative Community and Generate Shareholder Value
+
+HOLLYWOOD, Calif., Dec. 5, 2025 — Today, Netflix, Inc. (the Company) and Warner Bros. Discovery, Inc. (WBD) announced they have entered into a definitive agreement under which Netflix will acquire Warner Bros., including its film and television studios, HBO Max and HBO.
+
+The cash and stock transaction is valued at $27.75 per WBD share (subject to a collar as detailed below), with a total enterprise value of approximately $82.7 billion (equity value of $72.0 billion). The transaction is expected to close after the previously announced separation of WBD’s Global Networks division, Discovery Global, into a new publicly-traded company, which is now expected to be completed in Q3 2026.
+
+• Complementary strengths and assets: Warner Bros.’ studios are world-class, with Warner Bros. recognized as a leading supplier of television titles and filmed entertainment. HBO and HBO Max also provide a compelling, complementary offering for consumers. Netflix expects to maintain Warner Bros.’ current operations and build on its strengths, including theatrical releases for films.
+
+• More choice and greater value for consumers: By adding the deep film and TV libraries and HBO and HBO Max programming, Netflix members will have even more high-quality titles from which to choose. This also allows Netflix to optimize its plans for consumers, enhancing viewing options and expanding access to content.

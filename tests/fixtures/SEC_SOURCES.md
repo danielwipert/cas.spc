@@ -11,8 +11,9 @@ and show up as a claim.
 | `sec_8k_wbd.txt` | Warner Bros. Discovery, Inc. Form 8-K, Item 1.01, filed 2025-12-05 | 0001437107 | 0001193125-25-309873 | `d73469d8k.htm` |
 | `joint_pr_netflix.txt` | Netflix, Inc. Form 8-K, Exhibit 99.1, filed 2025-12-05 | 0001065280 | 0001193125-25-308651 | `d65144dex991.htm` |
 | `joint_pr_wbd.txt` | Warner Bros. Discovery, Inc. Form 8-K, Exhibit 99.1, filed 2025-12-05 | 0001437107 | 0001193125-25-308759 | `d16580dex991.htm` |
+| `sec_8k_netflix_complete.txt` | Netflix, Inc. Form 8-K body **+** its Exhibit 99.1 | 0001065280 | 0001193125-25-308651 | `d65144d8k.htm` + `d65144dex991.htm` |
 
-Both are reachable at
+All are reachable at
 `https://www.sec.gov/Archives/edgar/data/<cik>/<accession without dashes>/<file>`.
 EDGAR requires a `User-Agent` naming the requester; a bare request gets a 403.
 
@@ -39,9 +40,25 @@ makes the pair worth committing: `tests/test_lineage_replay.py` runs it with the
 lineage undeclared and declared, and the declaration is the only difference.
 
 Note that WBD filed the release under a **different accession** from its Item
-1.01 8-K — an Item 7.01 filing of the same day (0001193125-25-308759), where the
-exhibit is *furnished* rather than filed. That is T22's point in the wild, and
-these fixtures do not exercise it; they are trimmed to the release itself.
+1.01 8-K: the Item 7.01 filing of the same day, which is why the two WBD rows
+above name different accessions.
+
+**Why the complete submission.** `sec_8k_netflix_complete.txt` is the one
+fixture that is not a single continuous excerpt: it is the 8-K body's Item 1.01
+and Item 7.01 followed by the Exhibit 99.1 press release, which is how EDGAR
+serves a filing as one submission and how a user who downloads "the 8-K" reads
+it. That makes it one document containing two kinds of accountability — Item
+1.01 is *filed* and carries Section 18 liability, Item 7.01 and its exhibit are
+*furnished*, and the filing says so itself in a sentence the fixture keeps.
+`tests/test_region_replay.py` replays it twice, with the region declared and
+without.
+
+**What was kept in it.** From the body: the Item 1.01 heading and the two
+paragraphs stating the merger's parties and the consideration, then Item 7.01
+in full — it is three short paragraphs, one of which is the disclaimer the whole
+exercise turns on. From the exhibit: the headline block, the dateline, the
+valuation paragraph and two of the benefit bullets, because the marketing copy
+is exactly what is mis-weighed when the document is treated as one block.
 
 **What was trimmed from the press releases.** The headline block, the dateline
 paragraph and the "Transaction Details and Timing" section. The marketing
