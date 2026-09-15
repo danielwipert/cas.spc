@@ -14,6 +14,14 @@ regression-test the pipeline against genuine model output.
         --input tests/fixtures/live_document.txt \
         --cassette tests/fixtures/cassettes/analyze_five_stage.json
 
+A multi-source run is captured with `--also-input`, one `--also-source-type`
+each, and `--also-derives-from` where the caller knows a document was written
+off another. That last one changes no prompt — it is the caller's fact, which
+the model cannot see — but it decides which corroborations survive and so which
+calls the run makes, which means each lineage setting is its own recording.
+`check` takes the same arguments, and must be given the same ones: a check that
+describes different sources replays against material the recording never saw.
+
 `check` replays the cassette and reports drift — exchanges whose recorded
 request no longer matches what the code now sends. Drift is not a failure (a
 contributor without a key must still be able to run the suite); it means the
@@ -40,6 +48,25 @@ from spc_state.store import RunPaths
 QUESTION = "What does this announcement establish, and what is uncertain?"
 
 
+def _lineage(value: str, known: set[str]) -> str | None:
+    """One `--also-derives-from` value: a known source id, or nothing.
+
+    Validated rather than swallowed, exactly as `cli._lineage_arg` does it: a
+    typo'd parent silently buys back the independence the flag was passed to
+    deny, and the failure mode is a corroboration nobody checked.
+    """
+    cleaned = value.strip()
+    if cleaned.lower() in ("", "none", "-"):
+        return None
+    if cleaned not in known:
+        raise ValueError(
+            f"--also-derives-from {value!r} is not a source in this run. Known "
+            f"sources: {', '.join(sorted(known))} (doc_001 is --input, extras "
+            "follow in the order given), or 'none'."
+        )
+    return cleaned
+
+
 def _sources(args: argparse.Namespace) -> tuple[str, list[SourceDocument], list[str]]:
     """The primary document, the extra ones, and every text in reading order.
 
@@ -49,14 +76,28 @@ def _sources(args: argparse.Namespace) -> tuple[str, list[SourceDocument], list[
     document = Path(args.input).read_text(encoding="utf-8")
     extra_paths = list(getattr(args, "also_input", []) or [])
     extra_types = list(getattr(args, "also_source_type", []) or [])
+    parents = list(getattr(args, "also_derives_from", []) or [])
     if len(extra_paths) != len(extra_types):
         raise ValueError(
             f"{len(extra_paths)} --also-input but {len(extra_types)} "
             "--also-source-type: give one source type per extra document."
         )
+    if parents and len(parents) != len(extra_paths):
+        raise ValueError(
+            f"{len(extra_paths)} --also-input but {len(parents)} "
+            "--also-derives-from: give one per extra document, in the same "
+            "order, using 'none' for a document that stands on its own. Omit "
+            "the option entirely to declare every document independent."
+        )
+    known = {f"doc_{i:03d}" for i in range(1, len(extra_paths) + 2)}
+    lineage = [_lineage(v, known) for v in parents] or [None] * len(extra_paths)
     extras = [
-        SourceDocument(text=Path(p).read_text(encoding="utf-8"), source_type=st)
-        for p, st in zip(extra_paths, extra_types, strict=True)
+        SourceDocument(
+            text=Path(p).read_text(encoding="utf-8"),
+            source_type=st,
+            derives_from=parent,
+        )
+        for p, st, parent in zip(extra_paths, extra_types, lineage, strict=True)
     ]
     return document, extras, [document, *(e.text for e in extras)]
 
@@ -86,6 +127,17 @@ def _add_source_args(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         help="source type for each --also-input, in the same order",
+    )
+    parser.add_argument(
+        "--also-derives-from",
+        action="append",
+        default=[],
+        help="for an --also-input written off another document, the source id "
+        "it came from (doc_001 is --input; extras are doc_002, ... in order). "
+        "Repeatable, one per extra document, 'none' to skip one; omit entirely "
+        "to declare every document independent. Lineage changes no prompt — it "
+        "is the caller's fact — but it changes which corroborations survive, "
+        "and so which calls the run makes: record each setting separately",
     )
     parser.add_argument(
         "--question",

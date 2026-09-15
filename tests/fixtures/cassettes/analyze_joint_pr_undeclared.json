@@ -1,0 +1,129 @@
+{
+  "document_sha256": "da7b49162061a068667949f77e9aa39106d905bc161db836ce9ea12dbcfe3090",
+  "exchanges": [
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "b03defc672d5c44b3c094d9f6f7b3216b0b5d3546ed3e398a2235b4781bf7fed",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Netflix will acquire Warner Bros. for a total enterprise value of $82.7 billion.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Netflix, Inc. (the Company) and Warner Bros. Discovery, Inc. (WBD) announced they have entered into a definitive agreement under which Netflix will acquire Warner Bros., including its film and television studios, HBO Max and HBO.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The transaction will unite Warner Bros.’ franchises and libraries with Netflix’s entertainment service.\",\n      \"claim_type\": \"analytical_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Transaction Unites Warner Bros.’ Iconic Franchises and Storied Libraries with Netflix’s Leading Entertainment Service, Creating an Extraordinary Offering for Consumers\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"Netflix will maintain Warner Bros.’ current operations.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Netflix to Maintain Warner Bros.’ Current Operations\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The acquisition will offer more choice and value for consumers, create opportunities for the creative community, and generate shareholder value.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 0.9,\n      \"evidence_quote\": \"Combination Will Offer More Choice and Greater Value for Consumers, Create More Opportunities for the Creative Community and Generate Shareholder Value\",\n      \"assumption\": \"The integration of Warner Bros. and Netflix will proceed as planned.\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"The acquisition will strengthen the entertainment industry.\",\n      \"claim_type\": \"normative_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 0.8,\n      \"evidence_quote\": \"Acquisition Will Strengthen the Entertainment Industry\",\n      \"assumption\": \"The combined entity will positively impact the industry.\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"The transaction is valued at $27.75 per WBD share, with a total enterprise value of $82.7 billion.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The cash and stock transaction is valued at $27.75 per WBD share (subject to a collar as detailed below), with a total enterprise value of approximately $82.7 billion (equity value of $72.0 billion).\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The transaction is expected to close after the separation of Discovery Global in Q3 2026.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 0.9,\n      \"evidence_quote\": \"The transaction is expected to close after the previously announced separation of WBD’s Global Networks division, Discovery Global, into a new publicly-traded company, which is now expected to be completed in Q3 2026.\",\n      \"assumption\": \"The separation of Discovery Global will occur as scheduled.\",\n      \"assumption_impact\": \"medium\"\n    },\n    {\n      \"text\": \"Each WBD shareholder will receive $23.25 in cash and $4.501 in Netflix shares per WBD share.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Under the terms of the agreement, each WBD shareholder will receive $23.25 in cash and $4.501 in shares of Netflix common stock for each share of WBD common stock outstanding at the closing of the transaction.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The stock component is subject to a collar based on Netflix’s stock price.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The stock component is subject to a collar under which WBD shareholders will receive Netflix stock valued at $4.50 per share, provided the 15-day volume weighted average price (“VWAP”) of Netflix stock price (measured three trading days prior to closing) falls between $97.91 and $119.67.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The transaction was unanimously approved by the Boards of Directors of Netflix and WBD.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The transaction was unanimously approved by the Boards of Directors of both Netflix and WBD.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"Completion of the transaction is subject to regulatory approvals, WBD shareholder approval, and other customary closing conditions.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"In addition to the completion of the separation of Discovery Global (WBD’s Global Networks business), completion of the transaction is subject to required regulatory approvals, approval of WBD shareholders and other customary closing conditions.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The transaction is expected to close in 12-18 months.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 0.8,\n      \"evidence_quote\": \"The transaction is expected to close in 12-18 months.\",\n      \"assumption\": \"No unforeseen delays will occur.\",\n      \"assumption_impact\": \"medium\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1417,
+        "prompt_tokens": 1045
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "2d8dbf2d9ec3ea565efc860d32457a3db99adc2561b0edac774591ff548cc7ec",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Netflix will acquire Warner Bros. for a total enterprise value of $82.7 billion.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"NETFLIX TO ACQUIRE WARNER BROS. FOLLOWING THE SEPARATION OF DISCOVERY GLOBAL FOR A TOTAL ENTERPRISE VALUE OF $82.7 BILLION\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The transaction will unite Warner Bros.’ franchises and libraries with Netflix’s entertainment service.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Transaction Unites Warner Bros.’ Iconic Franchises and Storied Libraries with Netflix’s Leading Entertainment Service, Creating an Extraordinary Offering for Consumers\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"Netflix will maintain Warner Bros.’ current operations.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Netflix to Maintain Warner Bros.’ Current Operations\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The acquisition will offer more choice and value for consumers and create opportunities for the creative community.\",\n      \"claim_type\": \"analytical_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Combination Will Offer More Choice and Greater Value for Consumers, Create More Opportunities for the Creative Community and Generate Shareholder Value\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The acquisition will strengthen the entertainment industry.\",\n      \"claim_type\": \"analytical_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Acquisition Will Strengthen the Entertainment Industry\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The transaction is valued at $27.75 per WBD share, with a total enterprise value of $82.7 billion.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The cash and stock transaction is valued at $27.75 per WBD share (subject to a collar as detailed below), with a total enterprise value of approximately $82.7 billion (equity value of $72.0 billion).\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The transaction is expected to close after the separation of Discovery Global, which is anticipated in Q3 2026.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The transaction is expected to close after the previously announced separation of WBD’s Global Networks division, Discovery Global, into a new publicly-traded company, which is now expected to be completed in Q3 2026.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"Each WBD shareholder will receive $23.25 in cash and $4.501 in Netflix shares per share.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Under the terms of the agreement, each WBD shareholder will receive $23.25 in cash and $4.501 in shares of Netflix common stock for each share of WBD common stock outstanding at the closing of the transaction.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The stock component is subject to a collar based on Netflix’s stock price.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The stock component is subject to a collar under which WBD shareholders will receive Netflix stock valued at $4.50 per share, provided the 15-day volume weighted average price (“VWAP”) of Netflix stock price (measured three trading days prior to closing) falls between $97.91 and $119.67.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The transaction was unanimously approved by the Boards of Directors of Netflix and WBD.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The transaction was unanimously approved by the Boards of Directors of both Netflix and WBD.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"Completion of the transaction is subject to regulatory approvals, WBD shareholder approval, and other customary closing conditions.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"In addition to the completion of the separation of Discovery Global (WBD’s Global Networks business), completion of the transaction is subject to required regulatory approvals, approval of WBD shareholders and other customary closing conditions.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The transaction is expected to close in 12-18 months.\",\n      \"claim_type\": \"predictive_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The transaction is expected to close in 12-18 months.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1382,
+        "prompt_tokens": 1049
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "8591dd5a5bb81c02061346689e38f39c71d458b9410ce5e37c2cb7f46fd816b5",
+      "response_text": "{\n  \"corroborations\": [\n    {\n      \"claim_a\": \"claim_001\",\n      \"claim_b\": \"d2_claim_001\",\n      \"basis\": \"Netflix will acquire Warner Bros. for a total enterprise value of $82.7 billion.\"\n    },\n    {\n      \"claim_a\": \"claim_002\",\n      \"claim_b\": \"d2_claim_002\",\n      \"basis\": \"The transaction will unite Warner Bros.’ franchises and libraries with Netflix’s entertainment service.\"\n    },\n    {\n      \"claim_a\": \"claim_003\",\n      \"claim_b\": \"d2_claim_003\",\n      \"basis\": \"Netflix will maintain Warner Bros.’ current operations.\"\n    },\n    {\n      \"claim_a\": \"claim_004\",\n      \"claim_b\": \"d2_claim_004\",\n      \"basis\": \"The acquisition will offer more choice and value for consumers and create opportunities for the creative community.\"\n    },\n    {\n      \"claim_a\": \"claim_005\",\n      \"claim_b\": \"d2_claim_005\",\n      \"basis\": \"The acquisition will strengthen the entertainment industry.\"\n    },\n    {\n      \"claim_a\": \"claim_006\",\n      \"claim_b\": \"d2_claim_006\",\n      \"basis\": \"The transaction is valued at $27.75 per WBD share, with a total enterprise value of $82.7 billion.\"\n    },\n    {\n      \"claim_a\": \"claim_007\",\n      \"claim_b\": \"d2_claim_007\",\n      \"basis\": \"The transaction is expected to close after the separation of Discovery Global in Q3 2026.\"\n    },\n    {\n      \"claim_a\": \"claim_008\",\n      \"claim_b\": \"d2_claim_008\",\n      \"basis\": \"Each WBD shareholder will receive $23.25 in cash and $4.501 in Netflix shares per WBD share.\"\n    },\n    {\n      \"claim_a\": \"claim_009\",\n      \"claim_b\": \"d2_claim_009\",\n      \"basis\": \"The stock component is subject to a collar based on Netflix’s stock price.\"\n    },\n    {\n      \"claim_a\": \"claim_010\",\n      \"claim_b\": \"d2_claim_010\",\n      \"basis\": \"The transaction was unanimously approved by the Boards of Directors of Netflix and WBD.\"\n    },\n    {\n      \"claim_a\": \"claim_011\",\n      \"claim_b\": \"d2_claim_011\",\n      \"basis\": \"Completion of the transaction is subject to regulatory approvals, WBD shareholder approval, and other customary closing conditions.\"\n    },\n    {\n      \"claim_a\": \"claim_012\",\n      \"claim_b\": \"d2_claim_012\",\n      \"basis\": \"The transaction is expected to close in 12-18 months.\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 605,
+        "prompt_tokens": 959
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "7ae788a14728363cb8aa67229783187bf520fec8670f1b67467cce6b50d8438b",
+      "response_text": "{\"keep\": [1, 2, 3, 5, 6, 7, 9, 10, 11, 12]}",
+      "usage": {
+        "completion_tokens": 34,
+        "prompt_tokens": 887
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "16f9293fe838312f58874f57ae4f1047099f05c8e9f2dcf0cf00246d317127c2",
+      "response_text": "{\n  \"hypothesis\": {\n    \"text\": \"Proceed with the acquisition of Warner Bros. by Netflix\",\n    \"confidence\": 0.95,\n    \"supporting_claims\": [\"claim_001\", \"claim_002\", \"claim_003\", \"claim_004\", \"claim_010\"]\n  },\n  \"questions\": [\n    {\n      \"text\": \"Will regulatory approvals be obtained without significant delays?\",\n      \"priority\": \"high\",\n      \"linked_claims\": [\"claim_011\"]\n    }\n  ],\n  \"dependencies\": [\n    { \"claim\": \"claim_001\", \"assumption\": \"assumption_001\" },\n    { \"claim\": \"claim_002\", \"assumption\": \"assumption_002\" },\n    { \"claim\": \"claim_007\", \"assumption\": \"assumption_003\" },\n    { \"claim\": \"claim_012\", \"assumption\": \"assumption_004\" }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 206,
+        "prompt_tokens": 1051
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "f5565e5a09bf07494371e9b1aae4bd9b103684cd95e19b8d074851df16585dec",
+      "response_text": "{}",
+      "usage": {
+        "completion_tokens": 2,
+        "prompt_tokens": 224
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "a5f84a23f2b107c07bb2a315c34fd2a70823b6b172806d2055c89169d0493ac2",
+      "response_text": "{\"contradictions\": []}",
+      "usage": {
+        "completion_tokens": 8,
+        "prompt_tokens": 1010
+      }
+    }
+  ],
+  "model": "deepseek/deepseek-chat",
+  "note": "The same joint press release as filed by both counterparties; lineage undeclared.",
+  "provider": "openrouter",
+  "recorded_at": "2026-09-15T08:39:52.107830Z",
+  "version": 1
+}
