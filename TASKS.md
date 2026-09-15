@@ -2047,6 +2047,93 @@ in sync — T20 regenerated them — so this adds a guard rather than a fix.
 
 ---
 
+## T25 — The `VERIFIED` pairing, reproducible from a clean clone · ✅ DONE
+
+**Why.** Everything T19–T23 claimed rested on `verify_001`, a live two-filing run
+whose source documents lived in a scratchpad and whose output lived in a
+gitignored `runs/`. The numbers were real and nobody else could check a single
+one of them — an awkward position for a project whose whole subject is traceable
+reasoning.
+
+**What landed.**
+
+- **The two filings, committed as fixtures.** `tests/fixtures/sec_8k_netflix.txt`
+  and `sec_8k_wbd.txt` — Item 1.01 of each counterparty's Form 8-K on the same
+  merger agreement. Kept as **pure document text**: the first attempt put a
+  provenance header in each file, which was wrong, because the extractor reads
+  the whole file and the header would have become extractable content. Provenance
+  lives in `tests/fixtures/SEC_SOURCES.md` instead, with CIK, accession and the
+  EDGAR path for each.
+- **A recorded cassette**, `analyze_two_filings.json` — 7 exchanges, 8 committed
+  stages. Replays with **no key and no network**, verified by running the suite
+  with `OPENROUTER_API_KEY` and the proxy variables unset.
+- **`tests/test_verify_replay.py`**, 10 tests.
+
+**The recorder could not do this, and now can.** It was hardcoded to a
+single-document run, so the pairing that motivates the whole thing was the one
+shape it could not capture. `--also-input` / `--also-source-type` /
+`--source-type` / `--question` now exist on both `record` and `check`, defined
+once and shared, because a `check` that describes different sources than the
+`record` replays against material the recording never saw.
+
+**The cassette's document pin had the same gap.** `document_sha256` held one
+digest, so a multi-source cassette could not prove what it was recorded from.
+`documents_digest` pins every document in reading order, joined on a NUL — and
+for a single document it is **exactly** `text_digest`, since joining a
+one-element sequence returns it unchanged. Every cassette recorded before this
+keeps validating against its own document, which is asserted rather than assumed.
+
+**What this restores, and what it does not.** The original run's exact claim set
+cannot come back — it came from a non-deterministic model and was never recorded.
+What is reproducible is the *behaviour* those tasks claimed, and the whole arc
+now shows up in one deterministic replay:
+
+| | the replay shows |
+|---|---|
+| T19/T20 | **4 claims reach `VERIFIED`** across two independent accountable sources |
+| T20 | every one still reads `reported` — corroboration does not overwrite acquisition |
+| T21 | nothing commits at 1.00 |
+| T23 | *"entered into"* and *"unanimously approved"* hold **0.90**; *"will be converted"* and *"will be determined"* take **0.72** |
+
+The 0.90 and 0.72 are asserted as `GROUNDING_FACTOR` and
+`GROUNDING_FACTOR x MODALITY_FACTOR`, derived from the constants rather than
+typed, so the test says which rules produced them.
+
+**A gap this would otherwise have created, closed with it.** Cassettes are
+enumerated by hand in the replay tests, so a new one added without being
+registered would be checked by nothing — the same shape as the `schemas/` drift
+T24 fixed. `test_every_committed_cassette_is_exercised_by_a_test` asserts the
+directory holds exactly the cassettes some test names. Verified by dropping a
+stray cassette in: it fails and names the file.
+
+**To re-record**, if a prompt changes:
+
+```
+python tools/record_cassette.py record \
+    --input tests/fixtures/sec_8k_netflix.txt --source-type regulatory_filing \
+    --also-input tests/fixtures/sec_8k_wbd.txt --also-source-type regulatory_filing \
+    --question "What did Netflix and WBD agree, and on what terms?" \
+    --out tests/fixtures/cassettes/analyze_two_filings.json
+```
+
+Needs `OPENROUTER_API_KEY`. Budget a retry: `deepseek/deepseek-chat` returns
+upstream 429s intermittently.
+
+**One existing assertion changed wording.** `from_path`'s refusal message says
+"recorded against different source material" rather than "different document",
+since it now covers both; `test_cassette_is_recorded_from_its_document` matches on
+the durable part of the string.
+
+495 tests (was 485). `DEMO.md` byte-identical.
+
+**Still not reproducible, and named rather than left implicit.** The other four
+live runs — `lineage_off`/`on` and `region_001`/`002` — remain scratchpad-only.
+They demonstrate T20's lineage gate and T22's regions, each needs its own cassette
+and fixtures, and the machinery to do it now exists. `verify_001` was the one
+carrying the load, so it went first.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)

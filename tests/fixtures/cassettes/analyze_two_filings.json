@@ -1,0 +1,129 @@
+{
+  "document_sha256": "e247d2903f23938b242be5aacbe8e5ae7ab10be3f52c5d5a71ed172a3c8b49af",
+  "exchanges": [
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "7c0962c9003f0f11931a960cc3e3ed7664c44634056588ee4c37c21f45f180f7",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Netflix, WBD, and their subsidiaries entered into a Merger Agreement on December 4, 2025\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"On December 4, 2025, Netflix, Inc., a Delaware corporation (“Netflix”), Nightingale Sub, Inc., a Delaware corporation and wholly owned subsidiary of Netflix (“Merger Sub”), Warner Bros. Discovery, Inc., a Delaware corporation (“WBD”), and New Topco 25, Inc., a newly formed Delaware corporation and wholly owned subsidiary of WBD (“Newco”), entered into an Agreement and Plan of Merger (the “Merger Agreement”)\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The Merger Agreement includes a Holdco Merger where a new subsidiary of Newco will merge into WBD, with WBD surviving as a subsidiary of Newco\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"pursuant to which, subject to the terms of the Merger Agreement, among other things, (i) a newly formed Delaware corporation and wholly owned subsidiary of Newco will merge with and into WBD (the “Holdco Merger”) in accordance with Section 251(g) of the General Corporation Law of the State of Delaware, with WBD surviving as a wholly owned subsidiary of Newco\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The Boards of Directors of Netflix and WBD unanimously approved the Merger Agreement\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The Boards of Directors of Netflix and WBD have unanimously approved the Merger Agreement, including the Merger and the other transactions contemplated thereby.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"Each share of WBD Common Stock will be converted into cash and Netflix stock, with the exchange ratio depending on the average trading price of Netflix stock\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"each share of WBD Common Stock issued and outstanding immediately prior to the Effective Time (other than shares of WBD Common Stock to be canceled in accordance with the Merger Agreement or as to which appraisal rights have been properly exercised) shall be converted into the right to receive (i) an amount in cash equal to $23.25, without interest (the “Cash Consideration”), and (ii) such number of validly issued, fully paid and nonassessable shares of common stock of Netflix, par value $0.001 per share (the “Buyer Common Stock”) equal to the Exchange Ratio (“Stock Consideration” and together with the Cash Consideration, the “Merger Consideration”), plus cash in lieu of any fractional shares to which such share would otherwise be entitled.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"The Exchange Ratio for WBD shares will vary based on the average trading price of Netflix stock over a specific period\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The “Exchange Ratio” will be determined based on the per share volume-weighted average trading price of Buyer Common Stock for the fifteen (15) consecutive trading days ending on (and including) the trading day that is three (3) trading days prior to the closing date of the Merger (the “Average Buyer Stock Price”), and which will be (x) 0.0376, if the Average Buyer Stock Price is equal to or greater than $119.67, (y) the quotient obtained by dividing $4.50 by the Average Buyer Stock Price if the Average Buyer Stock Price is greater than $97.91 but less than $119.67 and (z) 0.0460, if the Average Buyer Stock Price is less than or equal to $97.91, in each case, subject to any Net Debt Adjustment.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    },\n    {\n      \"text\": \"Vested WBD stock options will be canceled in exchange for the Merger Consideration or its cash equivalent\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Pursuant to the Merger Agreement, at the Effective Time, each outstanding option to purchase shares of WBD Common Stock granted under any WBD stock plan (a “WBD Option”) that is (x) by its terms vested as of the Effective Time, or (y) held by a former employee or service provider of WBD (each, a “Vested WBD Option”), in each case, with an exercise price per share of WBD Common Stock that is less than the sum (rounded to the nearest four decimals) of (1) the Cash Consideration plus (2) an amount in cash equal to the product obtained by multiplying (3) the Exchange Ratio by (4) the Average Buyer Stock Price (the “Merger Consideration Value”), will be canceled in consideration for the right to receive the Merger Consideration (or, for any individual who holds any WBD equity award assumed and adjusted by SpinCo in accordance with the Employee Matters Agreement (each, a “SpinCo Award Holder”), the cash value thereof) in respect of the number of whole and partial shares of WBD Common Stock equal to (i) the product obtained by multiplying (A) the number of shares of WBD Common Stock subject to such Vested WBD Option immediately prior to the Effective Time, and (B) the excess of the Merger Consideration Value over the exercise price per share of WBD Common Stock subject to such Vested WBD Option, divided by (ii) the Merger Consideration Value (the “Net WBD Shares”) as if each Net WBD Share were one share of WBD Common Stock issued and outstanding immediately prior to the Effective Time.\",\n      \"assumption\": null,\n      \"assumption_impact\": null\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1415,
+        "prompt_tokens": 1457
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "bcd8f3a17c9778a0269c1ec30600587be106d603a8af5729c296c97432d93cba",
+      "response_text": "{\n  \"claims\": [\n    {\n      \"text\": \"Warner Bros. Discovery, Inc. and Netflix, Inc. entered into a merger agreement on December 4, 2025.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"On December 4, 2025, Warner Bros. Discovery, Inc., a Delaware corporation (“WBD”), Netflix, Inc., a Delaware corporation (“Netflix”), Nightingale Sub, Inc., a Delaware corporation and wholly owned subsidiary of Netflix (“Merger Sub”), and New Topco 25, Inc., a newly formed Delaware corporation and wholly owned subsidiary of WBD (“NewCo”), entered into an Agreement and Plan of Merger (the “Merger Agreement”).\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The boards of directors of Warner Bros. Discovery and Netflix unanimously approved the merger agreement.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The boards of directors of WBD and Netflix have unanimously approved the Merger Agreement, including the Merger and the other transactions contemplated thereby.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"Each share of Warner Bros. Discovery Common Stock will be converted into cash and shares of Netflix Common Stock.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"Following the consummation of the Separation and the Distribution, at the Effective Time, subject to the terms and conditions of the Merger Agreement, each share of WBD Common Stock issued and outstanding immediately prior to the Effective Time (other than shares of WBD Common Stock to be canceled in accordance with the Merger Agreement or as to which appraisal rights have been properly exercised) shall be converted into the right to receive (i) an amount in cash equal to $23.25, without interest (the “Cash Consideration”), and (ii) such number of validly issued, fully paid and nonassessable shares of common stock of Netflix, par value $0.001 per share (the “Buyer Common Stock”) equal to the Exchange Ratio (“Stock Consideration” and together with the Cash Consideration, the “Merger Consideration”), plus cash in lieu of any fractional shares to which such share would otherwise be entitled.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    },\n    {\n      \"text\": \"The Exchange Ratio for the merger will be determined based on the average trading price of Netflix Common Stock.\",\n      \"claim_type\": \"factual_claim\",\n      \"epistemic_status\": \"reported\",\n      \"confidence\": 1.0,\n      \"evidence_quote\": \"The “Exchange Ratio” will be determined based on the per share volume-weighted average trading price of Buyer Common Stock for the fifteen (15) consecutive trading days ending on (and including) the trading day that is three (3) trading days prior to the closing date of the Merger (the “Average Buyer Stock Price”), and which will be (x) 0.0376, if the Average Buyer Stock Price is equal to or greater than $119.67, (y) the quotient obtained by dividing $4.50 by the Average Buyer Stock Price if the Average Buyer Stock Price is greater than $97.91 but less than $119.67 and (z) 0.0460, if the Average Buyer Stock Price is less than or equal to $97.91, in each case, subject to any Net Debt Adjustment.\",\n      \"assumption\": null,\n      \"assumption_impact\": \"low\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 834,
+        "prompt_tokens": 1148
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "0015bfd4d5f57906c50e6c182f9546c83696ab1f6a9246cdc127564c03031825",
+      "response_text": "{\n  \"corroborations\": [\n    {\n      \"claim_a\": \"claim_001\",\n      \"claim_b\": \"d2_claim_001\",\n      \"basis\": \"Netflix and WBD entered into a Merger Agreement on December 4, 2025\"\n    },\n    {\n      \"claim_a\": \"claim_003\",\n      \"claim_b\": \"d2_claim_002\",\n      \"basis\": \"The Boards of Directors of Netflix and WBD unanimously approved the Merger Agreement\"\n    },\n    {\n      \"claim_a\": \"claim_004\",\n      \"claim_b\": \"d2_claim_003\",\n      \"basis\": \"Each share of WBD Common Stock will be converted into cash and Netflix stock\"\n    },\n    {\n      \"claim_a\": \"claim_005\",\n      \"claim_b\": \"d2_claim_004\",\n      \"basis\": \"The Exchange Ratio for WBD shares will vary based on the average trading price of Netflix stock\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 212,
+        "prompt_tokens": 678
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "02db4414ef5f71091052b70207e92e9103f309b4f388014b774e13f7ad6375ae",
+      "response_text": "{\"keep\": [1, 2, 3, 4]}",
+      "usage": {
+        "completion_tokens": 16,
+        "prompt_tokens": 419
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "b53e657dae68a9513c4e64b4a87c80bea334e0f5cc913813212dad4182c7a6a6",
+      "response_text": "{\n  \"hypothesis\": {\n    \"text\": \"Proceed with the merger as outlined in the Merger Agreement\",\n    \"confidence\": 1.00,\n    \"supporting_claims\": [\"claim_001\", \"claim_002\", \"claim_003\", \"d2_claim_001\", \"d2_claim_002\"]\n  },\n  \"questions\": [\n    {\n      \"text\": \"What is the specific average trading price period for determining the Exchange Ratio?\",\n      \"priority\": \"high\",\n      \"linked_claims\": [\"claim_004\", \"claim_005\", \"d2_claim_003\", \"d2_claim_004\"]\n    }\n  ],\n  \"dependencies\": []\n}",
+      "usage": {
+        "completion_tokens": 152,
+        "prompt_tokens": 612
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "f5565e5a09bf07494371e9b1aae4bd9b103684cd95e19b8d074851df16585dec",
+      "response_text": "{\n  \"confidence_updates\": [],\n  \"questions\": []\n}",
+      "usage": {
+        "completion_tokens": 15,
+        "prompt_tokens": 225
+      }
+    },
+    {
+      "fingerprint": {
+        "model": "deepseek/deepseek-chat",
+        "model_version": "deepseek/deepseek-chat",
+        "provider": "openrouter",
+        "sampling": {
+          "max_tokens": 2048,
+          "temperature": 0.0
+        }
+      },
+      "request_sha256": "1792d51cd33f60f6e346aa346053357570d1e5ff11669b4bcf054e2cb6a9c52d",
+      "response_text": "{\"contradictions\": []}",
+      "usage": {
+        "completion_tokens": 8,
+        "prompt_tokens": 729
+      }
+    }
+  ],
+  "model": "deepseek/deepseek-chat",
+  "note": "Two counterparties' Form 8-K Item 1.01 filings on one merger agreement: the pairing that lets a claim reach VERIFIED (T19/T20), recorded for T25.",
+  "provider": "openrouter",
+  "recorded_at": "2026-09-15T01:09:53.130450Z",
+  "version": 1
+}

@@ -29,6 +29,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -65,6 +66,20 @@ def request_digest(request: ProviderRequest) -> str:
 def text_digest(text: str) -> str:
     """A stable hash of a document, so replay can prove it has the right one."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def documents_digest(documents: Sequence[str]) -> str:
+    """The same hash, over every document a run reads (T25).
+
+    A multi-source run has no single document to pin, so the cassette pins all of
+    them in order. Joined on a NUL, which cannot occur in the text files this
+    reads, so two documents cannot be split differently and collide.
+
+    For one document this is **exactly** `text_digest`, since joining a
+    one-element sequence returns it unchanged — so every cassette recorded before
+    multi-source runs existed keeps validating against its own document.
+    """
+    return text_digest("\x00".join(documents))
 
 
 class Exchange(BaseModel):
@@ -129,13 +144,27 @@ class RecordingProvider(LLMProvider):
         self,
         inner: LLMProvider,
         *,
-        document: str,
+        document: str | None = None,
+        documents: Sequence[str] | None = None,
         provider: str = "openrouter",
         model: str = "unknown",
         note: str = "",
     ) -> None:
+        """Record against one document, or `documents` for a multi-source run.
+
+        Exactly one of the two: passing both is a caller that has not decided
+        which documents the recording covers, and a cassette pinned to the wrong
+        set would replay against material it never saw.
+        """
+        if (document is None) == (documents is None):
+            raise CassetteError(
+                "RecordingProvider needs exactly one of `document` or "
+                "`documents` — the cassette pins what the run actually read."
+            )
         self.inner = inner
-        self._document_sha256 = text_digest(document)
+        self._document_sha256 = documents_digest(
+            [document] if document is not None else list(documents or ())
+        )
         self._provider = provider
         self._model = model
         self._note = note
@@ -183,13 +212,29 @@ class ReplayProvider(LLMProvider):
         self._drifted: list[int] = []
 
     @classmethod
-    def from_path(cls, path: Path, *, document: str | None = None) -> ReplayProvider:
-        """Load a cassette, optionally proving it belongs to `document`."""
-        cassette = Cassette.load(path)
-        if document is not None and text_digest(document) != cassette.document_sha256:
+    def from_path(
+        cls,
+        path: Path,
+        *,
+        document: str | None = None,
+        documents: Sequence[str] | None = None,
+    ) -> ReplayProvider:
+        """Load a cassette, optionally proving it belongs to these documents.
+
+        `documents` is the multi-source form; for a single document the two are
+        interchangeable, since `documents_digest` of one document is its own
+        `text_digest`.
+        """
+        if document is not None and documents is not None:
             raise CassetteError(
-                f"Cassette {path} was recorded against a different document. "
-                "Re-record it, or replay it against the document it captured."
+                "ReplayProvider.from_path takes `document` or `documents`, not both."
+            )
+        cassette = Cassette.load(path)
+        given = [document] if document is not None else documents
+        if given is not None and documents_digest(list(given)) != cassette.document_sha256:
+            raise CassetteError(
+                f"Cassette {path} was recorded against different source material. "
+                "Re-record it, or replay it against the documents it captured."
             )
         return cls(cassette)
 
