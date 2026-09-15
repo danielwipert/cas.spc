@@ -27,20 +27,79 @@ import sys
 import tempfile
 from pathlib import Path
 
-from spc_state.analyze import run_analysis
+from spc_state.analyze import SourceDocument, run_analysis
 from spc_state.providers import (
     OpenRouterConfigError,
     OpenRouterProvider,
     RecordingProvider,
     ReplayProvider,
 )
+from spc_state.source_types import DEFAULT_SOURCE_TYPE
 from spc_state.store import RunPaths
 
 QUESTION = "What does this announcement establish, and what is uncertain?"
 
 
-def _record(args: argparse.Namespace) -> int:
+def _sources(args: argparse.Namespace) -> tuple[str, list[SourceDocument], list[str]]:
+    """The primary document, the extra ones, and every text in reading order.
+
+    The third is what the cassette pins: a multi-source run has no single
+    document, so it records all of them, in the order the pipeline reads them.
+    """
     document = Path(args.input).read_text(encoding="utf-8")
+    extra_paths = list(getattr(args, "also_input", []) or [])
+    extra_types = list(getattr(args, "also_source_type", []) or [])
+    if len(extra_paths) != len(extra_types):
+        raise ValueError(
+            f"{len(extra_paths)} --also-input but {len(extra_types)} "
+            "--also-source-type: give one source type per extra document."
+        )
+    extras = [
+        SourceDocument(text=Path(p).read_text(encoding="utf-8"), source_type=st)
+        for p, st in zip(extra_paths, extra_types, strict=True)
+    ]
+    return document, extras, [document, *(e.text for e in extras)]
+
+
+def _add_source_args(parser: argparse.ArgumentParser) -> None:
+    """The arguments that say what the run reads — identical on both commands.
+
+    `check` must describe the same sources as the `record` that made the
+    cassette, or it replays against material the recording never saw. Sharing
+    one definition is what keeps the two from drifting apart.
+    """
+    parser.add_argument("--input", required=True, help="document to analyze")
+    parser.add_argument(
+        "--source-type",
+        default=DEFAULT_SOURCE_TYPE.value,
+        help="what kind of document --input is (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--also-input",
+        action="append",
+        default=[],
+        help="a further document read into the same state; repeatable, and "
+        "pair each with an --also-source-type in the same order",
+    )
+    parser.add_argument(
+        "--also-source-type",
+        action="append",
+        default=[],
+        help="source type for each --also-input, in the same order",
+    )
+    parser.add_argument(
+        "--question",
+        default=QUESTION,
+        help="the decision question recorded in the receipt",
+    )
+
+
+def _record(args: argparse.Namespace) -> int:
+    try:
+        document, extras, documents = _sources(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     try:
         # `json_object` off is a real supported configuration, not a hack: the
         # provider requests structured output because it is *broadly*, not
@@ -58,7 +117,7 @@ def _record(args: argparse.Namespace) -> int:
 
     recorder = RecordingProvider(
         live,
-        document=document,
+        documents=documents,
         provider="openrouter",
         model=live.model,
         note=args.note,
@@ -66,7 +125,14 @@ def _record(args: argparse.Namespace) -> int:
 
     with tempfile.TemporaryDirectory() as tmp:
         paths = RunPaths(root=Path(tmp), run_id="record")
-        result = run_analysis(recorder, document, paths, question=QUESTION)
+        result = run_analysis(
+            recorder,
+            document,
+            paths,
+            question=args.question,
+            source_type=args.source_type,
+            extra_documents=extras,
+        )
 
     final = result.run.final_state
     if final.state_version == 0 and not args.allow_uncommitted:
@@ -94,13 +160,24 @@ def _record(args: argparse.Namespace) -> int:
 
 
 def _check(args: argparse.Namespace) -> int:
-    document = Path(args.input).read_text(encoding="utf-8")
-    provider = ReplayProvider.from_path(Path(args.cassette), document=document)
+    try:
+        document, extras, documents = _sources(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    provider = ReplayProvider.from_path(Path(args.cassette), documents=documents)
     recorded = len(provider.cassette.exchanges)
 
     with tempfile.TemporaryDirectory() as tmp:
         paths = RunPaths(root=Path(tmp), run_id="check")
-        result = run_analysis(provider, document, paths, question=QUESTION)
+        result = run_analysis(
+            provider,
+            document,
+            paths,
+            question=args.question,
+            source_type=args.source_type,
+            extra_documents=extras,
+        )
 
     print(f"cassette: {args.cassette}")
     print(f"  recorded {recorded} exchange(s) from {provider.cassette.model}")
@@ -120,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     rec = sub.add_parser("record", help="capture a real run (needs OPENROUTER_API_KEY)")
-    rec.add_argument("--input", required=True, help="document to analyze")
+    _add_source_args(rec)
     rec.add_argument("--out", required=True, help="cassette path to write")
     rec.add_argument("--model", default=None, help="OpenRouter model slug")
     rec.add_argument("--note", default="", help="free-text note stored in the cassette")
@@ -146,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     rec.set_defaults(func=_record)
 
     chk = sub.add_parser("check", help="replay offline and report drift")
-    chk.add_argument("--input", required=True, help="document the cassette was recorded from")
+    _add_source_args(chk)
     chk.add_argument("--cassette", required=True, help="cassette path to inspect")
     chk.set_defaults(func=_check)
 

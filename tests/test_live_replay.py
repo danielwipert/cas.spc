@@ -128,9 +128,9 @@ def test_cassette_is_recorded_from_its_document(
     text = document_path.read_text(encoding="utf-8")
     cassette = Cassette.load(cassette_path)
     assert cassette.exchanges, "the committed cassette must hold real exchanges"
-    # from_path verifies the digest; a different document must be refused.
+    # from_path verifies the digest; different source material must be refused.
     ReplayProvider.from_path(cassette_path, document=text)
-    with pytest.raises(CassetteError, match="different document"):
+    with pytest.raises(CassetteError, match="recorded against different"):
         ReplayProvider.from_path(cassette_path, document=text + " tampered")
 
 
