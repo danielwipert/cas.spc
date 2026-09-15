@@ -7,15 +7,15 @@
 > `TASKS.md` — not here.
 
 **Last session:** 2026-09-15 · **Branch:** `claude/practical-edison-pdc2k7`
-(reset from `main`; T25 is merged — see *Starting work*)
+(reset from `main`; T26 and T27 are merged — see *Starting work*)
 
 ---
 
 ## Where things stand
 
 Roadmap complete through **Phase 9**. `TASKS.md` is **done through T27** and
-empty again. T0–T25 are merged to `main` (PRs #2–#23); **T26 and T27 are this
-session's work**, both on this branch, and no task is part-landed.
+empty again. T0–T27 are all merged to `main` (PRs #2–#25), and no task is
+part-landed.
 
 The live pipeline is unchanged:
 
@@ -87,13 +87,20 @@ in `_sources`, before anything is spent.
 
 ## Starting work — read this first
 
-**T25's PR (#23) is merged**, and this branch was reset to `main`'s tip at the
-start of the session. A merged PR is finished and cannot track new work — never
-stack commits on that history. If in doubt, reset again:
+**T27's PR (#25) is merged**, and this branch has been reset to `main`'s tip. A
+merged PR is finished and cannot track new work — never stack commits on that
+history. If in doubt, reset again:
 
 ```
 git fetch origin main && git checkout -B <branch> origin/main
 ```
+
+**If you stack a second PR on the first, retarget it by hand.** T27 was opened
+against T26's branch, because it builds on the same `_sources` function and the
+same sections of this file — a branch off `main` would have conflicted rather
+than applied. GitHub retargets a stacked PR to `main` automatically **only when
+the base branch is deleted on merge**, and this repo keeps its branches, so the
+retarget is a manual step. Check it after merging the first of a pair.
 
 ## Next up
 
