@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import typer
@@ -30,9 +31,14 @@ from .evaluation import evaluate, write_report
 from .memo import write_memo
 from .models import EpistemicStatus, SemanticState
 from .operators import CriticOperator, ExtractOperator, LLMCriticOperator, Operator, PlannerOperator
-from .providers import OpenRouterConfigError, OpenRouterProvider
+from .providers import (
+    CassetteError,
+    OpenRouterConfigError,
+    OpenRouterProvider,
+    ReplayProvider,
+)
 from .receipt import FollowUps, write_run_artifacts
-from .regions import RegionError, parse_region, resolve_regions
+from .regions import RegionError, SourceRegion, parse_region, resolve_regions
 from .runtime import Clock, FixedClock, Runtime, WallClock, bootstrap_state
 from .source_types import DEFAULT_SOURCE_TYPE, SourceType, reliability_for
 from .store import RunPaths, StateStore
@@ -81,6 +87,121 @@ def _lineage_arg(value: str, known: set[str]) -> str | None:
             "extras follow in the order given), or 'none'."
         )
     return cleaned
+
+
+@dataclass(frozen=True)
+class _Declared:
+    """What the caller said the run reads — resolved once, used by two commands.
+
+    `analyze` and `replay` must describe a run *identically*: a replay that
+    declares different sources than the recording replays against material the
+    recording never saw. Sharing one resolver is what stops the two drifting
+    apart, the same reason `tools/record_cassette.py` shares `_add_source_args`
+    between `record` and `check`.
+    """
+
+    #: The primary document's text (`doc_001`).
+    document: str
+    #: The extra documents, in the order the pipeline reads them.
+    extras: list[SourceDocument]
+    #: Every text in reading order — what a cassette pins (T25).
+    texts: list[str]
+    #: Regions carving the primary document into stretches weighed differently.
+    regions: tuple[SourceRegion, ...]
+    #: Each region with the offset it resolved to, for echoing back.
+    located: list[tuple[SourceRegion, int]]
+
+
+def _declare_sources(
+    input: Path,
+    *,
+    also_input: list[Path],
+    also_source_type: list[SourceType],
+    also_derives_from: list[str],
+    region: list[str],
+) -> _Declared:
+    """Validate the source declarations and read every document.
+
+    Every failure here is a `BadParameter`, never a traceback from inside the
+    pipeline: for `analyze` that means it is caught before a billed call, and a
+    marker that does not occur used to be found only after several (T27).
+
+    Keyword-only past `input` on purpose: four of the five arguments are
+    same-typed lists whose meanings are not interchangeable, and a positional
+    call that transposed two of them would read as valid and mis-weigh a
+    document.
+    """
+    if len(also_input) != len(also_source_type):
+        raise typer.BadParameter(
+            f"{len(also_input)} --also-input but {len(also_source_type)} "
+            "--also-source-type: give one source type per extra document, in "
+            "the same order. A document's weight is not a detail to guess at."
+        )
+    if also_derives_from and len(also_derives_from) != len(also_input):
+        raise typer.BadParameter(
+            f"{len(also_input)} --also-input but {len(also_derives_from)} "
+            "--also-derives-from: give one per extra document, in the same "
+            "order, using 'none' for a document that stands on its own. Omit "
+            "the option entirely to declare every document independent."
+        )
+    known_sources = {f"doc_{i:03d}" for i in range(1, len(also_input) + 2)}
+    lineage = [_lineage_arg(v, known_sources) for v in also_derives_from] or [
+        None
+    ] * len(also_input)
+
+    document = input.read_text(encoding="utf-8")
+    try:
+        regions = tuple(parse_region(spec) for spec in region)
+        # Resolved per declaration rather than in bulk: `resolve_regions`
+        # returns them in *document* order, which is what the extractor wants
+        # and not what the caller typed. Pairing the two would misreport a
+        # marker declared out of order.
+        located = [(r, resolve_regions(document, [r])[0].start) for r in regions]
+    except RegionError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    extras = [
+        SourceDocument(
+            text=path.read_text(encoding="utf-8"), source_type=st, derives_from=parent
+        )
+        for path, st, parent in zip(
+            also_input, also_source_type, lineage, strict=True
+        )
+    ]
+    return _Declared(
+        document=document,
+        extras=extras,
+        texts=[document, *(e.text for e in extras)],
+        regions=regions,
+        located=located,
+    )
+
+
+def _echo_declarations(
+    declared: _Declared,
+    source_type: SourceType,
+    also_input: list[Path],
+    also_source_type: list[SourceType],
+) -> None:
+    """Print what the run was told, in the order the pipeline reads it."""
+    _console.print(
+        f"[yellow]source type:[/yellow] {source_type.value} "
+        f"[dim](evidence reliability: {reliability_for(source_type).value})[/dim]"
+    )
+    for declared_region, start in declared.located:
+        _console.print(
+            f"[yellow]region:[/yellow] {declared_region.source_type.value} "
+            f"[dim]({reliability_for(declared_region.source_type).value}) from "
+            f"offset {start} — {declared_region.marker!r}[/dim]"
+        )
+    for i, (path, st, extra) in enumerate(
+        zip(also_input, also_source_type, declared.extras, strict=True), start=2
+    ):
+        origin = f", derives from {extra.derives_from}" if extra.derives_from else ""
+        _console.print(
+            f"[yellow]also source {i}:[/yellow] {st.value} "
+            f"[dim]({reliability_for(st).value}{origin}) — {path.name}[/dim]"
+        )
 
 
 @app.command()
@@ -182,43 +303,13 @@ def analyze(
     committed state — neither re-prompts the model. Needs OPENROUTER_API_KEY;
     the run is non-deterministic (a live model).
     """
-    if len(also_input) != len(also_source_type):
-        raise typer.BadParameter(
-            f"{len(also_input)} --also-input but {len(also_source_type)} "
-            "--also-source-type: give one source type per extra document, in "
-            "the same order. A document's weight is not a detail to guess at."
-        )
-    if also_derives_from and len(also_derives_from) != len(also_input):
-        raise typer.BadParameter(
-            f"{len(also_input)} --also-input but {len(also_derives_from)} "
-            "--also-derives-from: give one per extra document, in the same "
-            "order, using 'none' for a document that stands on its own. Omit "
-            "the option entirely to declare every document independent."
-        )
-    known_sources = {f"doc_{i:03d}" for i in range(1, len(also_input) + 2)}
-    lineage = [_lineage_arg(v, known_sources) for v in also_derives_from] or [
-        None
-    ] * len(also_input)
-
-    document = input.read_text(encoding="utf-8")
-    try:
-        regions = tuple(parse_region(spec) for spec in region)
-        # Resolved per declaration rather than in bulk: `resolve_regions`
-        # returns them in *document* order, which is what the extractor wants
-        # and not what the caller typed. Pairing the two would misreport a
-        # marker declared out of order.
-        located = [(r, resolve_regions(document, [r])[0].start) for r in regions]
-    except RegionError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-
-    extras = [
-        SourceDocument(
-            text=path.read_text(encoding="utf-8"), source_type=st, derives_from=parent
-        )
-        for path, st, parent in zip(
-            also_input, also_source_type, lineage, strict=True
-        )
-    ]
+    declared = _declare_sources(
+        input,
+        also_input=list(also_input),
+        also_source_type=list(also_source_type),
+        also_derives_from=list(also_derives_from),
+        region=list(region),
+    )
     paths = RunPaths(root=runs_dir, run_id=run_id)
     clock = WallClock()
 
@@ -236,40 +327,247 @@ def analyze(
         f"[yellow]live analysis via OpenRouter:[/yellow] {provider.model} "
         f"[dim]({stages})[/dim]"
     )
-    _console.print(
-        f"[yellow]source type:[/yellow] {source_type.value} "
-        f"[dim](evidence reliability: {reliability_for(source_type).value})[/dim]"
-    )
-    for declared, start in located:
-        _console.print(
-            f"[yellow]region:[/yellow] {declared.source_type.value} "
-            f"[dim]({reliability_for(declared.source_type).value}) from "
-            f"offset {start} — {declared.marker!r}[/dim]"
-        )
-    for i, (path, st, parent) in enumerate(
-        zip(also_input, also_source_type, lineage, strict=True), start=2
-    ):
-        origin = f", derives from {parent}" if parent else ""
-        _console.print(
-            f"[yellow]also source {i}:[/yellow] {st.value} "
-            f"[dim]({reliability_for(st).value}{origin}) — {path.name}[/dim]"
-        )
+    _echo_declarations(declared, source_type, list(also_input), list(also_source_type))
 
     analysis = run_analysis(
         provider,
-        document,
+        declared.document,
         paths,
         clock=clock,
         question=question,
         extract_only=extract_only,
         source_type=source_type,
-        regions=regions,
-        extra_documents=extras,
+        regions=declared.regions,
+        extra_documents=declared.extras,
     )
 
     _render_summary(analysis.run)
     if analysis.artifacts is None or analysis.memo_path is None:
         _console.print("[red]Nothing committed — the extractor produced no valid patch.[/red]")
+        raise typer.Exit(code=1)
+
+    final = analysis.run.final_state
+    _console.print(
+        f"[green]state v{final.state_version}:[/green] "
+        f"{len(final.claims)} claims, {len(final.evidence)} evidence, "
+        f"{len(final.assumptions)} assumptions, {len(final.hypotheses)} hypotheses, "
+        f"{len(final.questions)} questions"
+    )
+    if final.hypotheses:
+        lead = max(final.hypotheses.values(), key=lambda h: h.confidence)
+        _console.print(f"[green]recommendation:[/green] {_ascii(lead.text)}")
+    _console.print(f"[green]decision memo:[/green] [dim]{analysis.memo_path}[/dim]")
+    _console.print(
+        f"[green]reasoning receipt:[/green] [dim]{analysis.artifacts.receipt_path}[/dim]"
+    )
+
+
+#: How many distinct timestamps a replayed run is handed.
+#:
+#: A replay must be byte-reproducible — that is the whole reason to prefer it to
+#: a live run — so it cannot use the wall clock. `FixedClock` reuses its last
+#: value once exhausted, which would collapse the tail of a long audit log onto
+#: one instant, so the sequence is generous: 512 is far more stamps than any
+#: pipeline stage count, and an unused stamp costs nothing.
+_REPLAY_TIMESTAMPS = 512
+
+
+@app.command()
+def replay(
+    cassette: Path = typer.Option(
+        ...,
+        "--cassette",
+        "-c",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+        help="A recorded cassette (tests/fixtures/cassettes/*.json).",
+    ),
+    input: Path = typer.Option(
+        ...,
+        "--input",
+        "-i",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+        help="The document the cassette was recorded against.",
+    ),
+    run_id: str = typer.Option("replay_001", "--run-id", help="Run id."),
+    runs_dir: Path = typer.Option(Path("runs"), "--runs-dir"),
+    question: str = typer.Option(
+        DEFAULT_QUESTION,
+        "--question",
+        "-q",
+        help="The decision question the cassette was recorded with.",
+    ),
+    source_type: SourceType = typer.Option(
+        DEFAULT_SOURCE_TYPE.value,
+        "--source-type",
+        case_sensitive=False,
+        help="What kind of document --input is. Declare what the recording "
+        "declared: this changes no prompt, so getting it wrong replays clean "
+        "and produces a different memo.",
+    ),
+    also_input: list[Path] = typer.Option(
+        [],
+        "--also-input",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+        help="A further document the cassette was recorded over. Repeatable; "
+        "pair each with an --also-source-type in the same order.",
+    ),
+    also_source_type: list[SourceType] = typer.Option(
+        [],
+        "--also-source-type",
+        case_sensitive=False,
+        help="Source type for each --also-input, in the same order.",
+    ),
+    region: list[str] = typer.Option(
+        [],
+        "--region",
+        help="Carve --input into stretches weighed differently, as "
+        "'<marker>:<source_type>'. Unlike the other declarations this one need "
+        "not match the recording: a region is applied when spans are stamped, "
+        "after the model has answered, so one cassette replays with regions "
+        "and without. Repeatable.",
+    ),
+    also_derives_from: list[str] = typer.Option(
+        [],
+        "--also-derives-from",
+        help="For an --also-input written off another document, the source id "
+        "it came from. Repeatable, one per extra document, 'none' to skip one. "
+        "Declare what the recording declared: lineage drops corroboration "
+        "candidates before the skeptic pass, so changing it changes which "
+        "calls the run makes and the cassette misaligns from that point on "
+        "(reported as drift). Each lineage setting needs its own recording.",
+    ),
+    extract_only: bool = typer.Option(
+        False,
+        "--extract-only",
+        help="Stop after extraction (skip the remaining five stages).",
+    ),
+) -> None:
+    """Replay a recorded run offline and write its memo — no key, no network.
+
+    Every claim this engine makes about real model output rests on a cassette,
+    and until now a cassette could only be replayed from inside `pytest`. That
+    made the outputs the engine exists to produce — the Decision Memo a reader
+    opens, the Reasoning Receipt behind it — the one thing a contributor could
+    not simply look at. `replay` is that: the same pipeline as `analyze`, driven
+    from a recording instead of OpenRouter.
+
+    It is free and deterministic. No `OPENROUTER_API_KEY` is needed, nothing is
+    spent, and two replays of one cassette write byte-identical artifacts
+    (the clock is fixed to the recording's own timestamp), so an output can be
+    diffed across a change to the engine.
+
+    **The declarations are yours to get right, and cannot be checked.** The
+    cassette pins the documents it was recorded against — a wrong `--input` is
+    refused outright — but it records nothing about how they were *declared*.
+    `--source-type` and `--also-derives-from` are the caller's facts, which the
+    model never sees (T14), so they reach no prompt: declare them differently
+    from the recording and the replay still runs clean and hands you a
+    different memo. Drift detection will not catch it, because no request
+    changed. `--region` is the deliberate exception (T27): it is resolved after
+    the model has answered, so varying it over one recording is the point.
+
+    Two signals are reported after the run, and neither is an error:
+
+      drift       - a recorded request no longer matches what the code sends
+                    today, so this memo is what the *old* prompt produced.
+                    Re-record (`tools/record_cassette.py record`). Drift also
+                    fires when the replay makes a *different* set of calls than
+                    the recording and the exchanges misalign from that point
+                    on — which is what changing --also-derives-from does, and
+                    why each lineage setting needs its own recording (T26).
+      unreplayed  - the pipeline asked for fewer completions than the cassette
+                    holds, so recorded exchanges went unused. Expected with
+                    --extract-only, which stops five stages early.
+
+    Treat a memo produced under either signal as untrustworthy: it is not what
+    the recorded run produced.
+    """
+    declared = _declare_sources(
+        input,
+        also_input=list(also_input),
+        also_source_type=list(also_source_type),
+        also_derives_from=list(also_derives_from),
+        region=list(region),
+    )
+
+    try:
+        provider = ReplayProvider.from_path(cassette, documents=declared.texts)
+    except CassetteError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    recorded = len(provider.cassette.exchanges)
+    stages = (
+        "extract"
+        if extract_only
+        else "extract -> plan -> critique -> retrieve -> verify -> calibrate"
+    )
+    _console.print(
+        f"[cyan]replaying {recorded} exchange(s):[/cyan] {cassette.name} "
+        f"[dim]({provider.cassette.model}, recorded "
+        f"{provider.cassette.recorded_at.date()})[/dim]"
+    )
+    if provider.cassette.note:
+        _console.print(f"[cyan]note:[/cyan] [dim]{_ascii(provider.cassette.note)}[/dim]")
+    _console.print(f"[cyan]stages:[/cyan] [dim]{stages}[/dim]")
+    _echo_declarations(declared, source_type, list(also_input), list(also_source_type))
+    _console.print(
+        "[dim]the declarations above are not recorded in the cassette and "
+        "cannot be verified against it — see --help[/dim]"
+    )
+
+    paths = RunPaths(root=runs_dir, run_id=run_id)
+    # Seeded from the recording so one cassette always replays to the same
+    # bytes, and so the audit log reads as the run it captured rather than as
+    # whenever someone happened to look at it.
+    start = provider.cassette.recorded_at
+    clock = FixedClock(
+        [start + dt.timedelta(seconds=i) for i in range(_REPLAY_TIMESTAMPS)]
+    )
+
+    analysis = run_analysis(
+        provider,
+        declared.document,
+        paths,
+        clock=clock,
+        question=question,
+        extract_only=extract_only,
+        source_type=source_type,
+        regions=declared.regions,
+        extra_documents=declared.extras,
+    )
+
+    _render_summary(analysis.run)
+
+    if provider.drifted_calls:
+        _console.print(
+            f"[red]drift:[/red] {len(provider.drifted_calls)} of {recorded} recorded "
+            f"request(s) no longer match today's prompts "
+            f"[dim](indices {provider.drifted_calls})[/dim] — this memo is what "
+            "the old prompt produced. Re-record the cassette."
+        )
+    else:
+        _console.print(
+            "[green]no drift:[/green] [dim]every replayed request matches what "
+            "the code sends today[/dim]"
+        )
+    if not provider.exhausted:
+        _console.print(
+            f"[yellow]unreplayed:[/yellow] the pipeline asked for "
+            f"{provider.call_count} completion(s) of {recorded} recorded "
+            "[dim](expected with --extract-only, or when lineage denies an "
+            "independence the recording assumed)[/dim]"
+        )
+
+    if analysis.artifacts is None or analysis.memo_path is None:
+        _console.print(
+            "[red]Nothing committed — the recorded extraction produced no valid patch.[/red]"
+        )
         raise typer.Exit(code=1)
 
     final = analysis.run.final_state

@@ -2314,6 +2314,89 @@ python tools/record_cassette.py record \
 
 ---
 
+## T28 — `spc-demo replay`: the outputs, made viewable · ✅ DONE
+
+**Why.** Every claim this engine makes about *real* model output rests on a
+cassette, and a cassette could only be replayed from inside `pytest`. That left
+the two artifacts the engine exists to produce — the Decision Memo a reader
+opens and the Reasoning Receipt behind it — as the one thing a contributor could
+not simply look at. Seeing an output is the precondition for judging one, and
+judging them is the next piece of work: nothing in the suite today scores
+whether a memo is *right*, only whether the mechanism that built it held.
+
+The gap was concrete. Reading one replayed memo (`analyze_8k_complete`, region
+declared) surfaces four things no test would catch: **9 of 11 findings flagged
+"weakly supported"**, so the risks section is a reprint of the findings list;
+the `$23.25` cash consideration present in E5's span and **absent from the claim
+built off it**; a *"Proceed with the merger"* recommendation answering a
+question — *"what did Netflix agree to, and on what terms?"* — that asked for
+facts; and two of three open questions being the same question about the same
+claim, one from the planner and one from the Retriever.
+
+**What landed.**
+
+- **`spc-demo replay --cassette <path> --input <doc>`** — the same pipeline as
+  `analyze`, driven from a recording instead of OpenRouter. No key, no network,
+  nothing spent. Takes the same declaration flags (`--source-type`, `--region`,
+  `--also-input`/`--also-source-type`/`--also-derives-from`, `--question`,
+  `--extract-only`) and writes the full run tree, memo and receipt.
+- **Byte-reproducible.** The clock is fixed to the cassette's own `recorded_at`
+  rather than read off the wall, so two replays of one cassette write identical
+  artifacts. That is what makes a replayed output usable as a *yardstick* — a
+  memo can be diffed across a change to the engine, which a live run can never
+  support because the model moves under it.
+- **`_declare_sources` / `_echo_declarations`**, shared by `analyze` and
+  `replay`. The source declarations were resolved inline in `analyze`; a replay
+  that describes its sources differently from the recording replays against
+  material the recording never saw, so the two commands now share one resolver
+  for the same reason `tools/record_cassette.py` shares `_add_source_args`
+  between `record` and `check`.
+- **`tests/test_cli_replay.py`**, 9 tests — the repo's first CLI-level tests.
+  529 total (was 520).
+
+**The declarations are the caller's, and the cassette cannot check them.** This
+is the sharp edge of the command and it is documented as one. A cassette pins
+the documents it was recorded against (`document_sha256`), so a wrong `--input`
+is refused outright. It records **nothing** about how those documents were
+*declared* — and `--source-type` and `--also-derives-from` are the caller's
+facts, which the model never sees (T14), so they reach no prompt. Declare them
+differently from the recording and the replay runs **perfectly clean** and hands
+back a different memo; drift detection cannot see it, because no request
+changed. The only defence available today is that the command echoes what it was
+told and says the echo is unverified, and both are asserted by a test.
+
+**Two signals, reported after every run, neither an error.**
+
+| signal | means | fires when |
+|---|---|---|
+| `drift` | this memo is what the **old** prompt produced | a prompt changed since recording — or the replay made a *different set of calls* and the exchanges misaligned |
+| `unreplayed` | recorded exchanges went unused | `--extract-only`, which stops five stages early |
+
+Drift covering the misalignment case was found by running it: replaying
+`analyze_joint_pr_undeclared.json` **with** `--also-derives-from doc_001`
+declared does not merely make one call fewer, it shifts every later exchange
+onto the wrong response. So the report is honest about it and the flag's help
+says each lineage setting needs its own recording — which is what T26 already
+did, now for a stated reason.
+
+**T27's controlled experiment now runs from the command line**, and is asserted
+as a direction rather than as two numbers (pinning a cassette's exact output is
+what broke four assertions across three re-records):
+
+```
+spc-demo replay -c tests/fixtures/cassettes/analyze_8k_complete.json \
+    -i tests/fixtures/sec_8k_netflix_complete.txt \
+    --source-type regulatory_filing --run-id undeclared
+# ... and again with --region "Item 7.01:press_release"
+```
+
+0 low-reliability spans → 5, and a 57% recommendation → 38%, off one
+declaration. Both replays byte-identical run to run.
+
+529 tests (was 520). `DEMO.md` byte-identical.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)
