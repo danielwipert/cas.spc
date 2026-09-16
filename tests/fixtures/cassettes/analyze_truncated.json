@@ -108,5 +108,15 @@
   "note": "Unparseable output: recorded with max_tokens=90, so the extraction is cut off mid-string. Truncation is the commonest real cause of output the JSON_DECODE retry path exists for. All three extract attempts fail, the step never commits, and the later stages run on against empty state. Recorded from the same document as analyze_five_stage.json, so the token cap is the only variable.",
   "provider": "openrouter",
   "recorded_at": "2026-09-12T14:37:30.148819Z",
+  "run_spec": {
+    "question": "What does this announcement establish, and what is uncertain?",
+    "sources": [
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/live_document.txt",
+        "source_type": "unclassified"
+      }
+    ]
+  },
   "version": 1
 }

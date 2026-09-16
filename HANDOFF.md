@@ -13,9 +13,9 @@
 
 ## Where things stand
 
-Roadmap complete through **Phase 9**. `TASKS.md` is **done through T28**.
-T0–T27 are merged to `main` (PRs #2–#26); **T28 is this branch, not yet
-merged.**
+Roadmap complete through **Phase 9**. `TASKS.md` is **done through T29**.
+T0–T27 are merged to `main` (PRs #2–#26); **T28 and T29 are this branch,
+not yet merged.**
 
 The live pipeline is unchanged:
 
@@ -30,7 +30,7 @@ All four definition-of-done gates pass, locally and in CI on every PR:
 ```
 ruff check src tests tools  ->  All checks passed
 python -m mypy              ->  Success: no issues found in 74 source files
-pytest                      ->  529 passed   (was 520 at the start of the session)
+pytest                      ->  555 passed   (was 520 at the start of the session)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -64,12 +64,38 @@ Two properties are worth knowing before using it:
   `recorded_at`, so two replays write identical artifacts. That is what makes a
   replayed output a *yardstick* — diffable across a change to the engine, which
   a live run can never be.
-- **The declarations are the caller's and cannot be checked.** A wrong
-  `--input` is refused (the cassette pins `document_sha256`). A wrong
-  `--source-type` or `--also-derives-from` is **not**: they are the caller's
-  facts, reach no prompt (T14), and so replay clean while handing back a
-  different memo. The command echoes what it used and says the echo is
-  unverified. **This is the first thing to fix — see *Next up*.**
+- **The declarations were the caller's and unverifiable — T29 fixed that.**
+  A cassette now records how its run was declared, so
+  `spc-demo replay --cassette X` is the whole command. See below.
+
+**T29 — a cassette records how its run was declared.** Step 1b, and it closed
+T28's own footgun rather than documenting it. `source_type` and `derives_from`
+are the caller's facts and reach no prompt (T14), so replaying a cassette with
+a different `--source-type` gave **zero drift, a clean run, and a different
+memo** — invisible to both the digest and drift detection. `RunSpec` records
+them; all 8 cassettes are backfilled; `spc-demo replay --cassette X` needs no
+other argument, and any override is reported as a deviation rather than
+refused. Details and the verification table are in `TASKS.md` T29.
+
+The backfill was **derived, not remembered** — document lists from digest
+matching, questions proved by the no-drift gate — and the two declarations that
+reach no prompt are verified against *behaviour*: a wrong source type on
+`analyze_two_filings` would stop a claim reaching `VERIFIED`, and wrong lineage
+on the joint-PR pair would stop corroboration flipping. Both asserted.
+
+**A fifth defect, found while checking the deviation report — and it is the
+worst one.** Overriding `--question` produced **no drift**, because the question
+reaches no prompt at all. `build_analysis_operators` does not take it; no
+operator receives it. It is the heading on the memo and receipt and **nothing
+else**.
+
+So defect 3 below is not a rendering choice, it is a missing wire: the planner
+is never told what the reader asked, and the memo's title and its content are
+unconnected by construction. Whether the question should steer extraction, the
+planner, or both — and whether a recommendation should be declined when the
+question asked for facts — is a **product** decision and belongs to a human.
+This is the most valuable thing the session found, and it was found by reading
+one output.
 
 **Reading one replayed memo found four defects no test would catch.** This is
 the argument for the whole direction, and the four are the first things a
@@ -86,7 +112,9 @@ scorer should be pointed at (`analyze_8k_complete`, region declared):
 3. **The memo answers a question nobody asked.** Input question was *"What did
    Netflix agree to, and on what terms?"* — factual. Output leads with
    *"Proceed with the merger as planned."* A recommendation is always rendered,
-   whether or not the question calls for one.
+   whether or not the question calls for one. **Cause now known** (T29): the
+   question reaches no operator, so nothing in the pipeline could have
+   answered it.
 4. **Duplicate work reaches the reader.** Two of three open questions are the
    same question about the same claim (planner asks it, Retriever asks it
    again); two of three assumptions are near-paraphrases of each other.
@@ -110,19 +138,12 @@ deleted on merge**, and this repo keeps its branches.
 
 ## Next up
 
-The plan is four steps and **Step 1 is done**. Steps 2–4 are the substance.
+The plan is four steps and **Steps 1 and 1b are done**. Steps 2–4 are the
+substance, and Step 2 is a human's judgement before it is anyone's code.
 
-- **Step 1b (do this first, it is small).** Make cassettes **self-describing**:
-  an optional `run_spec` on the `Cassette` model recording the question, each
-  source's path/`source_type`/`derives_from`, and populated by
-  `tools/record_cassette.py`. Backfill the 8 committed cassettes by hand — the
-  declarations are recoverable from the replay tests and `TASKS.md`, and
-  backfilling *metadata* needs no re-recording, so it costs nothing. `replay`
-  then needs only `--cassette`, and the silent-wrong-declaration footgun above
-  is gone. **Regions stay a command-line-only flag on purpose** (T27: one
-  cassette must replay with them and without). This matters more than it looks:
-  Steps 3–4 score a *corpus* of replays, and if declarations can drift from
-  their recordings, every score is suspect.
+**Read one replayed memo before starting.** It is one command now
+(`spc-demo replay --cassette tests/fixtures/cassettes/analyze_8k_complete.json`)
+and it is how all five defects above were found.
 
 - **Step 2 — a gold set. This is a human's judgement, not an agent's.** Pick
   documents and write down, by hand, for each: the facts that **must** appear,
@@ -288,6 +309,14 @@ Read [`AGENTS.md`](./AGENTS.md). The hard invariant: **no operator mutates
   the recording never saw. `_declare_sources` is the single definition, for the
   same reason `tools/record_cassette.py` shares `_add_source_args` between
   `record` and `check`.
+- **A declaration that reaches no prompt must be recorded, not remembered**
+  (T29). T14's rule — that the caller's facts never enter a prompt — has a
+  cost: nothing about the *request* changes, so no digest and no drift check
+  can tell whether a replay was declared the way its recording was. Anything
+  the caller declares therefore belongs in the cassette (`RunSpec`), and a
+  deviation is reported rather than refused. If you add a new declaration to
+  `analyze`, add it to `RunSpec` in the same change — unless, like a region,
+  it is deliberately meant to vary over one recording.
 
 The full definition of done is in `TASKS.md`; note that `spc-demo demo`
 rewrites `DEMO.md` in the repo root, so run it with the default `--runs-dir` or

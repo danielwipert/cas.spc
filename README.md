@@ -88,25 +88,29 @@ Every claim this engine makes about real model output rests on a recorded
 `OPENROUTER_API_KEY`, no network, nothing spent:
 
 ```powershell
-spc-demo replay --cassette tests/fixtures/cassettes/analyze_8k_complete.json `
-                --input tests/fixtures/sec_8k_netflix_complete.txt `
-                --source-type regulatory_filing `
-                --region "Item 7.01:press_release" `
-                --run-id peek
+spc-demo replay --cassette tests/fixtures/cassettes/analyze_8k_complete.json
 ```
 
-That writes `runs/peek/memo.md` — the Decision Memo a reader would actually
-open — plus the full run tree behind it. Two replays of one cassette produce
-**byte-identical** artifacts (the clock is fixed to the recording's own
-timestamp), so an output can be diffed across a change to the engine, which a
-live run can never support because the model moves under it. Drop the
-`--region` and re-run to see one declaration reprice half the filing.
+That is the whole command: a cassette records how its run was **declared**, so
+it needs no other argument. It writes `runs/replay_001/memo.md` — the Decision
+Memo a reader would actually open — plus the full run tree behind it. Two
+replays of one cassette produce **byte-identical** artifacts (the clock is
+fixed to the recording's own timestamp), so an output can be diffed across a
+change to the engine, which a live run can never support because the model
+moves under it.
 
-Note that a cassette pins the *documents* it was recorded against, but not how
-they were **declared**: `--source-type` and `--also-derives-from` are the
-caller's facts and reach no prompt, so declaring them differently from the
-recording replays perfectly clean and hands back a different memo. `replay`
-echoes back every declaration it used, and says that the echo is unverified.
+Every declaration can still be overridden, and any override is reported as a
+deviation from the recording — because a *deliberate* one is a free experiment
+(none of them reach a prompt) and a *mistaken* one would otherwise replay
+perfectly clean and hand back a different memo. `--region` is the exception
+that is never a deviation: it is applied after the model has answered, so one
+recording is meant to replay with it and without. Add it to see one declaration
+reprice half the filing:
+
+```powershell
+spc-demo replay --cassette tests/fixtures/cassettes/analyze_8k_complete.json `
+                --region "Item 7.01:press_release"
+```
 
 `spc-demo demo` is the fastest way to see the whole story: it runs the SPC
 engine and the baseline over the §8 scenario, answers the follow-ups live from

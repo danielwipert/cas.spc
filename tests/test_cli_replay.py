@@ -165,17 +165,31 @@ def test_extract_only_reports_the_exchanges_it_left_unreplayed(
     assert "unreplayed" in result.output
 
 
-def test_the_unverifiable_declarations_are_echoed_back(tmp_path: Path) -> None:
-    """The command must say what it was told, because nothing else can.
+def test_the_declarations_are_echoed_and_checked(tmp_path: Path) -> None:
+    """The command says what it was told, and whether that is the recording.
 
     `--source-type` is the caller's fact and reaches no prompt (T14), so a
     mistyped one replays with zero drift and hands back a different memo.
-    Echoing the declarations is the only defence, so it is asserted.
+    Echoing them was T28's only defence; since T29 the cassette records its own
+    declarations, so the echo is checked rather than merely printed.
     """
     result = _replay(tmp_path, "peek", "--region", FURNISHED)
     assert "regulatory_filing" in result.output
     assert "press_release" in result.output
-    assert "cannot be verified" in result.output
+    assert "as recorded" in result.output
+
+
+def test_a_region_is_never_a_deviation(tmp_path: Path) -> None:
+    """The declaration deliberately left out of the recording (T27).
+
+    A region is resolved after the model has answered, so one cassette must
+    replay with regions declared and without — that is the controlled
+    experiment. Recording it would turn the experiment into a deviation
+    report, so `RunSpec` holds no regions and this asserts it stays that way.
+    """
+    result = _replay(tmp_path, "peek", "--region", FURNISHED)
+    assert "as recorded" in result.output
+    assert "declared differently" not in result.output
 
 
 def test_declaring_the_furnished_region_reprices_the_recommendation(
@@ -200,3 +214,100 @@ def test_declaring_the_furnished_region_reprices_the_recommendation(
 
     # And the cap carries it up to the recommendation, which nobody told it to.
     assert _confidence(declared) < _confidence(undeclared)
+
+
+# --------------------------------------------------------------------------
+# T29 — the cassette supplies its own declarations
+# --------------------------------------------------------------------------
+
+
+def test_a_cassette_alone_is_enough(tmp_path: Path) -> None:
+    """The point of recording the declarations: one argument, the right run."""
+    result = runner.invoke(
+        app,
+        [
+            "replay",
+            "--cassette", str(CASSETTE_8K),
+            "--runs-dir", str(tmp_path),
+            "--run-id", "solo",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "solo" / "memo.md").exists()
+    # It found the recorded source type rather than falling back to the default.
+    assert "regulatory_filing" in result.output
+    assert "as recorded" in result.output
+    assert "no drift" in result.output
+
+
+def test_a_multi_source_cassette_brings_its_extra_documents(tmp_path: Path) -> None:
+    """Including the lineage, which is the declaration T26 turns on."""
+    result = runner.invoke(
+        app,
+        [
+            "replay",
+            "--cassette", str(CASSETTES / "analyze_joint_pr_declared.json"),
+            "--runs-dir", str(tmp_path),
+            "--run-id", "pair",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "also source 2" in result.output
+    assert "derives from doc_001" in result.output
+    assert "as recorded" in result.output
+
+
+def test_overriding_a_declaration_is_allowed_and_reported(tmp_path: Path) -> None:
+    """Not refused — a weighting experiment costs nothing and changes no prompt.
+
+    It is only dangerous unnoticed, so the deviation is printed and the run
+    goes ahead.
+    """
+    result = _replay(tmp_path, "dev", "--source-type", "press_release")
+    assert result.exit_code == 0, result.output
+    assert "declared differently" in result.output
+    assert "as recorded" not in result.output
+    # And it really did take the override, not the recording.
+    assert "low reliability" in (tmp_path / "dev" / "memo.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_cassette_with_no_declarations_still_needs_input(tmp_path: Path) -> None:
+    """`RunSpec` is optional, so the explicit path must keep working.
+
+    A cassette written before it existed — or by hand — has to be replayable,
+    and must say plainly what it needs rather than falling back to a default
+    source type nobody chose.
+    """
+    from spc_state.providers import Cassette
+
+    stripped = tmp_path / "no_spec.json"
+    Cassette.load(CASSETTE_8K).model_copy(update={"run_spec": None}).save(stripped)
+
+    bare = runner.invoke(
+        app,
+        [
+            "replay",
+            "--cassette", str(stripped),
+            "--runs-dir", str(tmp_path),
+            "--run-id", "bare",
+        ],
+    )
+    assert bare.exit_code != 0
+    assert "--input is required" in bare.output or "records no declarations" in bare.output
+
+    given = runner.invoke(
+        app,
+        [
+            "replay",
+            "--cassette", str(stripped),
+            "--input", str(COMPLETE_8K),
+            "--source-type", "regulatory_filing",
+            "--question", QUESTION,
+            "--runs-dir", str(tmp_path),
+            "--run-id", "given",
+        ],
+    )
+    assert given.exit_code == 0, given.output
+    assert "cannot be checked" in given.output

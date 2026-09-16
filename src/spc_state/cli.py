@@ -32,15 +32,22 @@ from .memo import write_memo
 from .models import EpistemicStatus, SemanticState
 from .operators import CriticOperator, ExtractOperator, LLMCriticOperator, Operator, PlannerOperator
 from .providers import (
+    Cassette,
     CassetteError,
     OpenRouterConfigError,
     OpenRouterProvider,
     ReplayProvider,
+    RunSpec,
 )
 from .receipt import FollowUps, write_run_artifacts
 from .regions import RegionError, SourceRegion, parse_region, resolve_regions
 from .runtime import Clock, FixedClock, Runtime, WallClock, bootstrap_state
-from .source_types import DEFAULT_SOURCE_TYPE, SourceType, reliability_for
+from .source_types import (
+    DEFAULT_SOURCE_TYPE,
+    SourceType,
+    coerce_source_type,
+    reliability_for,
+)
 from .store import RunPaths, StateStore
 
 app = typer.Typer(
@@ -174,6 +181,94 @@ def _declare_sources(
         texts=[document, *(e.text for e in extras)],
         regions=regions,
         located=located,
+    )
+
+
+@dataclass(frozen=True)
+class _Resolved:
+    """The declarations to run with, after the cassette has filled the blanks."""
+
+    input: Path
+    question: str
+    source_type: SourceType
+    also_input: list[Path]
+    also_source_type: list[SourceType]
+    also_derives_from: list[str]
+
+
+def _resolve_against_spec(
+    spec: RunSpec | None,
+    *,
+    input: Path | None,
+    question: str | None,
+    source_type: SourceType | None,
+    also_input: list[Path],
+    also_source_type: list[SourceType],
+    also_derives_from: list[str],
+) -> _Resolved:
+    """Fill each declaration the caller left out from the recording's own.
+
+    An argument given on the command line always wins — overriding a
+    declaration that reaches no prompt is a real experiment, and `replay`
+    reports it as a deviation rather than refusing it. What is *omitted* comes
+    from the cassette, which is the whole point of recording it: a caller who
+    passes only `--cassette` gets the run that was captured.
+
+    Extra sources are all-or-nothing. Half a multi-source declaration — the
+    paths from the cassette and the lineage from the caller, say — is a run
+    nobody described, and silently pairing them by index is how a document ends
+    up weighed as its neighbour.
+    """
+    recorded_sources = list(spec.sources) if spec is not None else []
+    primary = recorded_sources[0] if recorded_sources else None
+
+    if input is None:
+        if primary is None:
+            raise typer.BadParameter("--input is required: the cassette names no source.")
+        input = Path(primary.path)
+        if not input.exists():
+            raise typer.BadParameter(
+                f"the cassette records its source as {primary.path!r}, which does "
+                "not exist from here. Run from the repository root, or pass "
+                "--input explicitly."
+            )
+    if question is None:
+        question = spec.question if spec is not None else DEFAULT_QUESTION
+    if source_type is None:
+        source_type = (
+            coerce_source_type(primary.source_type)
+            if primary is not None
+            else DEFAULT_SOURCE_TYPE
+        )
+
+    if not also_input and len(recorded_sources) > 1:
+        if also_source_type or also_derives_from:
+            raise typer.BadParameter(
+                "--also-source-type/--also-derives-from were given without "
+                "--also-input. Either pass every extra source explicitly, or "
+                "pass none of them and take all of the cassette's."
+            )
+        extras = recorded_sources[1:]
+        also_input = [Path(s.path) for s in extras]
+        missing = [str(path) for path in also_input if not path.exists()]
+        if missing:
+            raise typer.BadParameter(
+                f"the cassette records extra sources that do not exist from "
+                f"here: {', '.join(missing)}. Run from the repository root, or "
+                "pass --also-input explicitly."
+            )
+        also_source_type = [coerce_source_type(s.source_type) for s in extras]
+        # 'none' is the CLI's spelling for "derives from nothing", and
+        # `_lineage_arg` is what reads it back.
+        also_derives_from = [s.derives_from or "none" for s in extras]
+
+    return _Resolved(
+        input=input,
+        question=question,
+        source_type=source_type,
+        also_input=also_input,
+        also_source_type=also_source_type,
+        also_derives_from=also_derives_from,
     )
 
 
@@ -383,30 +478,34 @@ def replay(
         resolve_path=True,
         help="A recorded cassette (tests/fixtures/cassettes/*.json).",
     ),
-    input: Path = typer.Option(
-        ...,
+    input: Path | None = typer.Option(
+        None,
         "--input",
         "-i",
         exists=True,
         readable=True,
         resolve_path=True,
-        help="The document the cassette was recorded against.",
+        help="The document the cassette was recorded against. Optional for a "
+        "cassette that records its own declarations — omit it and the "
+        "recording's own path is used.",
     ),
     run_id: str = typer.Option("replay_001", "--run-id", help="Run id."),
     runs_dir: Path = typer.Option(Path("runs"), "--runs-dir"),
-    question: str = typer.Option(
-        DEFAULT_QUESTION,
+    question: str | None = typer.Option(
+        None,
         "--question",
         "-q",
-        help="The decision question the cassette was recorded with.",
+        help="The decision question the cassette was recorded with. Defaults "
+        "to the recorded one.",
     ),
-    source_type: SourceType = typer.Option(
-        DEFAULT_SOURCE_TYPE.value,
+    source_type: SourceType | None = typer.Option(
+        None,
         "--source-type",
         case_sensitive=False,
-        help="What kind of document --input is. Declare what the recording "
-        "declared: this changes no prompt, so getting it wrong replays clean "
-        "and produces a different memo.",
+        help="What kind of document --input is. Defaults to the recorded "
+        "declaration. Overriding it is a legitimate experiment — it changes no "
+        "prompt — but it is reported as a deviation, because a *mistaken* one "
+        "replays just as cleanly and hands back a different memo.",
     ),
     also_input: list[Path] = typer.Option(
         [],
@@ -488,13 +587,39 @@ def replay(
     Treat a memo produced under either signal as untrustworthy: it is not what
     the recorded run produced.
     """
-    declared = _declare_sources(
-        input,
+    # The cassette is read before the declarations are resolved, because it may
+    # supply them. Its `RunSpec` is what makes `--cassette` sufficient on its
+    # own; a cassette recorded before that existed still needs them passed.
+    try:
+        recorded_spec = Cassette.load(cassette).run_spec
+    except CassetteError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if recorded_spec is None and input is None:
+        raise typer.BadParameter(
+            f"{cassette.name} records no declarations (it predates RunSpec), so "
+            "--input is required. Re-record it, or pass the same --input, "
+            "--source-type, --question and --also-* the recording was made with."
+        )
+
+    resolved = _resolve_against_spec(
+        recorded_spec,
+        input=input,
+        question=question,
+        source_type=source_type,
         also_input=list(also_input),
         also_source_type=list(also_source_type),
         also_derives_from=list(also_derives_from),
+    )
+    declared = _declare_sources(
+        resolved.input,
+        also_input=resolved.also_input,
+        also_source_type=resolved.also_source_type,
+        also_derives_from=resolved.also_derives_from,
         region=list(region),
     )
+    question = resolved.question
+    source_type = resolved.source_type
 
     try:
         provider = ReplayProvider.from_path(cassette, documents=declared.texts)
@@ -515,11 +640,34 @@ def replay(
     if provider.cassette.note:
         _console.print(f"[cyan]note:[/cyan] [dim]{_ascii(provider.cassette.note)}[/dim]")
     _console.print(f"[cyan]stages:[/cyan] [dim]{stages}[/dim]")
-    _echo_declarations(declared, source_type, list(also_input), list(also_source_type))
-    _console.print(
-        "[dim]the declarations above are not recorded in the cassette and "
-        "cannot be verified against it — see --help[/dim]"
+    _echo_declarations(
+        declared, source_type, resolved.also_input, resolved.also_source_type
     )
+    if recorded_spec is None:
+        _console.print(
+            "[dim]this cassette records no declarations, so the ones above "
+            "cannot be checked against it — see --help[/dim]"
+        )
+    else:
+        deviations = recorded_spec.deviations(
+            question=question,
+            source_types=[
+                source_type.value, *(t.value for t in resolved.also_source_type)
+            ],
+            lineage=[e.derives_from for e in declared.extras],
+        )
+        if deviations:
+            _console.print(
+                "[yellow]declared differently from the recording[/yellow] "
+                "[dim](legitimate for an experiment, wrong by accident):[/dim]"
+            )
+            for line in deviations:
+                _console.print(f"  [yellow]-[/yellow] [dim]{_ascii(line)}[/dim]")
+        else:
+            _console.print(
+                "[green]as recorded:[/green] [dim]every declaration matches the "
+                "cassette's own[/dim]"
+            )
 
     paths = RunPaths(root=runs_dir, run_id=run_id)
     # Seeded from the recording so one cassette always replays to the same

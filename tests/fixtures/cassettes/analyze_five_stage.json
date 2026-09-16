@@ -74,5 +74,15 @@
   "note": "Five-stage analyze run over tests/fixtures/live_document.txt",
   "provider": "openrouter",
   "recorded_at": "2026-09-12T14:33:36.350216Z",
+  "run_spec": {
+    "question": "What does this announcement establish, and what is uncertain?",
+    "sources": [
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/live_document.txt",
+        "source_type": "unclassified"
+      }
+    ]
+  },
   "version": 1
 }

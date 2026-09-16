@@ -74,5 +74,15 @@
   "note": "Netflix's 8-K as EDGAR serves the complete submission: Item 1.01 filed, Item 7.01 and Exhibit 99.1 furnished.",
   "provider": "openrouter",
   "recorded_at": "2026-09-15T09:14:34.696635Z",
+  "run_spec": {
+    "question": "What did Netflix agree to, and on what terms?",
+    "sources": [
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/sec_8k_netflix_complete.txt",
+        "source_type": "regulatory_filing"
+      }
+    ]
+  },
   "version": 1
 }

@@ -74,5 +74,15 @@
   "note": "Hyphenated at line ends (PDF artifact). The model de-hyphenates when quoting; locate_span reads the hyphen both ways, so every span still resolves.",
   "provider": "openrouter",
   "recorded_at": "2026-09-12T14:34:51.371168Z",
+  "run_spec": {
+    "question": "What does this announcement establish, and what is uncertain?",
+    "sources": [
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/live_document_hyphenated.txt",
+        "source_type": "unclassified"
+      }
+    ]
+  },
   "version": 1
 }

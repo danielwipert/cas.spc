@@ -2397,6 +2397,98 @@ declaration. Both replays byte-identical run to run.
 
 ---
 
+## T29 — A cassette records how its run was declared · ✅ DONE
+
+**Why.** T28 shipped `spc-demo replay` with a footgun it could only document.
+A cassette pins the documents it read (`document_sha256`), so replaying it
+against the wrong material is refused on content. It pinned **nothing** about
+how those documents were *declared* — and that is the more dangerous half,
+because of T14's own rule: `source_type` and `derives_from` are the caller's
+facts, which the model never sees, so they reach no prompt. Replay a cassette
+with a different `--source-type` and every recorded request still matches its
+recording: **zero drift, a clean run, and a different memo.** Neither the
+digest nor drift detection could see it, and `tools/record_cassette.py`'s own
+docstring had been admitting the same thing about `check` since T25.
+
+This mattered more than a papercut because of what comes next. Steps 3–4 of the
+evaluation plan score a *corpus* of replays; if a declaration can drift from its
+recording, every score in that corpus is suspect.
+
+**What landed.**
+
+- **`RunSpec` / `SourceSpec`** (`providers/cassette.py`) — the question, and each
+  source's repo-relative path, `source_type` and `derives_from`, in reading
+  order. **Optional** on `Cassette` rather than required, and no version bump:
+  an added optional field is not an incompatible shape, and a cassette written
+  by hand or before this existed must still replay from explicit arguments.
+- **`RunSpec.deviations()`** — where a caller's declarations differ from the
+  recording's. One implementation, used by both `spc-demo replay` and
+  `record_cassette.py check`, which is the pair that must not drift apart.
+- **The recorder writes it**, so every future cassette is self-describing at
+  birth, and `check` now compares what it was given against what was captured
+  and **exits non-zero** on a mismatch. Reported *after* the drift verdict on
+  purpose: a differently-declared run can be perfectly drift-free and still not
+  be the run that was recorded, and a reader who saw `current:` first would take
+  it as an all-clear.
+- **`spc-demo replay --cassette X` is now the whole command.** Declarations are
+  filled from the recording; anything passed explicitly wins and is reported as
+  a deviation rather than refused, because a deliberate override is a free
+  experiment (it reaches no prompt) and only a *mistaken* one is dangerous.
+  Extra sources are all-or-nothing: half a multi-source declaration is a run
+  nobody described, and pairing the halves by index is how a document ends up
+  weighed as its neighbour.
+- **Regions are deliberately not in `RunSpec`**, and a test pins that they are
+  never reported as a deviation. A region is applied after the model has
+  answered, so one cassette *must* replay with regions and without — recording
+  it would turn T27's controlled experiment into a deviation report.
+- **All 8 committed cassettes backfilled.** Backfilling metadata needs no
+  re-recording, so it cost nothing and no API calls.
+
+**The backfill was derived, then verified against behaviour.** Nothing here was
+remembered:
+
+- **Document lists** came from matching each cassette's `document_sha256`
+  against `documents_digest` over every ordered combination of committed
+  fixtures — which resolved all 8 uniquely, including both two-source pairs.
+- **Questions** came from the replay tests, and are *proved* by the no-drift
+  gate: the question is in the request digest, so a wrong one would drift.
+- **Source types and lineage** reach no prompt, so drift cannot prove them.
+  They are checked against **behaviour** instead, in
+  `tests/test_cassette_run_spec.py`:
+
+| what could have been backfilled wrong | what would fail |
+|---|---|
+| `analyze_two_filings` not `regulatory_filing` | no claim reaches `VERIFIED` — T19 needs an *accountable* source, so the pairing this cassette exists for collapses |
+| the joint-PR pair's `derives_from` | corroboration would not flip: the undeclared run must commit links and the declared one must commit none (T26) |
+
+Both are asserted from committed state, so neither could be wrong and still
+pass.
+
+**A finding, while checking the deviation report.** Overriding `--question`
+produced **no drift** — which means the question reaches no prompt at all.
+Confirmed: `build_analysis_operators` does not take it, and no operator
+receives it. It is the heading on the projected memo and receipt and nothing
+else. So the planner is never told what the reader asked, which is the real
+cause of the defect noted in HANDOFF as *"the memo answers a question nobody
+asked"* — not a rendering choice but a missing wire. `RunSpec.question` says
+so at the field, and the deviation report labels itself
+`question (memo heading only)` rather than implying the analysis differed.
+**Fixing it is a separate task and belongs to a human**: what the question
+should steer, and whether a recommendation should be declined when the question
+did not ask for one, is a product decision.
+
+**`tests/test_cassette_run_spec.py`** — 21 tests, two of them parametrized over
+whatever cassettes are on disk, so a cassette added without declarations fails
+there rather than surfacing later as someone's wrong memo. With 5 more in
+`test_cli_replay.py`: **555 total (was 529)**. `DEMO.md` byte-identical.
+
+One T28 assertion was **deliberately replaced**, not repaired:
+`test_the_unverifiable_declarations_are_echoed_back` asserted the echo was
+unverified, which is no longer true — it is now
+`test_the_declarations_are_echoed_and_checked`.
+
+---
+
 ## Seeding issues
 
 `TASKS.md` is the source of truth. To open GitHub issues from it (one per task)
