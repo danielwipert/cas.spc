@@ -91,5 +91,15 @@
   "note": "Failure path: the document carries an in-word hyphen with no line break (\"ausserplan-maessige\"), as text extraction leaves when it strips a newline but keeps the hyphen. The model quotes it joined. That is an alteration, not a transport artifact, so locate_span refuses it and the extractor retries. Pins the boundary of the soft-hyphen leniency.",
   "provider": "openrouter",
   "recorded_at": "2026-09-12T14:37:02.355896Z",
+  "run_spec": {
+    "question": "What does this announcement establish, and what is uncertain?",
+    "sources": [
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/live_document_german.txt",
+        "source_type": "unclassified"
+      }
+    ]
+  },
   "version": 1
 }

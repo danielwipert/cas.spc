@@ -15,6 +15,8 @@ from .cassette import (
     Exchange,
     RecordingProvider,
     ReplayProvider,
+    RunSpec,
+    SourceSpec,
     request_digest,
     text_digest,
 )
@@ -50,6 +52,8 @@ __all__ = [
     "ProviderResponse",
     "RecordingProvider",
     "ReplayProvider",
+    "RunSpec",
+    "SourceSpec",
     "build_invalid_critic_payload",
     "build_valid_critic_payload",
     "estimate_cost_usd",

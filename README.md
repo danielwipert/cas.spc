@@ -81,6 +81,37 @@ spc-demo followups --run-id demo_001     # answer §8.4 questions from state
 spc-demo report --run-id demo_001        # SPC vs JSON-handoff baseline (§20)
 ```
 
+## Look at an output without spending anything
+
+Every claim this engine makes about real model output rests on a recorded
+**cassette**, and `spc-demo replay` drives the full pipeline from one — no
+`OPENROUTER_API_KEY`, no network, nothing spent:
+
+```powershell
+spc-demo replay --cassette tests/fixtures/cassettes/analyze_8k_complete.json
+```
+
+That is the whole command: a cassette records how its run was **declared**, so
+it needs no other argument. It writes `runs/replay_001/memo.md` — the Decision
+Memo a reader would actually open — plus the full run tree behind it. Two
+replays of one cassette produce **byte-identical** artifacts (the clock is
+fixed to the recording's own timestamp), so an output can be diffed across a
+change to the engine, which a live run can never support because the model
+moves under it.
+
+Every declaration can still be overridden, and any override is reported as a
+deviation from the recording — because a *deliberate* one is a free experiment
+(none of them reach a prompt) and a *mistaken* one would otherwise replay
+perfectly clean and hand back a different memo. `--region` is the exception
+that is never a deviation: it is applied after the model has answered, so one
+recording is meant to replay with it and without. Add it to see one declaration
+reprice half the filing:
+
+```powershell
+spc-demo replay --cassette tests/fixtures/cassettes/analyze_8k_complete.json `
+                --region "Item 7.01:press_release"
+```
+
 `spc-demo demo` is the fastest way to see the whole story: it runs the SPC
 engine and the baseline over the §8 scenario, answers the follow-ups live from
 state, prints the §20 scorecard, and writes a shareable [`DEMO.md`](DEMO.md).

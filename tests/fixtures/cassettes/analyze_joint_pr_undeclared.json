@@ -125,5 +125,20 @@
   "note": "The same joint press release as filed by both counterparties; lineage undeclared.",
   "provider": "openrouter",
   "recorded_at": "2026-09-15T08:39:52.107830Z",
+  "run_spec": {
+    "question": "What did Netflix and WBD announce, and on what terms?",
+    "sources": [
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/joint_pr_netflix.txt",
+        "source_type": "press_release"
+      },
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/joint_pr_wbd.txt",
+        "source_type": "press_release"
+      }
+    ]
+  },
   "version": 1
 }

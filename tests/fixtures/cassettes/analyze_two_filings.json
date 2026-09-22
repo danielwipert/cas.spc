@@ -125,5 +125,20 @@
   "note": "Two counterparties' Form 8-K Item 1.01 filings on one merger agreement: the pairing that lets a claim reach VERIFIED (T19/T20), recorded for T25.",
   "provider": "openrouter",
   "recorded_at": "2026-09-15T01:09:53.130450Z",
+  "run_spec": {
+    "question": "What did Netflix and WBD agree, and on what terms?",
+    "sources": [
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/sec_8k_netflix.txt",
+        "source_type": "regulatory_filing"
+      },
+      {
+        "derives_from": null,
+        "path": "tests/fixtures/sec_8k_wbd.txt",
+        "source_type": "regulatory_filing"
+      }
+    ]
+  },
   "version": 1
 }

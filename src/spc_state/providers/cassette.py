@@ -82,6 +82,116 @@ def documents_digest(documents: Sequence[str]) -> str:
     return text_digest("\x00".join(documents))
 
 
+class SourceSpec(BaseModel):
+    """One document a recording read, and how the caller declared it.
+
+    The `path` is repo-relative, because that is what makes it resolvable from
+    a clean clone — the fixtures a cassette reads are committed beside it.
+    """
+
+    path: str
+    source_type: str
+    derives_from: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class RunSpec(BaseModel):
+    """How a recording was *declared* — the half a digest cannot pin.
+
+    A cassette has always pinned the documents it read (`document_sha256`), so
+    replaying it against the wrong material is refused. It pinned nothing about
+    how those documents were **declared**, and that is the more dangerous half:
+    `source_type` and `derives_from` are the caller's facts, which the model
+    never sees (T14), so they reach no prompt. Replay one with a different
+    `--source-type` and every request still matches its recording — zero drift,
+    a clean run, and a **different memo**. Nothing could catch it.
+
+    So the recorder writes down what it was told. `spc-demo replay --cassette X`
+    then needs no other argument, and a caller who overrides a declaration is
+    told they have deviated from the recording.
+
+    **Regions are deliberately absent.** A region is resolved after the model
+    has answered, changing neither the prompts nor the calls, so one cassette
+    must replay with regions declared and without — that is T27's controlled
+    experiment and the reason `--region` stays a command-line-only flag.
+
+    Optional on `Cassette` rather than required: a cassette recorded before
+    this existed, or written by hand, still replays from explicit arguments.
+    """
+
+    #: The decision question the run was given.
+    #:
+    #: Worth knowing what this does *not* do: it reaches no prompt.
+    #: `build_analysis_operators` does not take it, so no operator sees it —
+    #: it is the heading on the projected memo and receipt and nothing else.
+    #: Recorded here because it is part of the output a reader opens, not
+    #: because it steers the analysis. (That it *cannot* steer the analysis is
+    #: a live defect, not a design: see HANDOFF.md.)
+    question: str
+    #: Every source in reading order. The first is `doc_001`, the primary
+    #: document; the rest are the `--also-input`s, in the order given.
+    sources: list[SourceSpec] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+    def deviations(
+        self,
+        *,
+        question: str,
+        source_types: Sequence[str],
+        lineage: Sequence[str | None],
+    ) -> list[str]:
+        """Where a caller's declarations differ from the recording's.
+
+        Returned rather than raised. A deviation is not automatically wrong —
+        asking *"what would this memo say if I had called it a press release?"*
+        is a legitimate experiment, and one that costs nothing because the
+        declaration reaches no prompt. It is only dangerous when unnoticed, so
+        the caller is told and decides.
+
+        Paths are not compared: the cassette's `document_sha256` already
+        refuses material the recording never saw, and it does it on content
+        rather than on a filename that may have moved.
+        """
+        found: list[str] = []
+        if question != self.question:
+            # Flagged, but flagged for what it is: the question is the memo's
+            # heading and reaches no prompt, so this changes the rendered
+            # output and not one step of the analysis behind it.
+            found.append(
+                f"question (memo heading only): recorded {self.question!r}, "
+                f"given {question!r}"
+            )
+        if len(source_types) != len(self.sources):
+            found.append(
+                f"source count: recorded {len(self.sources)}, "
+                f"given {len(source_types)}"
+            )
+            return found
+        for i, (spec, given) in enumerate(
+            zip(self.sources, source_types, strict=True), start=1
+        ):
+            if given != spec.source_type:
+                found.append(
+                    f"doc_{i:03d} source type: recorded {spec.source_type}, "
+                    f"given {given}"
+                )
+        # Lineage is declared only for the extra documents, so it is offset by
+        # one: the primary document is `doc_001` and cannot derive from
+        # anything read after it.
+        for i, (spec, given_parent) in enumerate(
+            zip(self.sources[1:], lineage, strict=True), start=2
+        ):
+            if given_parent != spec.derives_from:
+                found.append(
+                    f"doc_{i:03d} derives from: recorded "
+                    f"{spec.derives_from or 'nothing'}, "
+                    f"given {given_parent or 'nothing'}"
+                )
+        return found
+
+
 class Exchange(BaseModel):
     """One captured request/response pair."""
 
@@ -102,6 +212,8 @@ class Cassette(BaseModel):
     model: str
     document_sha256: str
     note: str = ""
+    #: How the run was declared, when the recorder knew (see `RunSpec`).
+    run_spec: RunSpec | None = None
     exchanges: list[Exchange] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="forbid")
@@ -149,6 +261,7 @@ class RecordingProvider(LLMProvider):
         provider: str = "openrouter",
         model: str = "unknown",
         note: str = "",
+        run_spec: RunSpec | None = None,
     ) -> None:
         """Record against one document, or `documents` for a multi-source run.
 
@@ -168,6 +281,7 @@ class RecordingProvider(LLMProvider):
         self._provider = provider
         self._model = model
         self._note = note
+        self._run_spec = run_spec
         self._exchanges: list[Exchange] = []
 
     def complete(self, request: ProviderRequest) -> ProviderResponse:
@@ -190,6 +304,7 @@ class RecordingProvider(LLMProvider):
             model=self._model,
             document_sha256=self._document_sha256,
             note=self._note,
+            run_spec=self._run_spec,
             exchanges=list(self._exchanges),
         )
 
@@ -279,6 +394,8 @@ __all__ = [
     "Exchange",
     "RecordingProvider",
     "ReplayProvider",
+    "RunSpec",
+    "SourceSpec",
     "request_digest",
     "text_digest",
 ]

@@ -21,6 +21,12 @@ the model cannot see — but it decides which corroborations survive and so whic
 calls the run makes, which means each lineage setting is its own recording.
 `check` takes the same arguments, and must be given the same ones: a check that
 describes different sources replays against material the recording never saw.
+Since T29 it no longer has to be *remembered*: `record` writes the declarations
+into the cassette (`RunSpec`), so `check` compares what it was given against
+what was captured and says so — a `source_type` declared differently produces a
+perfectly drift-free replay of a run that never happened, and that is the one
+failure neither the digest nor drift can see. `spc-demo replay --cassette X`
+reads the same record and needs no other argument.
 
 `--region` (T22) is the one declaration that needs no recording of its own. It
 is applied when spans are stamped, after the model has answered, so it changes
@@ -46,6 +52,8 @@ from spc_state.providers import (
     OpenRouterProvider,
     RecordingProvider,
     ReplayProvider,
+    RunSpec,
+    SourceSpec,
 )
 from spc_state.regions import SourceRegion, parse_region, resolve_regions
 from spc_state.source_types import DEFAULT_SOURCE_TYPE
@@ -75,8 +83,8 @@ def _lineage(value: str, known: set[str]) -> str | None:
 
 def _sources(
     args: argparse.Namespace,
-) -> tuple[str, list[SourceDocument], list[str], tuple[SourceRegion, ...]]:
-    """The primary document, the extra ones, every text in reading order, regions.
+) -> tuple[str, list[SourceDocument], list[str], tuple[SourceRegion, ...], RunSpec]:
+    """The primary document, the extra ones, every text in reading order, regions, spec.
 
     The third is what the cassette pins: a multi-source run has no single
     document, so it records all of them, in the order the pipeline reads them.
@@ -84,6 +92,11 @@ def _sources(
     located here as well as by the run, so a marker that does not occur is
     refused before anything is spent — never silently dropped, which would leave
     a run that looks region-aware and is not.
+
+    The fifth is the half a digest cannot pin: how the caller *declared* those
+    documents. `record` stores it in the cassette so a replay needs no other
+    argument and cannot silently contradict the recording — see `RunSpec`.
+    Regions are deliberately not part of it.
     """
     document = Path(args.input).read_text(encoding="utf-8")
     extra_paths = list(getattr(args, "also_input", []) or [])
@@ -119,7 +132,19 @@ def _sources(
     # after several. The result is discarded: the run resolves them itself,
     # against the same document.
     resolve_regions(document, regions)
-    return document, extras, [document, *(e.text for e in extras)], regions
+    spec = RunSpec(
+        question=args.question,
+        sources=[
+            SourceSpec(path=str(args.input), source_type=str(args.source_type)),
+            *(
+                SourceSpec(path=str(p), source_type=str(st), derives_from=parent)
+                for p, st, parent in zip(
+                    extra_paths, extra_types, lineage, strict=True
+                )
+            ),
+        ],
+    )
+    return document, extras, [document, *(e.text for e in extras)], regions, spec
 
 
 def _add_source_args(parser: argparse.ArgumentParser) -> None:
@@ -180,7 +205,7 @@ def _add_source_args(parser: argparse.ArgumentParser) -> None:
 
 def _record(args: argparse.Namespace) -> int:
     try:
-        document, extras, documents, regions = _sources(args)
+        document, extras, documents, regions, spec = _sources(args)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -205,6 +230,7 @@ def _record(args: argparse.Namespace) -> int:
         provider="openrouter",
         model=live.model,
         note=args.note,
+        run_spec=spec,
     )
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -246,12 +272,28 @@ def _record(args: argparse.Namespace) -> int:
 
 def _check(args: argparse.Namespace) -> int:
     try:
-        document, extras, documents, regions = _sources(args)
+        document, extras, documents, regions, _spec = _sources(args)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    extra_types = list(getattr(args, "also_source_type", []) or [])
     provider = ReplayProvider.from_path(Path(args.cassette), documents=documents)
     recorded = len(provider.cassette.exchanges)
+
+    # A check that describes the run differently from the recording is checking
+    # something else. `source_type` and `--also-derives-from` reach no prompt,
+    # so no amount of drift reporting would reveal it — only the recorded
+    # declarations can.
+    recorded_spec = provider.cassette.run_spec
+    deviations = (
+        recorded_spec.deviations(
+            question=args.question,
+            source_types=[str(args.source_type), *(str(t) for t in extra_types)],
+            lineage=[e.derives_from for e in extras],
+        )
+        if recorded_spec is not None
+        else []
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         paths = RunPaths(root=Path(tmp), run_id="check")
@@ -273,9 +315,27 @@ def _check(args: argparse.Namespace) -> int:
             f"  STALE: {len(provider.drifted_calls)} exchange(s) no longer match the "
             f"current prompts (indices {provider.drifted_calls}). Re-record."
         )
-        return 1
-    print("  current: every recorded request matches what the code sends today.")
-    return 0
+    else:
+        print("  current: every recorded request matches what the code sends today.")
+
+    # Reported last and after the drift verdict, because it changes what that
+    # verdict is worth: a differently-declared run can be perfectly drift-free
+    # and still not be the run that was recorded, and a reader who saw
+    # "current" first would take it as an all-clear.
+    if recorded_spec is None:
+        print(
+            "  note: this cassette records no declarations (predates RunSpec), "
+            "so the ones given cannot be checked."
+        )
+    elif deviations:
+        print(
+            "  DECLARED DIFFERENTLY from the recording — the run above is not "
+            "the one that was captured, whatever the drift verdict says:"
+        )
+        for line in deviations:
+            print(f"    {line}")
+
+    return 1 if (provider.drifted_calls or deviations) else 0
 
 
 def main(argv: list[str] | None = None) -> int:
