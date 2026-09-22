@@ -30,7 +30,8 @@ All four definition-of-done gates pass, locally and in CI on every PR:
 ```
 ruff check src tests tools  ->  All checks passed
 python -m mypy              ->  Success: no issues found in 74 source files
-pytest                      ->  555 passed   (was 520 at the start of the session)
+pytest                      ->  555 passed   (was 520 at the start of the session;
+                                 also green under FORCE_COLOR=1 — see gate notes)
 spc-demo demo               ->  artifacts byte-identical, DEMO.md unchanged
 ```
 
@@ -239,6 +240,17 @@ the one thing the mock-driven suite provably cannot see. `spc-demo replay` now
 reports the same drift per run, so an eyeballed memo says whether it came from
 a prompt still in use. Budget a few retries: `deepseek/deepseek-chat` returns
 upstream 429s intermittently and a plain retry a minute later works.
+
+**Assert on CLI output only after stripping ANSI** (`_plain` in
+`tests/test_cli_replay.py`). Rich highlights option names and digits by styling
+*fragments*: `--also-source-type` is emitted as `-`, `-also`, `-source-type`,
+each in its own escape sequence, so the literal flag is **not a substring** of
+what `CliRunner` captured. Whether it happens at all depends on whether rich
+believes it is writing to a colour terminal — **false in this container, true
+in GitHub Actions**. That is a real CI-only failure mode: T28's suite was green
+locally and red on both Python versions in CI for exactly this. Reproduce CI
+with `FORCE_COLOR=1 TERM=xterm-256color python -m pytest -q`, and run it that
+way before pushing anything that asserts on terminal output.
 
 **Do not pin exact numbers from a cassette in a test.** Four assertions that
 did (0.85, 0.60, "six claims at 1.00") broke on three successive re-records and

@@ -23,6 +23,7 @@ than the numbers one cassette happens to produce:
 from __future__ import annotations
 
 import filecmp
+import re
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,27 @@ QUESTION = "What did Netflix agree to, and on what terms?"
 FURNISHED = "Item 7.01:press_release"
 
 runner = CliRunner()
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(result: object) -> str:
+    """A command's output with ANSI escapes removed.
+
+    Every assertion about output goes through here, because the raw text is not
+    stable across environments. Rich highlights option names in its error
+    panels by styling *fragments*: `--also-source-type` is emitted as `-`,
+    `-also` and `-source-type`, each wrapped in its own escape sequence, so the
+    literal flag is not a substring of what `CliRunner` captured. Digits get
+    the same treatment, which puts `also source 2` and `doc_001` in the same
+    position.
+
+    Whether any of that happens depends on whether rich believes it is writing
+    to a colour terminal — false in a bare container, true in GitHub Actions.
+    That one difference is what turned a locally green suite red in CI, so the
+    fix belongs here rather than in the wording of any single assertion.
+    """
+    return _ANSI.sub("", result.output)  # type: ignore[attr-defined]
 
 
 @pytest.fixture(autouse=True)
@@ -128,7 +150,7 @@ def test_a_cassette_refuses_a_document_it_was_not_recorded_against(
         ],
     )
     assert result.exit_code != 0
-    assert "different source material" in result.output
+    assert "different source material" in _plain(result)
     assert not (tmp_path / "wrong" / "memo.md").exists()
 
 
@@ -136,7 +158,7 @@ def test_a_region_marker_that_does_not_occur_is_refused(tmp_path: Path) -> None:
     """Refused before the run, not as a traceback from inside it (T27)."""
     result = _replay(tmp_path, "bad", "--region", "Item 99.99:press_release")
     assert result.exit_code != 0
-    assert "does not occur" in result.output
+    assert "does not occur" in _plain(result)
 
 
 def test_mismatched_extra_sources_are_refused(tmp_path: Path) -> None:
@@ -147,13 +169,13 @@ def test_mismatched_extra_sources_are_refused(tmp_path: Path) -> None:
         "--also-input", str(FIXTURES / "joint_pr_wbd.txt"),
     )
     assert result.exit_code != 0
-    assert "--also-source-type" in result.output
+    assert "--also-source-type" in _plain(result)
 
 
 def test_a_current_cassette_reports_no_drift(tmp_path: Path) -> None:
     """Drift is the signal that a memo came from a prompt no longer in use."""
     result = _replay(tmp_path, "peek")
-    assert "no drift" in result.output
+    assert "no drift" in _plain(result)
 
 
 def test_extract_only_reports_the_exchanges_it_left_unreplayed(
@@ -162,7 +184,7 @@ def test_extract_only_reports_the_exchanges_it_left_unreplayed(
     """Stopping five stages early leaves recorded exchanges unused, and says so."""
     result = _replay(tmp_path, "eo", "--extract-only")
     assert result.exit_code == 0
-    assert "unreplayed" in result.output
+    assert "unreplayed" in _plain(result)
 
 
 def test_the_declarations_are_echoed_and_checked(tmp_path: Path) -> None:
@@ -174,9 +196,9 @@ def test_the_declarations_are_echoed_and_checked(tmp_path: Path) -> None:
     declarations, so the echo is checked rather than merely printed.
     """
     result = _replay(tmp_path, "peek", "--region", FURNISHED)
-    assert "regulatory_filing" in result.output
-    assert "press_release" in result.output
-    assert "as recorded" in result.output
+    assert "regulatory_filing" in _plain(result)
+    assert "press_release" in _plain(result)
+    assert "as recorded" in _plain(result)
 
 
 def test_a_region_is_never_a_deviation(tmp_path: Path) -> None:
@@ -188,8 +210,8 @@ def test_a_region_is_never_a_deviation(tmp_path: Path) -> None:
     report, so `RunSpec` holds no regions and this asserts it stays that way.
     """
     result = _replay(tmp_path, "peek", "--region", FURNISHED)
-    assert "as recorded" in result.output
-    assert "declared differently" not in result.output
+    assert "as recorded" in _plain(result)
+    assert "declared differently" not in _plain(result)
 
 
 def test_declaring_the_furnished_region_reprices_the_recommendation(
@@ -235,9 +257,9 @@ def test_a_cassette_alone_is_enough(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert (tmp_path / "solo" / "memo.md").exists()
     # It found the recorded source type rather than falling back to the default.
-    assert "regulatory_filing" in result.output
-    assert "as recorded" in result.output
-    assert "no drift" in result.output
+    assert "regulatory_filing" in _plain(result)
+    assert "as recorded" in _plain(result)
+    assert "no drift" in _plain(result)
 
 
 def test_a_multi_source_cassette_brings_its_extra_documents(tmp_path: Path) -> None:
@@ -252,9 +274,9 @@ def test_a_multi_source_cassette_brings_its_extra_documents(tmp_path: Path) -> N
         ],
     )
     assert result.exit_code == 0, result.output
-    assert "also source 2" in result.output
-    assert "derives from doc_001" in result.output
-    assert "as recorded" in result.output
+    assert "also source 2" in _plain(result)
+    assert "derives from doc_001" in _plain(result)
+    assert "as recorded" in _plain(result)
 
 
 def test_overriding_a_declaration_is_allowed_and_reported(tmp_path: Path) -> None:
@@ -265,8 +287,8 @@ def test_overriding_a_declaration_is_allowed_and_reported(tmp_path: Path) -> Non
     """
     result = _replay(tmp_path, "dev", "--source-type", "press_release")
     assert result.exit_code == 0, result.output
-    assert "declared differently" in result.output
-    assert "as recorded" not in result.output
+    assert "declared differently" in _plain(result)
+    assert "as recorded" not in _plain(result)
     # And it really did take the override, not the recording.
     assert "low reliability" in (tmp_path / "dev" / "memo.md").read_text(
         encoding="utf-8"
@@ -295,7 +317,7 @@ def test_a_cassette_with_no_declarations_still_needs_input(tmp_path: Path) -> No
         ],
     )
     assert bare.exit_code != 0
-    assert "--input is required" in bare.output or "records no declarations" in bare.output
+    assert "--input is required" in _plain(bare) or "records no declarations" in _plain(bare)
 
     given = runner.invoke(
         app,
@@ -310,4 +332,4 @@ def test_a_cassette_with_no_declarations_still_needs_input(tmp_path: Path) -> No
         ],
     )
     assert given.exit_code == 0, given.output
-    assert "cannot be checked" in given.output
+    assert "cannot be checked" in _plain(given)
